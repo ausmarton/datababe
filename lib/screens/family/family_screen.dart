@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/child_model.dart';
+import '../../models/enums.dart';
+import '../../models/invite_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
 
@@ -12,50 +16,196 @@ class FamilyScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final childrenAsync = ref.watch(allChildrenProvider);
+    final invitesAsync = ref.watch(familyInvitesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Family')),
+      appBar: AppBar(
+        title: const Text('Family'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add_alt_1),
+            tooltip: 'Invite carer',
+            onPressed: () => _showInviteDialog(context, ref),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddChildDialog(context, ref),
         child: const Icon(Icons.person_add),
       ),
-      body: childrenAsync.when(
-        data: (children) {
-          if (children.isEmpty) {
-            return const Center(child: Text('No children added yet'));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: children.length,
-            itemBuilder: (context, index) {
-              final child = children[index];
-              final isSelected =
-                  ref.watch(selectedChildIdProvider) == child.id;
-              return Card(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primaryContainer
-                    : null,
-                child: ListTile(
-                  leading: CircleAvatar(
-                    child: Text(child.name[0].toUpperCase()),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // --- Pending invites section ---
+          invitesAsync.when(
+            data: (invites) {
+              final pending = invites
+                  .where((i) => i.status == InviteStatus.pending)
+                  .toList();
+              if (pending.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pending Invites',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  title: Text(child.name),
-                  subtitle: Text(
-                    'Born: ${child.dateOfBirth.day}/${child.dateOfBirth.month}/${child.dateOfBirth.year}',
-                  ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle, color: Colors.green)
-                      : null,
-                  onTap: () {
-                    ref.read(selectedChildIdProvider.notifier).state = child.id;
-                  },
-                ),
+                  const SizedBox(height: 8),
+                  ...pending.map((invite) => Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.mail_outline),
+                          title: Text(invite.inviteeEmail),
+                          subtitle: Text(
+                              'Role: ${invite.role} — invited by ${invite.invitedByName}'),
+                        ),
+                      )),
+                  const SizedBox(height: 16),
+                ],
               );
             },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+
+          // --- Children section ---
+          Text(
+            'Children',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          childrenAsync.when(
+            data: (children) {
+              if (children.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: Text('No children added yet')),
+                );
+              }
+              return Column(
+                children: children.map((child) {
+                  final isSelected =
+                      ref.watch(selectedChildIdProvider) == child.id;
+                  return Card(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : null,
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        child: Text(child.name[0].toUpperCase()),
+                      ),
+                      title: Text(child.name),
+                      subtitle: Text(
+                        'Born: ${child.dateOfBirth.day}/${child.dateOfBirth.month}/${child.dateOfBirth.year}',
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          : null,
+                      onTap: () {
+                        ref.read(selectedChildIdProvider.notifier).state =
+                            child.id;
+                      },
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Error: $e')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showInviteDialog(BuildContext context, WidgetRef ref) {
+    final emailController = TextEditingController();
+    String selectedRole = CarerRole.parent.name;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Invite Carer'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email address',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                decoration: const InputDecoration(
+                  labelText: 'Role',
+                  border: OutlineInputBorder(),
+                ),
+                items: CarerRole.values
+                    .map((r) => DropdownMenuItem(
+                          value: r.name,
+                          child: Text(r.name[0].toUpperCase() +
+                              r.name.substring(1)),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setState(() => selectedRole = v);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final email = emailController.text.trim().toLowerCase();
+                if (email.isEmpty || !email.contains('@')) return;
+
+                final user = ref.read(currentUserProvider);
+                final familyId = ref.read(selectedFamilyIdProvider);
+                final families =
+                    ref.read(userFamiliesProvider).valueOrNull ?? [];
+
+                if (user == null || familyId == null) return;
+
+                final familyName = families
+                    .where((f) => f.id == familyId)
+                    .map((f) => f.name)
+                    .firstOrNull ?? '';
+
+                final invite = InviteModel(
+                  id: InviteModel.computeId(familyId, email),
+                  familyId: familyId,
+                  familyName: familyName,
+                  invitedByUid: user.uid,
+                  invitedByName: user.displayName ?? 'Unknown',
+                  inviteeEmail: email,
+                  role: selectedRole,
+                  status: InviteStatus.pending,
+                  createdAt: DateTime.now(),
+                );
+
+                final repo = ref.read(familyRepositoryProvider);
+                await repo.createInvite(invite);
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Invite sent to $email')),
+                  );
+                }
+              },
+              child: const Text('Send Invite'),
+            ),
+          ],
+        ),
       ),
     );
   }

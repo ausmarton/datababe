@@ -5,9 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../models/enums.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/activity_provider.dart';
+import '../../providers/invite_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../widgets/activity_tile.dart';
 import '../home/setup_prompt.dart';
+import '../home/invite_pending_prompt.dart';
+
+/// When true, skip the invite prompt and show SetupPrompt directly.
+final _skipInvitesProvider = StateProvider<bool>((ref) => false);
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -16,8 +21,20 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedChild = ref.watch(selectedChildProvider);
     final dailyActivities = ref.watch(dailyActivitiesProvider);
+    final pendingInvites = ref.watch(pendingInvitesProvider);
+    final skipInvites = ref.watch(_skipInvitesProvider);
 
     if (selectedChild == null) {
+      // Check for pending invites before showing SetupPrompt
+      final invites = pendingInvites.valueOrNull ?? [];
+      if (invites.isNotEmpty && !skipInvites) {
+        return InvitePendingPrompt(
+          invites: invites,
+          onCreateOwn: () {
+            ref.read(_skipInvitesProvider.notifier).state = true;
+          },
+        );
+      }
       return const SetupPrompt();
     }
 

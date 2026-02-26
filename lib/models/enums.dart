@@ -63,3 +63,10 @@ enum CarerRole {
   parent,
   carer,
 }
+
+/// Status of a family invite.
+enum InviteStatus {
+  pending,
+  accepted,
+  declined,
+}
