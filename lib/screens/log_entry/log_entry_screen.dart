@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart' hide Column;
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
-import '../../database/database.dart';
+import '../../models/activity_model.dart';
 import '../../models/enums.dart';
-import '../../providers/database_provider.dart';
+import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
-import '../../providers/sync_provider.dart';
 import '../../utils/activity_helpers.dart';
 
 class LogEntryScreen extends ConsumerStatefulWidget {
@@ -128,7 +126,8 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final childId = ref.read(selectedChildIdProvider);
-    if (childId == null) return;
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (childId == null || familyId == null) return;
 
     setState(() => _saving = true);
 
@@ -136,84 +135,71 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     final id = widget.activityId ?? const Uuid().v4();
     final duration = _computeDuration();
 
-    final entry = ActivitiesCompanion(
-      id: Value(id),
-      childId: Value(childId),
-      type: Value(_type.name),
-      startTime: Value(_startTime),
-      endTime: Value(_endTime),
-      durationMinutes: Value(duration),
-      createdAt: Value(now),
-      modifiedAt: Value(now),
+    final entry = ActivityModel(
+      id: id,
+      childId: childId,
+      type: _type.name,
+      startTime: _startTime,
+      endTime: _endTime,
+      durationMinutes: duration,
+      createdAt: now,
+      modifiedAt: now,
 
       // Feed (Bottle)
-      feedType: Value(_type == ActivityType.feedBottle ? _feedType.name : null),
-      volumeMl: Value(_parseDouble(_volumeController.text)),
+      feedType: _type == ActivityType.feedBottle ? _feedType.name : null,
+      volumeMl: _parseDouble(_volumeController.text),
 
       // Feed (Breast)
-      rightBreastMinutes: Value(_parseInt(_rightBreastController.text)),
-      leftBreastMinutes: Value(_parseInt(_leftBreastController.text)),
+      rightBreastMinutes: _parseInt(_rightBreastController.text),
+      leftBreastMinutes: _parseInt(_leftBreastController.text),
 
       // Diaper / Potty
-      contents: Value(
-        _type == ActivityType.diaper || _type == ActivityType.potty
-            ? _contents.name
-            : null,
-      ),
-      contentSize: Value(
-        _type == ActivityType.diaper || _type == ActivityType.potty
-            ? _contentSize.name
-            : null,
-      ),
-      pooColour: Value(
-        _type == ActivityType.diaper && _pooColour != null
-            ? _pooColour!.name
-            : null,
-      ),
-      pooConsistency: Value(
-        _type == ActivityType.diaper && _pooConsistency != null
-            ? _pooConsistency!.name
-            : null,
-      ),
-      peeSize: Value(
-        _type == ActivityType.diaper &&
-                _contents == DiaperContents.both &&
-                _peeSize != null
-            ? _peeSize!.name
-            : null,
-      ),
+      contents: _type == ActivityType.diaper || _type == ActivityType.potty
+          ? _contents.name
+          : null,
+      contentSize: _type == ActivityType.diaper || _type == ActivityType.potty
+          ? _contentSize.name
+          : null,
+      pooColour: _type == ActivityType.diaper && _pooColour != null
+          ? _pooColour!.name
+          : null,
+      pooConsistency:
+          _type == ActivityType.diaper && _pooConsistency != null
+              ? _pooConsistency!.name
+              : null,
+      peeSize: _type == ActivityType.diaper &&
+              _contents == DiaperContents.both &&
+              _peeSize != null
+          ? _peeSize!.name
+          : null,
 
       // Meds
-      medicationName: Value(_nullIfEmpty(_medNameController.text)),
-      dose: Value(_nullIfEmpty(_doseController.text)),
-      doseUnit: Value(_nullIfEmpty(_doseUnitController.text)),
+      medicationName: _nullIfEmpty(_medNameController.text),
+      dose: _nullIfEmpty(_doseController.text),
+      doseUnit: _nullIfEmpty(_doseUnitController.text),
 
       // Solids
-      foodDescription: Value(_nullIfEmpty(_foodDescController.text)),
-      reaction: Value(
-        _type == ActivityType.solids ? _reaction.name : null,
-      ),
+      foodDescription: _nullIfEmpty(_foodDescController.text),
+      reaction: _type == ActivityType.solids ? _reaction.name : null,
 
       // Growth
-      weightKg: Value(_parseDouble(_weightController.text)),
-      lengthCm: Value(_parseDouble(_lengthController.text)),
-      headCircumferenceCm: Value(_parseDouble(_headController.text)),
+      weightKg: _parseDouble(_weightController.text),
+      lengthCm: _parseDouble(_lengthController.text),
+      headCircumferenceCm: _parseDouble(_headController.text),
 
       // Temperature
-      tempCelsius: Value(_parseDouble(_tempController.text)),
+      tempCelsius: _parseDouble(_tempController.text),
 
       // Notes
-      notes: Value(_nullIfEmpty(_notesController.text)),
+      notes: _nullIfEmpty(_notesController.text),
     );
 
-    final dao = ref.read(activityDaoProvider);
+    final repo = ref.read(activityRepositoryProvider);
     if (widget.activityId != null) {
-      await dao.updateActivity(entry);
+      await repo.updateActivity(familyId, entry);
     } else {
-      await dao.insertActivity(entry);
+      await repo.insertActivity(familyId, entry);
     }
-
-    ref.read(autoSyncProvider).onDataChanged();
 
     if (mounted) Navigator.of(context).pop();
   }

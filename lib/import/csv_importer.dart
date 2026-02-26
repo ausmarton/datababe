@@ -1,54 +1,56 @@
-import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
-import '../database/database.dart';
-import '../database/daos/activity_dao.dart';
+import '../models/activity_model.dart';
+import '../repositories/activity_repository.dart';
 import 'csv_parser.dart';
 
-/// Imports CSV data into the database.
+/// Imports CSV data into the repository.
 class CsvImporter {
-  final ActivityDao _dao;
+  final ActivityRepository _repo;
   static const _uuid = Uuid();
 
-  CsvImporter(this._dao);
+  CsvImporter(this._repo);
 
   /// Import from CSV string. Returns the number of entries imported.
-  Future<int> importFromString(String csvContent, String childId) async {
+  Future<int> importFromString(
+      String csvContent, String childId, String familyId) async {
     final parser = CsvParser();
     final activities = parser.parse(csvContent);
     final now = DateTime.now();
 
-    final entries = activities.map((a) => ActivitiesCompanion(
-          id: Value(_uuid.v4()),
-          childId: Value(childId),
-          type: Value(a.type.name),
-          startTime: Value(a.startTime),
-          endTime: Value(a.endTime),
-          durationMinutes: Value(a.durationMinutes),
-          createdAt: Value(now),
-          modifiedAt: Value(now),
-          feedType: Value(a.feedType),
-          volumeMl: Value(a.volumeMl),
-          rightBreastMinutes: Value(a.rightBreastMinutes),
-          leftBreastMinutes: Value(a.leftBreastMinutes),
-          contents: Value(a.contents),
-          contentSize: Value(a.contentSize),
-          peeSize: Value(a.peeSize),
-          pooColour: Value(a.pooColour),
-          pooConsistency: Value(a.pooConsistency),
-          medicationName: Value(a.medicationName),
-          dose: Value(a.dose),
-          foodDescription: Value(a.foodDescription),
-          reaction: Value(a.reaction),
-          weightKg: Value(a.weightKg),
-          lengthCm: Value(a.lengthCm),
-          headCircumferenceCm: Value(a.headCircumferenceCm),
-          tempCelsius: Value(a.tempCelsius),
-          notes: Value(a.notes),
-        )).toList();
+    final entries = activities
+        .map((a) => ActivityModel(
+              id: _uuid.v4(),
+              childId: childId,
+              type: a.type.name,
+              startTime: a.startTime,
+              endTime: a.endTime,
+              durationMinutes: a.durationMinutes,
+              createdAt: now,
+              modifiedAt: now,
+              feedType: a.feedType,
+              volumeMl: a.volumeMl,
+              rightBreastMinutes: a.rightBreastMinutes,
+              leftBreastMinutes: a.leftBreastMinutes,
+              contents: a.contents,
+              contentSize: a.contentSize,
+              peeSize: a.peeSize,
+              pooColour: a.pooColour,
+              pooConsistency: a.pooConsistency,
+              medicationName: a.medicationName,
+              dose: a.dose,
+              foodDescription: a.foodDescription,
+              reaction: a.reaction,
+              weightKg: a.weightKg,
+              lengthCm: a.lengthCm,
+              headCircumferenceCm: a.headCircumferenceCm,
+              tempCelsius: a.tempCelsius,
+              notes: a.notes,
+            ))
+        .toList();
 
     if (entries.isNotEmpty) {
-      await _dao.insertActivities(entries);
+      await _repo.insertActivities(familyId, entries);
     }
 
     return entries.length;

@@ -28,9 +28,7 @@ jobs:
 
       - run: flutter pub get
 
-      - run: dart run build_runner build --delete-conflicting-outputs
-
-      - run: flutter build web --release --base-href /filho/
+      - run: flutter build web --release --base-href /datababe/
 
       - uses: actions/upload-pages-artifact@v3
         with:

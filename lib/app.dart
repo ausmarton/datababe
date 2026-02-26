@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'providers/auth_provider.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/timeline/timeline_screen.dart';
 import 'screens/log_entry/log_entry_screen.dart';
@@ -14,10 +16,24 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authStateProvider);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    redirect: (context, state) {
+      final isLoggedIn = authState.valueOrNull != null;
+      final isOnLogin = state.matchedLocation == '/login';
+
+      if (!isLoggedIn && !isOnLogin) return '/login';
+      if (isLoggedIn && isOnLogin) return '/';
+      return null;
+    },
     routes: [
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => const LoginScreen(),
+      ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => ShellScaffold(child: child),
@@ -57,14 +73,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class FilhoApp extends ConsumerWidget {
-  const FilhoApp({super.key});
+class DataBabeApp extends ConsumerWidget {
+  const DataBabeApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
-      title: 'Filho',
+      title: 'DataBabe',
       theme: ThemeData(
         colorSchemeSeed: Colors.teal,
         useMaterial3: true,

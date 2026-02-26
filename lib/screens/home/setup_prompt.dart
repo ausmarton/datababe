@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart' hide Column;
 import 'package:uuid/uuid.dart';
 
-import '../../database/database.dart';
-import '../../providers/database_provider.dart';
+import '../../models/family_model.dart';
+import '../../models/child_model.dart';
+import '../../models/carer_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
-import '../../providers/sync_provider.dart';
 
 /// Shown when no child is set up yet. Prompts the user to add a child.
 class SetupPrompt extends ConsumerStatefulWidget {
@@ -45,43 +46,47 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
 
     setState(() => _saving = true);
 
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
     final uuid = const Uuid();
     final childId = uuid.v4();
     final familyId = uuid.v4();
     final carerId = uuid.v4();
     final now = DateTime.now();
 
-    final familyDao = ref.read(familyDaoProvider);
+    final family = FamilyModel(
+      id: familyId,
+      name: '$name\'s Family',
+      createdBy: user.uid,
+      memberUids: [user.uid],
+      createdAt: now,
+    );
 
-    await familyDao.insertFamily(FamiliesCompanion(
-      id: Value(familyId),
-      name: Value('$name\'s Family'),
-      createdAt: Value(now),
-    ));
+    final child = ChildModel(
+      id: childId,
+      name: name,
+      dateOfBirth: _dateOfBirth!,
+      createdAt: now,
+    );
 
-    await familyDao.insertCarer(CarersCompanion(
-      id: Value(carerId),
-      displayName: const Value('Parent'),
-      role: const Value('parent'),
-      createdAt: Value(now),
-    ));
+    final carer = CarerModel(
+      id: carerId,
+      uid: user.uid,
+      displayName: user.displayName ?? 'Parent',
+      role: 'parent',
+      createdAt: now,
+    );
 
-    await familyDao.addCarerToFamily(FamilyCarersCompanion(
-      familyId: Value(familyId),
-      carerId: Value(carerId),
-      joinedAt: Value(now),
-    ));
+    final repo = ref.read(familyRepositoryProvider);
+    await repo.createFamilyWithChild(
+      family: family,
+      child: child,
+      carer: carer,
+    );
 
-    await familyDao.insertChild(ChildrenCompanion(
-      id: Value(childId),
-      familyId: Value(familyId),
-      name: Value(name),
-      dateOfBirth: Value(_dateOfBirth!),
-      createdAt: Value(now),
-    ));
-
+    ref.read(selectedFamilyIdProvider.notifier).state = familyId;
     ref.read(selectedChildIdProvider.notifier).state = childId;
-    ref.read(autoSyncProvider).onDataChanged();
   }
 
   @override
@@ -101,7 +106,7 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Welcome to Filho',
+                'Welcome to DataBabe',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),

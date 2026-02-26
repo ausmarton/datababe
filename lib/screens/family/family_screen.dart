@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:drift/drift.dart' hide Column;
 import 'package:uuid/uuid.dart';
 
-import '../../database/database.dart';
-import '../../providers/database_provider.dart';
+import '../../models/child_model.dart';
+import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
-import '../../providers/sync_provider.dart';
 
 class FamilyScreen extends ConsumerWidget {
   const FamilyScreen({super.key});
@@ -115,19 +113,23 @@ class FamilyScreen extends ConsumerWidget {
                 final name = nameController.text.trim();
                 if (name.isEmpty || dateOfBirth == null) return;
 
+                final familyId = ref.read(selectedFamilyIdProvider);
+                if (familyId == null) return;
+
                 final childId = const Uuid().v4();
                 final now = DateTime.now();
-                final dao = ref.read(familyDaoProvider);
+                final repo = ref.read(familyRepositoryProvider);
 
-                await dao.insertChild(ChildrenCompanion(
-                  id: Value(childId),
-                  name: Value(name),
-                  dateOfBirth: Value(dateOfBirth!),
-                  createdAt: Value(now),
-                ));
+                final child = ChildModel(
+                  id: childId,
+                  name: name,
+                  dateOfBirth: dateOfBirth!,
+                  createdAt: now,
+                );
+
+                await repo.createChild(familyId, child);
 
                 ref.read(selectedChildIdProvider.notifier).state = childId;
-                ref.read(autoSyncProvider).onDataChanged();
                 if (context.mounted) Navigator.pop(context);
               },
               child: const Text('Add'),

@@ -1,0 +1,21 @@
+import '../models/family_model.dart';
+import '../models/child_model.dart';
+import '../models/carer_model.dart';
+
+abstract class FamilyRepository {
+  Stream<List<FamilyModel>> watchFamilies(String uid);
+
+  Stream<List<ChildModel>> watchChildren(String familyId);
+
+  Future<FamilyModel> createFamily(FamilyModel family);
+
+  Future<ChildModel> createChild(String familyId, ChildModel child);
+
+  Future<CarerModel> createCarer(String familyId, CarerModel carer);
+
+  Future<void> createFamilyWithChild({
+    required FamilyModel family,
+    required ChildModel child,
+    required CarerModel carer,
+  });
+}

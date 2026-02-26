@@ -1,16 +1,27 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:filho/app.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:datababe/providers/auth_provider.dart';
+import 'package:datababe/screens/auth/login_screen.dart';
 
 void main() {
-  testWidgets('App renders setup prompt when no child exists',
+  testWidgets('Login screen shows app name and sign-in button',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: FilhoApp()),
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => Stream<User?>.value(null),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome to Filho'), findsOneWidget);
-    expect(find.text('Add your child to get started'), findsOneWidget);
+    expect(find.text('DataBabe'), findsOneWidget);
+    expect(find.text('Sign in with Google'), findsOneWidget);
   });
 }

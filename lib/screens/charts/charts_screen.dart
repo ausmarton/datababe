@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
-import '../../database/database.dart';
+import '../../models/activity_model.dart';
 import '../../models/enums.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/child_provider.dart';
@@ -53,7 +53,7 @@ class ChartsScreen extends ConsumerWidget {
 
 /// Shows today's summary counts.
 class _DailySummaryCard extends StatelessWidget {
-  final List<Activity> activities;
+  final List<ActivityModel> activities;
 
   const _DailySummaryCard({required this.activities});
 
@@ -138,7 +138,7 @@ class _SummaryItem extends StatelessWidget {
 
 /// Bar chart of daily feed volumes over the last 7 days.
 class _FeedChartCard extends StatelessWidget {
-  final List<Activity> activities;
+  final List<ActivityModel> activities;
 
   const _FeedChartCard({required this.activities});
 
@@ -229,7 +229,7 @@ class _FeedChartCard extends StatelessWidget {
 
 /// Bar chart of daily diaper counts over the last 7 days.
 class _DiaperChartCard extends StatelessWidget {
-  final List<Activity> activities;
+  final List<ActivityModel> activities;
 
   const _DiaperChartCard({required this.activities});
 
@@ -319,7 +319,7 @@ class _DiaperChartCard extends StatelessWidget {
 
 /// Line chart of weight over time.
 class _GrowthChartCard extends StatelessWidget {
-  final List<Activity> activities;
+  final List<ActivityModel> activities;
 
   const _GrowthChartCard({required this.activities});
 

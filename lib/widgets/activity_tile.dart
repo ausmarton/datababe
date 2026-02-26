@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import '../database/database.dart';
+import '../models/activity_model.dart';
 import '../models/enums.dart';
 import '../utils/activity_helpers.dart';
 
 /// Displays a single activity entry in the timeline/list.
 class ActivityTile extends StatelessWidget {
-  final Activity activity;
+  final ActivityModel activity;
 
   const ActivityTile({super.key, required this.activity});
 
