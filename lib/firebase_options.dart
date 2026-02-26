@@ -1,9 +1,5 @@
-// File generated manually for Firebase project: data-babe
-// Replace TODO values with your actual Firebase config from:
-//   https://console.firebase.google.com/project/data-babe/settings/general
-//
-// Or run: flutterfire configure --project=data-babe
-// (install via: dart pub global activate flutterfire_cli)
+// Firebase configuration — values injected at build time via --dart-define.
+// For local development: flutter run --dart-define-from-file=firebase.env
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
@@ -31,19 +27,20 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'TODO_WEB_API_KEY',
-    appId: 'TODO_WEB_APP_ID',
-    messagingSenderId: 'TODO_MESSAGING_SENDER_ID',
-    projectId: 'data-babe',
-    authDomain: 'data-babe.firebaseapp.com',
-    storageBucket: 'data-babe.firebasestorage.app',
+    apiKey: String.fromEnvironment('WEB_API_KEY'),
+    appId: String.fromEnvironment('WEB_APP_ID'),
+    messagingSenderId: String.fromEnvironment('MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    authDomain: String.fromEnvironment('AUTH_DOMAIN'),
+    storageBucket: String.fromEnvironment('STORAGE_BUCKET'),
+    measurementId: String.fromEnvironment('MEASUREMENT_ID'),
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'TODO_ANDROID_API_KEY',
-    appId: 'TODO_ANDROID_APP_ID',
-    messagingSenderId: 'TODO_MESSAGING_SENDER_ID',
-    projectId: 'data-babe',
-    storageBucket: 'data-babe.firebasestorage.app',
+    apiKey: String.fromEnvironment('ANDROID_API_KEY'),
+    appId: String.fromEnvironment('ANDROID_APP_ID'),
+    messagingSenderId: String.fromEnvironment('MESSAGING_SENDER_ID'),
+    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
+    storageBucket: String.fromEnvironment('STORAGE_BUCKET'),
   );
 }

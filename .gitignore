@@ -50,5 +50,9 @@ data/
 private/
 instructions.txt
 
+# Firebase config (contains API keys)
+firebase.env
+android/app/google-services.json
+
 # Generated code (reproducible via build_runner)
 *.g.dart

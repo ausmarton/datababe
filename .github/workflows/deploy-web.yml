@@ -28,7 +28,15 @@ jobs:
 
       - run: flutter pub get
 
-      - run: flutter build web --release --base-href /datababe/
+      - run: >
+          flutter build web --release --base-href /datababe/
+          --dart-define=WEB_API_KEY=${{ secrets.WEB_API_KEY }}
+          --dart-define=WEB_APP_ID=${{ secrets.WEB_APP_ID }}
+          --dart-define=MESSAGING_SENDER_ID=${{ secrets.MESSAGING_SENDER_ID }}
+          --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          --dart-define=AUTH_DOMAIN=${{ secrets.AUTH_DOMAIN }}
+          --dart-define=STORAGE_BUCKET=${{ secrets.STORAGE_BUCKET }}
+          --dart-define=MEASUREMENT_ID=${{ secrets.MEASUREMENT_ID }}
 
       - uses: actions/upload-pages-artifact@v3
         with:

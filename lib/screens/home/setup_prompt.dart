@@ -47,46 +47,58 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
     setState(() => _saving = true);
 
     final user = ref.read(currentUserProvider);
-    if (user == null) return;
+    if (user == null) {
+      setState(() => _saving = false);
+      return;
+    }
 
-    final uuid = const Uuid();
-    final childId = uuid.v4();
-    final familyId = uuid.v4();
-    final carerId = uuid.v4();
-    final now = DateTime.now();
+    try {
+      final uuid = const Uuid();
+      final childId = uuid.v4();
+      final familyId = uuid.v4();
+      final carerId = uuid.v4();
+      final now = DateTime.now();
 
-    final family = FamilyModel(
-      id: familyId,
-      name: '$name\'s Family',
-      createdBy: user.uid,
-      memberUids: [user.uid],
-      createdAt: now,
-    );
+      final family = FamilyModel(
+        id: familyId,
+        name: '$name\'s Family',
+        createdBy: user.uid,
+        memberUids: [user.uid],
+        createdAt: now,
+      );
 
-    final child = ChildModel(
-      id: childId,
-      name: name,
-      dateOfBirth: _dateOfBirth!,
-      createdAt: now,
-    );
+      final child = ChildModel(
+        id: childId,
+        name: name,
+        dateOfBirth: _dateOfBirth!,
+        createdAt: now,
+      );
 
-    final carer = CarerModel(
-      id: carerId,
-      uid: user.uid,
-      displayName: user.displayName ?? 'Parent',
-      role: 'parent',
-      createdAt: now,
-    );
+      final carer = CarerModel(
+        id: carerId,
+        uid: user.uid,
+        displayName: user.displayName ?? 'Parent',
+        role: 'parent',
+        createdAt: now,
+      );
 
-    final repo = ref.read(familyRepositoryProvider);
-    await repo.createFamilyWithChild(
-      family: family,
-      child: child,
-      carer: carer,
-    );
+      final repo = ref.read(familyRepositoryProvider);
+      await repo.createFamilyWithChild(
+        family: family,
+        child: child,
+        carer: carer,
+      );
 
-    ref.read(selectedFamilyIdProvider.notifier).state = familyId;
-    ref.read(selectedChildIdProvider.notifier).state = childId;
+      ref.read(selectedFamilyIdProvider.notifier).state = familyId;
+      ref.read(selectedChildIdProvider.notifier).state = childId;
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create child: $e')),
+        );
+      }
+    }
   }
 
   @override

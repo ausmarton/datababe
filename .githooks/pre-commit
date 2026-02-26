@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Pre-commit hook: reject commits containing likely API keys or secrets.
+# Install: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+# Patterns that indicate leaked secrets
+PATTERNS=(
+  'AIzaSy'                          # Google API key prefix
+  'AAAA[A-Za-z0-9_-]{7,}:'          # Firebase server key prefix
+  'ya29\.'                           # Google OAuth access token
+)
+
+# Only check staged files that are tracked (skip binaries and deleted files)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=d -- '*.dart' '*.json' '*.yaml' '*.yml' '*.html' '*.js' '*.env' '*.xml' '*.properties') || true
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+FOUND=0
+
+for PATTERN in "${PATTERNS[@]}"; do
+  # grep returns 1 if no match, which is fine
+  MATCHES=$(echo "$STAGED_FILES" | xargs grep -lE "$PATTERN" 2>/dev/null || true)
+  if [ -n "$MATCHES" ]; then
+    # Exclude the hook itself and example files
+    for FILE in $MATCHES; do
+      case "$FILE" in
+        .githooks/*|*.example) continue ;;
+      esac
+      echo "ERROR: Potential secret detected in staged file: $FILE"
+      echo "  Pattern: $PATTERN"
+      grep -nE "$PATTERN" "$FILE" | head -3
+      echo ""
+      FOUND=1
+    done
+  fi
+done
+
+if [ "$FOUND" -eq 1 ]; then
+  echo "Commit rejected — remove secrets from staged files before committing."
+  echo "If this is a false positive, use: git commit --no-verify"
+  exit 1
+fi

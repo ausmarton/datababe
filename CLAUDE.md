@@ -34,11 +34,22 @@ lib/
 
 ## Key commands
 ```bash
-flutter pub get                          # Install dependencies
-flutter analyze                          # Lint check
-flutter test                             # Run tests
-flutter run -d chrome                    # Run on web
-flutter run -d <device>                  # Run on Android
+flutter pub get                                              # Install dependencies
+flutter analyze                                              # Lint check
+flutter test                                                 # Run tests
+flutter run -d chrome --dart-define-from-file=firebase.env   # Run on web
+flutter run -d <device> --dart-define-from-file=firebase.env # Run on Android
+```
+
+## Firebase config
+- API keys are injected at build time via `--dart-define` (not committed to source)
+- Local dev: copy `firebase.env.example` to `firebase.env` and fill in real values
+- CI: keys are stored as GitHub Actions secrets
+- See `firebase.env.example` for the list of required variables
+
+## Git hooks
+```bash
+git config core.hooksPath .githooks      # Enable pre-commit secrets detection
 ```
 
 ## Firestore data model
