@@ -71,34 +71,18 @@ class FirebaseFamilyRepository implements FamilyRepository {
     required ChildModel child,
     required CarerModel carer,
   }) async {
-    final batch = _firestore.batch();
+    // Step 1: Create the family document and update the user profile.
+    // This must happen first because subcollection security rules use get()
+    // to verify membership in the parent family document.
+    final setupBatch = _firestore.batch();
 
-    batch.set(
+    setupBatch.set(
       _firestore.collection('families').doc(family.id),
       family.toFirestore(),
     );
 
-    batch.set(
-      _firestore
-          .collection('families')
-          .doc(family.id)
-          .collection('children')
-          .doc(child.id),
-      child.toFirestore(),
-    );
-
-    batch.set(
-      _firestore
-          .collection('families')
-          .doc(family.id)
-          .collection('carers')
-          .doc(carer.id),
-      carer.toFirestore(),
-    );
-
-    // Update user document with family reference
     if (family.createdBy.isNotEmpty) {
-      batch.set(
+      setupBatch.set(
         _firestore.collection('users').doc(family.createdBy),
         {
           'familyIds': FieldValue.arrayUnion([family.id]),
@@ -107,6 +91,29 @@ class FirebaseFamilyRepository implements FamilyRepository {
       );
     }
 
-    await batch.commit();
+    await setupBatch.commit();
+
+    // Step 2: Create child and carer in subcollections (family now exists).
+    final membersBatch = _firestore.batch();
+
+    membersBatch.set(
+      _firestore
+          .collection('families')
+          .doc(family.id)
+          .collection('children')
+          .doc(child.id),
+      child.toFirestore(),
+    );
+
+    membersBatch.set(
+      _firestore
+          .collection('families')
+          .doc(family.id)
+          .collection('carers')
+          .doc(carer.id),
+      carer.toFirestore(),
+    );
+
+    await membersBatch.commit();
   }
 }
