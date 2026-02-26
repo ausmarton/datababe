@@ -95,6 +95,16 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       return;
     }
 
+    if (activity.isDeleted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entry no longer exists')),
+        );
+        Navigator.of(context).pop();
+      }
+      return;
+    }
+
     setState(() {
       _startTime = activity.startTime;
       _endTime = activity.endTime;
@@ -199,6 +209,39 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   int? _computeDuration() {
     if (_endTime == null) return null;
     return _endTime!.difference(_startTime).inMinutes;
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete entry?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    final repo = ref.read(activityRepositoryProvider);
+    await repo.softDeleteActivity(familyId, widget.activityId!);
+
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _save() async {
@@ -317,6 +360,14 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${isEdit ? 'Edit' : 'Log'} ${activityDisplayName(_type)}'),
+        actions: [
+          if (isEdit)
+            IconButton(
+              icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+              tooltip: 'Delete',
+              onPressed: _confirmDelete,
+            ),
+        ],
       ),
       body: Form(
         key: _formKey,

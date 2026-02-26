@@ -9,6 +9,8 @@ import 'screens/timeline/timeline_screen.dart';
 import 'screens/log_entry/log_entry_screen.dart';
 import 'screens/charts/charts_screen.dart';
 import 'screens/family/family_screen.dart';
+import 'screens/goals/goals_screen.dart';
+import 'screens/goals/add_target_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'widgets/shell_scaffold.dart';
 
@@ -68,6 +70,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           final activityId = state.uri.queryParameters['id'];
           return LogEntryScreen(activityType: type, activityId: activityId);
         },
+      ),
+      GoRoute(
+        path: '/goals',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const GoalsScreen(),
+      ),
+      GoRoute(
+        path: '/goals/add',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AddTargetScreen(),
       ),
     ],
   );

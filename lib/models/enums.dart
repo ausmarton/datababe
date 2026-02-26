@@ -70,3 +70,28 @@ enum InviteStatus {
   accepted,
   declined,
 }
+
+/// Time window modes for timeline views.
+enum TimeWindowMode {
+  calendarDay,
+  calendarWeek,
+  calendarMonth,
+  last24h,
+  last7Days,
+  last30Days,
+}
+
+/// Period for targets/goals.
+enum TargetPeriod {
+  daily,
+  weekly,
+  monthly,
+}
+
+/// Metric for targets/goals.
+enum TargetMetric {
+  totalVolumeMl,
+  count,
+  uniqueFoods,
+  totalDurationMinutes,
+}

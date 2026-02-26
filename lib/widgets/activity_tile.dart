@@ -9,15 +9,16 @@ import '../utils/activity_helpers.dart';
 /// Displays a single activity entry in the timeline/list.
 class ActivityTile extends StatelessWidget {
   final ActivityModel activity;
+  final VoidCallback? onDelete;
 
-  const ActivityTile({super.key, required this.activity});
+  const ActivityTile({super.key, required this.activity, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     final type = parseActivityType(activity.type);
     final timeFormat = DateFormat.Hm();
 
-    return ListTile(
+    final tile = ListTile(
       onTap: () => context.push('/log/${activity.type}?id=${activity.id}'),
       leading: CircleAvatar(
         backgroundColor: type != null
@@ -34,6 +35,24 @@ class ActivityTile extends StatelessWidget {
         timeFormat.format(activity.startTime),
         style: Theme.of(context).textTheme.bodySmall,
       ),
+    );
+
+    if (onDelete == null) return tile;
+
+    return Dismissible(
+      key: ValueKey(activity.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 16),
+        color: Theme.of(context).colorScheme.error,
+        child: Icon(Icons.delete, color: Theme.of(context).colorScheme.onError),
+      ),
+      confirmDismiss: (_) async {
+        onDelete!();
+        return false; // Don't remove the widget — the delete + undo is handled by the caller
+      },
+      child: tile,
     );
   }
 

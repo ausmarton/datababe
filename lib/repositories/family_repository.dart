@@ -20,6 +20,21 @@ abstract class FamilyRepository {
     required CarerModel carer,
   });
 
+  // --- Members ---
+
+  Stream<List<CarerModel>> watchCarers(String familyId);
+
+  Future<void> updateCarerRole(
+      String familyId, String carerId, String newRole);
+
+  Future<void> removeMember({
+    required String familyId,
+    required String memberUid,
+    required String carerId,
+  });
+
+  Future<void> cancelInvite(String inviteId);
+
   // --- Invites ---
 
   Future<void> createInvite(InviteModel invite);

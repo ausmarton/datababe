@@ -6,6 +6,7 @@ import '../../models/enums.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/invite_provider.dart';
+import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../widgets/activity_tile.dart';
 import '../home/setup_prompt.dart';
@@ -82,7 +83,13 @@ class HomeScreen extends ConsumerWidget {
             }
             return SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) => ActivityTile(activity: activities[index]),
+                (context, index) {
+                  final activity = activities[index];
+                  return ActivityTile(
+                    activity: activity,
+                    onDelete: () => _deleteActivity(context, ref, activity),
+                  );
+                },
                 childCount: activities.length,
               ),
             );
@@ -97,6 +104,30 @@ class HomeScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+void _deleteActivity(BuildContext context, WidgetRef ref, dynamic activity) {
+  final familyId = ref.read(selectedFamilyIdProvider);
+  if (familyId == null) return;
+
+  final repo = ref.read(activityRepositoryProvider);
+  final typeName = activity.type as String;
+  final activityId = activity.id as String;
+  bool undone = false;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('Deleted $typeName'),
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () => undone = true,
+      ),
+    ),
+  ).closed.then((reason) {
+    if (!undone) {
+      repo.softDeleteActivity(familyId, activityId);
+    }
+  });
 }
 
 class _QuickLogGrid extends StatelessWidget {

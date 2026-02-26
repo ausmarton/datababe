@@ -120,6 +120,62 @@ class FirebaseFamilyRepository implements FamilyRepository {
     await membersBatch.commit();
   }
 
+  // --- Members ---
+
+  @override
+  Stream<List<CarerModel>> watchCarers(String familyId) {
+    return _firestore
+        .collection('families')
+        .doc(familyId)
+        .collection('carers')
+        .orderBy('createdAt')
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((doc) => CarerModel.fromFirestore(doc)).toList());
+  }
+
+  @override
+  Future<void> updateCarerRole(
+      String familyId, String carerId, String newRole) async {
+    await _firestore
+        .collection('families')
+        .doc(familyId)
+        .collection('carers')
+        .doc(carerId)
+        .update({'role': newRole});
+  }
+
+  @override
+  Future<void> removeMember({
+    required String familyId,
+    required String memberUid,
+    required String carerId,
+  }) async {
+    final batch = _firestore.batch();
+
+    batch.update(
+      _firestore.collection('families').doc(familyId),
+      {
+        'memberUids': FieldValue.arrayRemove([memberUid]),
+      },
+    );
+
+    batch.delete(
+      _firestore
+          .collection('families')
+          .doc(familyId)
+          .collection('carers')
+          .doc(carerId),
+    );
+
+    await batch.commit();
+  }
+
+  @override
+  Future<void> cancelInvite(String inviteId) async {
+    await _firestore.collection('invites').doc(inviteId).delete();
+  }
+
   // --- Invites ---
 
   @override

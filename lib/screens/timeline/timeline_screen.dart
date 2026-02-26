@@ -5,11 +5,12 @@ import 'package:intl/intl.dart';
 import '../../models/enums.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/repository_provider.dart';
+import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
+import '../../utils/date_range_helpers.dart';
 import '../../widgets/activity_tile.dart';
-
-/// Provider for the currently selected activity type filter.
-final timelineFilterProvider = StateProvider<ActivityType?>((ref) => null);
+import '../../widgets/summary_card.dart';
 
 class TimelineScreen extends ConsumerWidget {
   const TimelineScreen({super.key});
@@ -25,9 +26,9 @@ class TimelineScreen extends ConsumerWidget {
       );
     }
 
-    final activitiesAsync = filter != null
-        ? ref.watch(activitiesByTypeProvider(filter.name))
-        : ref.watch(activitiesProvider);
+    final activitiesAsync = ref.watch(timelineActivitiesProvider);
+    final summary = ref.watch(timelineSummaryProvider);
+    final progress = ref.watch(targetProgressProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -62,50 +63,247 @@ class TimelineScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: activitiesAsync.when(
-        data: (activities) {
-          if (activities.isEmpty) {
-            return const Center(child: Text('No activities recorded yet'));
-          }
+      body: Column(
+        children: [
+          const _RangeSelector(),
+          if (summary != null)
+            SummaryCard(
+              summary: summary,
+              filter: filter,
+              targetProgress: progress.isNotEmpty ? progress : null,
+            ),
+          Expanded(
+            child: activitiesAsync.when(
+              data: (activities) {
+                // Apply client-side type filter
+                final filtered = filter != null
+                    ? activities
+                        .where((a) => a.type == filter.name)
+                        .toList()
+                    : activities;
 
-          // Group by date.
-          final grouped = <String, List<dynamic>>{};
-          final dateFormat = DateFormat.yMMMd();
-          for (final a in activities) {
-            final key = dateFormat.format(a.startTime);
-            grouped.putIfAbsent(key, () => []).add(a);
-          }
+                if (filtered.isEmpty) {
+                  return const Center(
+                      child: Text('No activities in this period'));
+                }
 
-          final keys = grouped.keys.toList();
+                // Group by date
+                final grouped = <String, List<dynamic>>{};
+                final dateFormat = DateFormat.yMMMd();
+                for (final a in filtered) {
+                  final key = dateFormat.format(a.startTime);
+                  grouped.putIfAbsent(key, () => []).add(a);
+                }
 
-          return ListView.builder(
-            itemCount: keys.length,
-            itemBuilder: (context, index) {
-              final dateLabel = keys[index];
-              final items = grouped[dateLabel]!;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Text(
-                      dateLabel,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
+                final keys = grouped.keys.toList();
+
+                return ListView.builder(
+                  itemCount: keys.length,
+                  itemBuilder: (context, index) {
+                    final dateLabel = keys[index];
+                    final items = grouped[dateLabel]!;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: Text(
+                            dateLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  color:
+                                      Theme.of(context).colorScheme.primary,
+                                ),
                           ),
-                    ),
-                  ),
-                  ...items.map((a) => ActivityTile(activity: a)),
-                  const Divider(height: 1),
-                ],
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+                        ),
+                        ...items.map((a) => ActivityTile(
+                              activity: a,
+                              onDelete: () =>
+                                  _deleteActivity(context, ref, a),
+                            )),
+                        const Divider(height: 1),
+                      ],
+                    );
+                  },
+                );
+              },
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  void _deleteActivity(
+      BuildContext context, WidgetRef ref, dynamic activity) {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    final repo = ref.read(activityRepositoryProvider);
+    final typeName = activity.type as String;
+    final activityId = activity.id as String;
+    bool undone = false;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text('Deleted $typeName'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () => undone = true,
+        ),
+      ),
+    )
+        .closed
+        .then((reason) {
+      if (!undone) {
+        repo.softDeleteActivity(familyId, activityId);
+      }
+    });
+  }
 }
+
+class _RangeSelector extends ConsumerWidget {
+  const _RangeSelector();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(timelineWindowModeProvider);
+    final anchor = ref.watch(timelineAnchorProvider);
+    final isCalendar = isCalendarMode(mode);
+
+    // Determine granularity for the segmented button
+    _Granularity granularity;
+    if (mode == TimeWindowMode.calendarDay ||
+        mode == TimeWindowMode.last24h) {
+      granularity = _Granularity.day;
+    } else if (mode == TimeWindowMode.calendarWeek ||
+        mode == TimeWindowMode.last7Days) {
+      granularity = _Granularity.week;
+    } else {
+      granularity = _Granularity.month;
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Row 1: Granularity pills
+            SegmentedButton<_Granularity>(
+              segments: const [
+                ButtonSegment(
+                    value: _Granularity.day, label: Text('Day')),
+                ButtonSegment(
+                    value: _Granularity.week, label: Text('Week')),
+                ButtonSegment(
+                    value: _Granularity.month, label: Text('Month')),
+              ],
+              selected: {granularity},
+              onSelectionChanged: (s) {
+                final g = s.first;
+                TimeWindowMode newMode;
+                if (isCalendar) {
+                  newMode = switch (g) {
+                    _Granularity.day => TimeWindowMode.calendarDay,
+                    _Granularity.week => TimeWindowMode.calendarWeek,
+                    _Granularity.month => TimeWindowMode.calendarMonth,
+                  };
+                } else {
+                  newMode = switch (g) {
+                    _Granularity.day => TimeWindowMode.last24h,
+                    _Granularity.week => TimeWindowMode.last7Days,
+                    _Granularity.month => TimeWindowMode.last30Days,
+                  };
+                }
+                ref.read(timelineWindowModeProvider.notifier).state =
+                    newMode;
+              },
+            ),
+            const SizedBox(height: 8),
+            // Row 2: Calendar/Rolling toggle + navigation
+            Row(
+              children: [
+                // Calendar/Rolling toggle
+                ChoiceChip(
+                  label: Text(isCalendar ? 'Calendar' : 'Rolling'),
+                  selected: isCalendar,
+                  onSelected: (_) {
+                    TimeWindowMode newMode;
+                    if (isCalendar) {
+                      // Switch to rolling
+                      newMode = switch (granularity) {
+                        _Granularity.day => TimeWindowMode.last24h,
+                        _Granularity.week => TimeWindowMode.last7Days,
+                        _Granularity.month => TimeWindowMode.last30Days,
+                      };
+                    } else {
+                      // Switch to calendar
+                      newMode = switch (granularity) {
+                        _Granularity.day => TimeWindowMode.calendarDay,
+                        _Granularity.week => TimeWindowMode.calendarWeek,
+                        _Granularity.month =>
+                          TimeWindowMode.calendarMonth,
+                      };
+                    }
+                    ref.read(timelineWindowModeProvider.notifier).state =
+                        newMode;
+                  },
+                ),
+                const Spacer(),
+                // Navigation arrows (calendar mode only)
+                if (isCalendar) ...[
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () {
+                      ref.read(timelineAnchorProvider.notifier).state =
+                          previousAnchor(mode, anchor);
+                    },
+                  ),
+                  Text(
+                    rangeLabel(mode, anchor),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: _isNextInFuture(mode, anchor)
+                        ? null
+                        : () {
+                            ref
+                                .read(timelineAnchorProvider.notifier)
+                                .state = nextAnchor(mode, anchor);
+                          },
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      rangeLabel(mode, anchor),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isNextInFuture(TimeWindowMode mode, DateTime anchor) {
+    final now = DateTime.now();
+    final next = nextAnchor(mode, anchor);
+    final today = DateTime(now.year, now.month, now.day);
+    return next.isAfter(today);
+  }
+}
+
+enum _Granularity { day, week, month }
