@@ -25,7 +25,22 @@ class HomeScreen extends ConsumerWidget {
     final skipInvites = ref.watch(_skipInvitesProvider);
 
     if (selectedChild == null) {
-      // Check for pending invites before showing SetupPrompt
+      // Wait for families to load before deciding what to show.
+      // Without this, SetupPrompt flashes on page refresh while Firestore
+      // is still loading, and the user could create duplicate families.
+      final familiesState = ref.watch(userFamiliesProvider);
+      if (familiesState.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      // If the user already has families, auto-selection will kick in
+      // on the next frame — show a loading indicator while it settles.
+      final families = familiesState.valueOrNull ?? [];
+      if (families.isNotEmpty) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      // No families at all — check for pending invites or show SetupPrompt.
       final invites = pendingInvites.valueOrNull ?? [];
       if (invites.isNotEmpty && !skipInvites) {
         return InvitePendingPrompt(
