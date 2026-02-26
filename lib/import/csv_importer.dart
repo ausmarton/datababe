@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,12 +11,6 @@ class CsvImporter {
   static const _uuid = Uuid();
 
   CsvImporter(this._dao);
-
-  /// Import from a file path. Returns the number of entries imported.
-  Future<int> importFromFile(String path, String childId) async {
-    final content = await File(path).readAsString();
-    return importFromString(content, childId);
-  }
 
   /// Import from CSV string. Returns the number of entries imported.
   Future<int> importFromString(String csvContent, String childId) async {

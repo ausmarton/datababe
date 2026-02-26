@@ -12,10 +12,20 @@ final allChildrenProvider = StreamProvider<List<ChildrenData>>((ref) {
 });
 
 /// Currently selected child.
+/// Auto-selects the first child when none is explicitly selected.
 final selectedChildProvider = Provider<ChildrenData?>((ref) {
   final childId = ref.watch(selectedChildIdProvider);
   final children = ref.watch(allChildrenProvider).valueOrNull;
-  if (childId == null || children == null) return null;
+  if (children == null || children.isEmpty) return null;
+
+  // Auto-select first child if none selected
+  if (childId == null) {
+    Future.microtask(() {
+      ref.read(selectedChildIdProvider.notifier).state = children.first.id;
+    });
+    return children.first;
+  }
+
   try {
     return children.firstWhere((c) => c.id == childId);
   } catch (_) {
