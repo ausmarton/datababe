@@ -10,6 +10,8 @@ abstract class ActivityRepository {
   Stream<List<ActivityModel>> watchActivitiesInRange(
       String familyId, String childId, DateTime start, DateTime end);
 
+  Future<ActivityModel?> getActivity(String familyId, String activityId);
+
   Future<void> insertActivity(String familyId, ActivityModel activity);
 
   Future<void> insertActivities(

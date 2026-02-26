@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../models/activity_model.dart';
@@ -17,6 +18,7 @@ class ActivityTile extends StatelessWidget {
     final timeFormat = DateFormat.Hm();
 
     return ListTile(
+      onTap: () => context.push('/log/${activity.type}?id=${activity.id}'),
       leading: CircleAvatar(
         backgroundColor: type != null
             ? activityColor(type).withValues(alpha: 0.2)

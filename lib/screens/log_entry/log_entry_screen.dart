@@ -67,11 +67,90 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   // Notes
   final _notesController = TextEditingController();
 
+  bool _loading = false;
+  DateTime _originalCreatedAt = DateTime.now();
+
   @override
   void initState() {
     super.initState();
     _type = parseActivityType(widget.activityType) ?? ActivityType.feedBottle;
     _startTime = DateTime.now();
+
+    if (widget.activityId != null) {
+      _loadExisting();
+    }
+  }
+
+  Future<void> _loadExisting() async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    setState(() => _loading = true);
+
+    final repo = ref.read(activityRepositoryProvider);
+    final activity = await repo.getActivity(familyId, widget.activityId!);
+
+    if (activity == null || !mounted) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
+    setState(() {
+      _startTime = activity.startTime;
+      _endTime = activity.endTime;
+      _originalCreatedAt = activity.createdAt;
+
+      // Feed (Bottle)
+      if (activity.feedType != null) {
+        _feedType = FeedType.values.where((e) => e.name == activity.feedType).firstOrNull ?? _feedType;
+      }
+      if (activity.volumeMl != null) _volumeController.text = activity.volumeMl.toString();
+
+      // Feed (Breast)
+      if (activity.rightBreastMinutes != null) _rightBreastController.text = activity.rightBreastMinutes.toString();
+      if (activity.leftBreastMinutes != null) _leftBreastController.text = activity.leftBreastMinutes.toString();
+
+      // Diaper / Potty
+      if (activity.contents != null) {
+        _contents = DiaperContents.values.where((e) => e.name == activity.contents).firstOrNull ?? _contents;
+      }
+      if (activity.contentSize != null) {
+        _contentSize = ContentSize.values.where((e) => e.name == activity.contentSize).firstOrNull ?? _contentSize;
+      }
+      if (activity.peeSize != null) {
+        _peeSize = ContentSize.values.where((e) => e.name == activity.peeSize).firstOrNull;
+      }
+      if (activity.pooColour != null) {
+        _pooColour = PooColour.values.where((e) => e.name == activity.pooColour).firstOrNull;
+      }
+      if (activity.pooConsistency != null) {
+        _pooConsistency = PooConsistency.values.where((e) => e.name == activity.pooConsistency).firstOrNull;
+      }
+
+      // Meds
+      if (activity.medicationName != null) _medNameController.text = activity.medicationName!;
+      if (activity.dose != null) _doseController.text = activity.dose!;
+      if (activity.doseUnit != null) _doseUnitController.text = activity.doseUnit!;
+
+      // Solids
+      if (activity.foodDescription != null) _foodDescController.text = activity.foodDescription!;
+      if (activity.reaction != null) {
+        _reaction = FoodReaction.values.where((e) => e.name == activity.reaction).firstOrNull ?? _reaction;
+      }
+
+      // Growth
+      if (activity.weightKg != null) _weightController.text = activity.weightKg.toString();
+      if (activity.lengthCm != null) _lengthController.text = activity.lengthCm.toString();
+      if (activity.headCircumferenceCm != null) _headController.text = activity.headCircumferenceCm.toString();
+
+      // Temperature
+      if (activity.tempCelsius != null) _tempController.text = activity.tempCelsius.toString();
+
+      // Notes
+      if (activity.notes != null) _notesController.text = activity.notes!;
+
+      _loading = false;
+    });
   }
 
   @override
@@ -132,6 +211,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     setState(() => _saving = true);
 
     final now = DateTime.now();
+    final isEdit = widget.activityId != null;
     final id = widget.activityId ?? const Uuid().v4();
     final duration = _computeDuration();
 
@@ -142,7 +222,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       startTime: _startTime,
       endTime: _endTime,
       durationMinutes: duration,
-      createdAt: now,
+      createdAt: isEdit ? _originalCreatedAt : now,
       modifiedAt: now,
 
       // Feed (Bottle)
@@ -225,9 +305,18 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
+    final isEdit = widget.activityId != null;
+
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(activityDisplayName(_type))),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(activityDisplayName(_type)),
+        title: Text('${isEdit ? 'Edit' : 'Log'} ${activityDisplayName(_type)}'),
       ),
       body: Form(
         key: _formKey,

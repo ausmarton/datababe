@@ -57,6 +57,13 @@ class FirebaseActivityRepository implements ActivityRepository {
   }
 
   @override
+  Future<ActivityModel?> getActivity(String familyId, String activityId) async {
+    final doc = await _activitiesRef(familyId).doc(activityId).get();
+    if (!doc.exists) return null;
+    return ActivityModel.fromFirestore(doc);
+  }
+
+  @override
   Future<void> insertActivity(String familyId, ActivityModel activity) {
     return _activitiesRef(familyId)
         .doc(activity.id)
