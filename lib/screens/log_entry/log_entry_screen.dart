@@ -8,6 +8,7 @@ import '../../database/database.dart';
 import '../../models/enums.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/sync_provider.dart';
 import '../../utils/activity_helpers.dart';
 
 class LogEntryScreen extends ConsumerStatefulWidget {
@@ -211,6 +212,8 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     } else {
       await dao.insertActivity(entry);
     }
+
+    ref.read(autoSyncProvider).onDataChanged();
 
     if (mounted) Navigator.of(context).pop();
   }
