@@ -17,7 +17,7 @@ final allChildrenProvider = StreamProvider<List<ChildModel>>((ref) {
   return repo.watchChildren(familyId);
 });
 
-/// Watch families for the current user and auto-select the first one.
+/// Watch families for the current user.
 final userFamiliesProvider = StreamProvider((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return Stream.value([]);
@@ -25,9 +25,32 @@ final userFamiliesProvider = StreamProvider((ref) {
   return repo.watchFamilies(user.uid);
 });
 
+/// Auto-selects the first family when none is explicitly selected.
+final selectedFamilyProvider = Provider((ref) {
+  final familyId = ref.watch(selectedFamilyIdProvider);
+  final families = ref.watch(userFamiliesProvider).valueOrNull;
+  if (families == null || families.isEmpty) return null;
+
+  if (familyId == null) {
+    Future.microtask(() {
+      ref.read(selectedFamilyIdProvider.notifier).state = families.first.id;
+    });
+    return families.first;
+  }
+
+  try {
+    return families.firstWhere((f) => f.id == familyId);
+  } catch (_) {
+    return null;
+  }
+});
+
 /// Currently selected child.
 /// Auto-selects the first child when none is explicitly selected.
+/// Also triggers family auto-selection via selectedFamilyProvider.
 final selectedChildProvider = Provider<ChildModel?>((ref) {
+  // Watch selectedFamilyProvider to trigger auto-family-selection.
+  ref.watch(selectedFamilyProvider);
   final childId = ref.watch(selectedChildIdProvider);
   final children = ref.watch(allChildrenProvider).valueOrNull;
   if (children == null || children.isEmpty) return null;
