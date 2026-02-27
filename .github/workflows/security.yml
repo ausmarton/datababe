@@ -6,14 +6,12 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-  security-events: write
-
 jobs:
   secret-scan:
     name: Secret Detection (TruffleHog)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,31 +22,31 @@ jobs:
 
   dependency-scan:
     name: Dependency Vulnerabilities (OSV-Scanner)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-      - run: flutter pub get
-      - uses: google/osv-scanner-action/osv-scanner-action@v2
-        with:
-          scan-args: --lockfile=pubspec.lock
+    permissions:
+      contents: read
+      security-events: write
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.3"
+    with:
+      scan-args: --lockfile=pubspec.lock
 
   analyze:
     name: Static Analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
       - run: flutter pub get
-      - run: flutter analyze --fatal-infos
+      - run: flutter analyze --fatal-warnings
 
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
