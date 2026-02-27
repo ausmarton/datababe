@@ -23,8 +23,8 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   TargetMetric _metric = TargetMetric.totalVolumeMl;
   TargetPeriod _period = TargetPeriod.daily;
   final _valueController = TextEditingController();
-  final _ingredientController = TextEditingController();
-  final _allergenController = TextEditingController();
+  String? _selectedIngredient;
+  String? _selectedAllergen;
   bool _saving = false;
 
   /// Returns the metrics supported by the selected activity type.
@@ -63,23 +63,32 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   @override
   void dispose() {
     _valueController.dispose();
-    _ingredientController.dispose();
-    _allergenController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final valueText = _valueController.text.trim();
     final value = double.tryParse(valueText);
-    if (value == null || value <= 0) return;
+    if (value == null || value <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid target value')),
+      );
+      return;
+    }
 
     if (_metric == TargetMetric.ingredientExposures &&
-        _ingredientController.text.trim().isEmpty) {
+        (_selectedIngredient == null || _selectedIngredient!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an ingredient')),
+      );
       return;
     }
 
     if (_metric == TargetMetric.allergenExposures &&
-        _allergenController.text.trim().isEmpty) {
+        (_selectedAllergen == null || _selectedAllergen!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an allergen')),
+      );
       return;
     }
 
@@ -90,27 +99,36 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
 
     setState(() => _saving = true);
 
-    final target = TargetModel(
-      id: const Uuid().v4(),
-      childId: childId,
-      activityType: _activityType.name,
-      metric: _metric.name,
-      period: _period.name,
-      targetValue: value,
-      createdBy: user.uid,
-      createdAt: DateTime.now(),
-      ingredientName: _metric == TargetMetric.ingredientExposures
-          ? _ingredientController.text.trim().toLowerCase()
-          : null,
-      allergenName: _metric == TargetMetric.allergenExposures
-          ? _allergenController.text.trim().toLowerCase()
-          : null,
-    );
+    try {
+      final target = TargetModel(
+        id: const Uuid().v4(),
+        childId: childId,
+        activityType: _activityType.name,
+        metric: _metric.name,
+        period: _period.name,
+        targetValue: value,
+        createdBy: user.uid,
+        createdAt: DateTime.now(),
+        ingredientName: _metric == TargetMetric.ingredientExposures
+            ? _selectedIngredient!.toLowerCase()
+            : null,
+        allergenName: _metric == TargetMetric.allergenExposures
+            ? _selectedAllergen!.toLowerCase()
+            : null,
+      );
 
-    final repo = ref.read(targetRepositoryProvider);
-    await repo.createTarget(familyId, target);
+      final repo = ref.read(targetRepositoryProvider);
+      await repo.createTarget(familyId, target);
 
-    if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save goal: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -194,13 +212,6 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
               },
               fieldViewBuilder:
                   (context, controller, focusNode, onSubmitted) {
-                // Sync with our controller
-                if (_ingredientController.text.isNotEmpty &&
-                    controller.text.isEmpty) {
-                  controller.text = _ingredientController.text;
-                }
-                controller.addListener(
-                    () => _ingredientController.text = controller.text);
                 return TextFormField(
                   controller: controller,
                   focusNode: focusNode,
@@ -209,10 +220,12 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
                     border: OutlineInputBorder(),
                     hintText: 'e.g., egg, cow\'s milk',
                   ),
+                  onChanged: (v) =>
+                      _selectedIngredient = v.trim(),
                 );
               },
               onSelected: (selection) {
-                _ingredientController.text = selection;
+                _selectedIngredient = selection;
               },
             ),
             const SizedBox(height: 16),
@@ -232,12 +245,6 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
               },
               fieldViewBuilder:
                   (context, controller, focusNode, onSubmitted) {
-                if (_allergenController.text.isNotEmpty &&
-                    controller.text.isEmpty) {
-                  controller.text = _allergenController.text;
-                }
-                controller.addListener(
-                    () => _allergenController.text = controller.text);
                 return TextFormField(
                   controller: controller,
                   focusNode: focusNode,
@@ -246,10 +253,12 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
                     border: OutlineInputBorder(),
                     hintText: 'e.g., lactose, nuts',
                   ),
+                  onChanged: (v) =>
+                      _selectedAllergen = v.trim(),
                 );
               },
               onSelected: (selection) {
-                _allergenController.text = selection;
+                _selectedAllergen = selection;
               },
             ),
             const SizedBox(height: 16),
