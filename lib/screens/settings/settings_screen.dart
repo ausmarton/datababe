@@ -54,6 +54,12 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.push('/recipes'),
           ),
           ListTile(
+            leading: const Icon(Icons.track_changes),
+            title: const Text('Goals'),
+            subtitle: const Text('Set and track daily/weekly targets'),
+            onTap: () => context.push('/goals'),
+          ),
+          ListTile(
             leading: const Icon(Icons.file_upload),
             title: const Text('Import CSV'),
             subtitle: const Text('Import data from a CSV export'),
