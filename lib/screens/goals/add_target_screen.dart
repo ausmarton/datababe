@@ -95,7 +95,16 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
     final childId = ref.read(selectedChildIdProvider);
     final familyId = ref.read(selectedFamilyIdProvider);
     final user = ref.read(currentUserProvider);
-    if (childId == null || familyId == null || user == null) return;
+    if (childId == null || familyId == null || user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('No child or family selected. '
+                  'Please go back and select a child first.')),
+        );
+      }
+      return;
+    }
 
     setState(() => _saving = true);
 
@@ -133,6 +142,9 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure family/child auto-selection is triggered even outside ShellRoute.
+    ref.watch(selectedChildProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Add Goal')),
       body: ListView(
