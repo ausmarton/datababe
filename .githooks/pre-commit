@@ -9,6 +9,8 @@ PATTERNS=(
   'AIzaSy'                          # Google API key prefix
   'AAAA[A-Za-z0-9_-]{7,}:'          # Firebase server key prefix
   'ya29\.'                           # Google OAuth access token
+  '1:[0-9]{10,}:(android|web|ios):' # Firebase App ID
+  'G-[A-Z0-9]{10}'                  # Google Analytics Measurement ID
 )
 
 # Only check staged files that are tracked (skip binaries and deleted files)
