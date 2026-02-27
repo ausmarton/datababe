@@ -119,6 +119,17 @@ double? _extractMetric(
       }
       return null;
 
+    case 'allergenExposures':
+      if (actType == ActivityType.solids.name &&
+          target.allergenName != null) {
+        return summary
+                .allergenExposures[
+                    target.allergenName!.trim().toLowerCase()]
+                ?.toDouble() ??
+            0.0;
+      }
+      return null;
+
     default:
       return null;
   }

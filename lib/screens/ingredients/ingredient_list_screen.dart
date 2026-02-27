@@ -4,43 +4,37 @@ import 'package:go_router/go_router.dart';
 
 import '../../providers/child_provider.dart';
 import '../../providers/ingredient_provider.dart';
-import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
-import '../../utils/allergen_helpers.dart';
 
-class RecipeListScreen extends ConsumerWidget {
-  const RecipeListScreen({super.key});
+class IngredientListScreen extends ConsumerWidget {
+  const IngredientListScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final recipesAsync = ref.watch(recipesProvider);
-    final allIngredients =
-        ref.watch(ingredientsProvider).valueOrNull ?? [];
+    final ingredientsAsync = ref.watch(ingredientsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Recipes')),
+      appBar: AppBar(title: const Text('Ingredients')),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/recipes/add'),
+        onPressed: () => context.push('/ingredients/add'),
         child: const Icon(Icons.add),
       ),
-      body: recipesAsync.when(
-        data: (recipes) {
-          if (recipes.isEmpty) {
+      body: ingredientsAsync.when(
+        data: (ingredients) {
+          if (ingredients.isEmpty) {
             return const Center(
-              child: Text('No recipes yet.\nTap + to create one.'),
+              child: Text('No ingredients yet.\nTap + to create one.'),
             );
           }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: recipes.length,
+            itemCount: ingredients.length,
             itemBuilder: (context, index) {
-              final recipe = recipes[index];
-              final allergens = computeAllergensByName(
-                  recipe.ingredients, allIngredients);
+              final ingredient = ingredients[index];
 
               return Dismissible(
-                key: ValueKey(recipe.id),
+                key: ValueKey(ingredient.id),
                 direction: DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerRight,
@@ -57,7 +51,7 @@ class RecipeListScreen extends ConsumerWidget {
                   await ScaffoldMessenger.of(context)
                       .showSnackBar(
                     SnackBar(
-                      content: Text('${recipe.name} deleted'),
+                      content: Text('${ingredient.name} deleted'),
                       action: SnackBarAction(
                         label: 'Undo',
                         onPressed: () => undone = true,
@@ -68,16 +62,16 @@ class RecipeListScreen extends ConsumerWidget {
                       .then((reason) {
                     if (!undone) {
                       ref
-                          .read(recipeRepositoryProvider)
-                          .softDeleteRecipe(familyId, recipe.id);
+                          .read(ingredientRepositoryProvider)
+                          .softDeleteIngredient(familyId, ingredient.id);
                     }
                   });
                   return false;
                 },
                 child: Card(
                   child: InkWell(
-                    onTap: () =>
-                        context.push('/recipes/add?id=${recipe.id}'),
+                    onTap: () => context
+                        .push('/ingredients/add?id=${ingredient.id}'),
                     borderRadius: BorderRadius.circular(12),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -85,36 +79,21 @@ class RecipeListScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            recipe.name,
-                            style: Theme.of(context).textTheme.titleMedium,
+                            ingredient.name,
+                            style:
+                                Theme.of(context).textTheme.titleMedium,
                           ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            children: recipe.ingredients
-                                .map((i) => Chip(
-                                      label: Text(i),
-                                      visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ))
-                                .toList(),
-                          ),
-                          if (allergens.isNotEmpty) ...[
-                            const SizedBox(height: 4),
+                          if (ingredient.allergens.isNotEmpty) ...[
+                            const SizedBox(height: 8),
                             Wrap(
-                              spacing: 4,
-                              runSpacing: 2,
-                              children: allergens
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: ingredient.allergens
                                   .map((a) => Chip(
-                                        label: Text(a,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelSmall),
+                                        label: Text(a),
                                         avatar: const Icon(
                                             Icons.warning_amber,
-                                            size: 14),
+                                            size: 16),
                                         visualDensity:
                                             VisualDensity.compact,
                                         materialTapTargetSize:

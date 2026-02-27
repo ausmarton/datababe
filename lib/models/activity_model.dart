@@ -38,6 +38,7 @@ class ActivityModel {
   final String? reaction;
   final String? recipeId;
   final List<String>? ingredientNames;
+  final List<String>? allergenNames;
 
   // Growth
   final double? weightKg;
@@ -75,6 +76,7 @@ class ActivityModel {
     this.reaction,
     this.recipeId,
     this.ingredientNames,
+    this.allergenNames,
     this.weightKg,
     this.lengthCm,
     this.headCircumferenceCm,
@@ -108,6 +110,7 @@ class ActivityModel {
         'reaction': reaction,
         'recipeId': recipeId,
         'ingredientNames': ingredientNames,
+        'allergenNames': allergenNames,
         'weightKg': weightKg,
         'lengthCm': lengthCm,
         'headCircumferenceCm': headCircumferenceCm,
@@ -148,6 +151,9 @@ class ActivityModel {
       reaction: d['reaction'] as String?,
       recipeId: d['recipeId'] as String?,
       ingredientNames: (d['ingredientNames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      allergenNames: (d['allergenNames'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
       weightKg: (d['weightKg'] as num?)?.toDouble(),

@@ -98,5 +98,41 @@ void main() {
       expect(target.ingredientName, isNull);
       expect(target.toFirestore()['ingredientName'], isNull);
     });
+
+    test('allergenName serializes when set', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-5',
+        childId: 'child-1',
+        activityType: 'solids',
+        metric: 'allergenExposures',
+        period: 'weekly',
+        targetValue: 3,
+        createdBy: 'uid-1',
+        createdAt: now,
+        allergenName: 'lactose',
+      );
+
+      final map = target.toFirestore();
+      expect(map['allergenName'], 'lactose');
+      expect(map['metric'], 'allergenExposures');
+    });
+
+    test('allergenName defaults to null', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-6',
+        childId: 'child-1',
+        activityType: 'feedBottle',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 6,
+        createdBy: 'uid-1',
+        createdAt: now,
+      );
+
+      expect(target.allergenName, isNull);
+      expect(target.toFirestore()['allergenName'], isNull);
+    });
   });
 }

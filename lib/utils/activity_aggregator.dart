@@ -49,6 +49,9 @@ class ActivitySummary {
   // Ingredient exposures
   final Map<String, int> ingredientExposures;
 
+  // Allergen exposures
+  final Map<String, int> allergenExposures;
+
   const ActivitySummary({
     required this.totalCount,
     required this.bottleFeedCount,
@@ -74,6 +77,7 @@ class ActivitySummary {
     required this.pottyCount,
     required this.pottyBreakdown,
     required this.ingredientExposures,
+    required this.allergenExposures,
   });
 }
 
@@ -107,6 +111,7 @@ class ActivityAggregator {
     int pottyCount = 0;
     final pottyBreakdown = <String, int>{};
     final ingredientExposures = <String, int>{};
+    final allergenExposures = <String, int>{};
 
     for (final a in activities) {
       final type = ActivityType.values
@@ -163,6 +168,16 @@ class ActivityAggregator {
               if (n.isNotEmpty) {
                 ingredientExposures[n] =
                     (ingredientExposures[n] ?? 0) + 1;
+              }
+            }
+          }
+          // Count allergen exposures
+          if (a.allergenNames != null) {
+            for (final allergen in a.allergenNames!) {
+              final n = allergen.trim().toLowerCase();
+              if (n.isNotEmpty) {
+                allergenExposures[n] =
+                    (allergenExposures[n] ?? 0) + 1;
               }
             }
           }
@@ -250,6 +265,7 @@ class ActivityAggregator {
       pottyCount: pottyCount,
       pottyBreakdown: pottyBreakdown,
       ingredientExposures: ingredientExposures,
+      allergenExposures: allergenExposures,
     );
   }
 }

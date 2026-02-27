@@ -14,6 +14,9 @@ import 'screens/goals/add_target_screen.dart';
 import 'screens/recipes/recipe_list_screen.dart';
 import 'screens/recipes/add_recipe_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/settings/manage_allergens_screen.dart';
+import 'screens/ingredients/ingredient_list_screen.dart';
+import 'screens/ingredients/add_ingredient_screen.dart';
 import 'widgets/shell_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -82,6 +85,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/goals/add',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AddTargetScreen(),
+      ),
+      GoRoute(
+        path: '/settings/allergens',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ManageAllergensScreen(),
+      ),
+      GoRoute(
+        path: '/ingredients',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const IngredientListScreen(),
+      ),
+      GoRoute(
+        path: '/ingredients/add',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final ingredientId = state.uri.queryParameters['id'];
+          return AddIngredientScreen(ingredientId: ingredientId);
+        },
       ),
       GoRoute(
         path: '/recipes',

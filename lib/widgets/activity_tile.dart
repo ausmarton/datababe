@@ -100,6 +100,10 @@ class ActivityTile extends StatelessWidget {
             activity.ingredientNames!.isNotEmpty) {
           parts.add('${activity.ingredientNames!.length} ingredients');
         }
+        if (activity.allergenNames != null &&
+            activity.allergenNames!.isNotEmpty) {
+          parts.add('${activity.allergenNames!.length} allergens');
+        }
         if (activity.reaction != null) parts.add(activity.reaction!);
         return parts.join(' - ');
 

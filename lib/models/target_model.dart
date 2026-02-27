@@ -11,6 +11,7 @@ class TargetModel {
   final String createdBy;
   final DateTime createdAt;
   final String? ingredientName;
+  final String? allergenName;
 
   const TargetModel({
     required this.id,
@@ -23,6 +24,7 @@ class TargetModel {
     required this.createdBy,
     required this.createdAt,
     this.ingredientName,
+    this.allergenName,
   });
 
   Map<String, dynamic> toFirestore() => {
@@ -35,6 +37,7 @@ class TargetModel {
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
         'ingredientName': ingredientName,
+        'allergenName': allergenName,
       };
 
   factory TargetModel.fromFirestore(
@@ -52,6 +55,7 @@ class TargetModel {
       createdAt:
           (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       ingredientName: d['ingredientName'] as String?,
+      allergenName: d['allergenName'] as String?,
     );
   }
 }

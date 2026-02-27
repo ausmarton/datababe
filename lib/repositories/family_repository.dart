@@ -50,4 +50,9 @@ abstract class FamilyRepository {
   });
 
   Future<void> declineInvite(String inviteId);
+
+  // --- Allergen Categories ---
+
+  Future<void> updateAllergenCategories(
+      String familyId, List<String> categories);
 }

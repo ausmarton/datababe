@@ -168,6 +168,19 @@ class SummaryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ));
         }
+        if (summary.allergenExposures.isNotEmpty) {
+          final sorted = summary.allergenExposures.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          final allergenText =
+              sorted.map((e) => '${e.key}: ${e.value}x').join(', ');
+          children.add(const SizedBox(height: 4));
+          children.add(Text(
+            'Allergens: $allergenText',
+            style: Theme.of(context).textTheme.bodySmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ));
+        }
 
       case ActivityType.meds:
         for (final entry in summary.medsBreakdown.entries) {
@@ -248,7 +261,7 @@ class SummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${_metricLabel(tp.target.metric, ingredientName: tp.target.ingredientName)}: ${tp.actual.round()} of ${tp.target.targetValue.round()}',
+              '${_metricLabel(tp.target.metric, ingredientName: tp.target.ingredientName, allergenName: tp.target.allergenName)}: ${tp.actual.round()} of ${tp.target.targetValue.round()}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 2),
@@ -263,7 +276,8 @@ class SummaryCard extends StatelessWidget {
     }).toList();
   }
 
-  String _metricLabel(String metric, {String? ingredientName}) {
+  String _metricLabel(String metric,
+      {String? ingredientName, String? allergenName}) {
     return switch (metric) {
       'totalVolumeMl' => 'Volume (ml)',
       'count' => 'Count',
@@ -272,6 +286,9 @@ class SummaryCard extends StatelessWidget {
       'ingredientExposures' => ingredientName != null
           ? '$ingredientName exposures'
           : 'Exposures',
+      'allergenExposures' => ingredientName != null
+          ? '$ingredientName exposures'
+          : 'Allergen exposures',
       _ => metric,
     };
   }

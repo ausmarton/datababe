@@ -20,6 +20,7 @@ ActivityModel _activity({
   double? tempCelsius,
   String? recipeId,
   List<String>? ingredientNames,
+  List<String>? allergenNames,
 }) {
   final now = startTime ?? DateTime(2026, 2, 26, 10, 0);
   return ActivityModel(
@@ -44,6 +45,7 @@ ActivityModel _activity({
     tempCelsius: tempCelsius,
     recipeId: recipeId,
     ingredientNames: ingredientNames,
+    allergenNames: allergenNames,
   );
 }
 
@@ -263,6 +265,47 @@ void main() {
       expect(summary.ingredientExposures['oats'], 1);
       expect(summary.ingredientExposures['banana'], 2);
       expect(summary.ingredientExposures['egg'], 1);
+    });
+
+    test('allergen exposures counted from allergenNames', () {
+      final activities = [
+        _activity(
+          type: 'solids',
+          foodDescription: 'Cheese toast',
+          allergenNames: ['lactose', 'gluten'],
+        ),
+        _activity(
+          type: 'solids',
+          foodDescription: 'Egg toast',
+          allergenNames: ['egg', 'gluten'],
+        ),
+      ];
+      final summary = ActivityAggregator.compute(activities);
+      expect(summary.allergenExposures['lactose'], 1);
+      expect(summary.allergenExposures['gluten'], 2);
+      expect(summary.allergenExposures['egg'], 1);
+    });
+
+    test('allergen exposures empty when allergenNames not set', () {
+      final activities = [
+        _activity(type: 'solids', foodDescription: 'banana'),
+      ];
+      final summary = ActivityAggregator.compute(activities);
+      expect(summary.allergenExposures, isEmpty);
+    });
+
+    test('allergen exposures mixed with and without allergenNames', () {
+      final activities = [
+        _activity(
+          type: 'solids',
+          foodDescription: 'Egg toast',
+          allergenNames: ['egg', 'gluten'],
+        ),
+        _activity(type: 'solids', foodDescription: 'banana'),
+      ];
+      final summary = ActivityAggregator.compute(activities);
+      expect(summary.allergenExposures['egg'], 1);
+      expect(summary.allergenExposures['gluten'], 1);
     });
   });
 }

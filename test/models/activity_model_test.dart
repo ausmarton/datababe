@@ -72,5 +72,36 @@ void main() {
       expect(map['lengthCm'], 62.0);
       expect(map['headCircumferenceCm'], 40.5);
     });
+
+    test('allergenNames serializes when set', () {
+      final now = DateTime(2026, 2, 27);
+      final model = ActivityModel(
+        id: 'act-4',
+        childId: 'child-1',
+        type: 'solids',
+        startTime: now,
+        createdAt: now,
+        modifiedAt: now,
+        allergenNames: ['lactose', 'gluten'],
+      );
+
+      final map = model.toFirestore();
+      expect(map['allergenNames'], ['lactose', 'gluten']);
+    });
+
+    test('allergenNames defaults to null', () {
+      final now = DateTime(2026, 2, 27);
+      final model = ActivityModel(
+        id: 'act-5',
+        childId: 'child-1',
+        type: 'solids',
+        startTime: now,
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      expect(model.allergenNames, isNull);
+      expect(model.toFirestore()['allergenNames'], isNull);
+    });
   });
 }

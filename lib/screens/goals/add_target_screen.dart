@@ -6,6 +6,7 @@ import '../../models/enums.dart';
 import '../../models/target_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/family_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -23,6 +24,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   TargetPeriod _period = TargetPeriod.daily;
   final _valueController = TextEditingController();
   final _ingredientController = TextEditingController();
+  final _allergenController = TextEditingController();
   bool _saving = false;
 
   /// Returns the metrics supported by the selected activity type.
@@ -40,6 +42,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
           TargetMetric.count,
           TargetMetric.uniqueFoods,
           TargetMetric.ingredientExposures,
+          TargetMetric.allergenExposures,
         ];
       case ActivityType.meds:
         return [TargetMetric.count];
@@ -61,6 +64,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   void dispose() {
     _valueController.dispose();
     _ingredientController.dispose();
+    _allergenController.dispose();
     super.dispose();
   }
 
@@ -71,6 +75,11 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
 
     if (_metric == TargetMetric.ingredientExposures &&
         _ingredientController.text.trim().isEmpty) {
+      return;
+    }
+
+    if (_metric == TargetMetric.allergenExposures &&
+        _allergenController.text.trim().isEmpty) {
       return;
     }
 
@@ -92,6 +101,9 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       createdAt: DateTime.now(),
       ingredientName: _metric == TargetMetric.ingredientExposures
           ? _ingredientController.text.trim().toLowerCase()
+          : null,
+      allergenName: _metric == TargetMetric.allergenExposures
+          ? _allergenController.text.trim().toLowerCase()
           : null,
     );
 
@@ -206,6 +218,43 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
             const SizedBox(height: 16),
           ],
 
+          // Allergen name (only for allergen exposures)
+          if (_metric == TargetMetric.allergenExposures) ...[
+            Autocomplete<String>(
+              optionsBuilder: (textEditingValue) {
+                final query = textEditingValue.text.trim().toLowerCase();
+                final categories =
+                    ref.read(allergenCategoriesProvider);
+                if (query.isEmpty) return categories;
+                return categories
+                    .where((c) => c.contains(query))
+                    .toList();
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onSubmitted) {
+                if (_allergenController.text.isNotEmpty &&
+                    controller.text.isEmpty) {
+                  controller.text = _allergenController.text;
+                }
+                controller.addListener(
+                    () => _allergenController.text = controller.text);
+                return TextFormField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Allergen name',
+                    border: OutlineInputBorder(),
+                    hintText: 'e.g., lactose, nuts',
+                  ),
+                );
+              },
+              onSelected: (selection) {
+                _allergenController.text = selection;
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Period
           SegmentedButton<TargetPeriod>(
             segments: const [
@@ -256,6 +305,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       TargetMetric.uniqueFoods => 'Unique foods',
       TargetMetric.totalDurationMinutes => 'Total duration (min)',
       TargetMetric.ingredientExposures => 'Ingredient exposures',
+      TargetMetric.allergenExposures => 'Allergen exposures',
     };
   }
 
@@ -266,6 +316,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       TargetMetric.uniqueFoods => 'foods',
       TargetMetric.totalDurationMinutes => 'min',
       TargetMetric.ingredientExposures => 'exposures',
+      TargetMetric.allergenExposures => 'exposures',
     };
   }
 }

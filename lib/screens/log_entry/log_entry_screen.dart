@@ -5,10 +5,12 @@ import 'package:intl/intl.dart';
 
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
+import '../../providers/ingredient_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../utils/activity_helpers.dart';
+import '../../utils/allergen_helpers.dart';
 
 class LogEntryScreen extends ConsumerStatefulWidget {
   final String activityType;
@@ -58,6 +60,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   FoodReaction _reaction = FoodReaction.none;
   String? _recipeId;
   List<String>? _ingredientNames;
+  List<String>? _allergenNames;
 
   // Growth
   final _weightController = TextEditingController();
@@ -152,6 +155,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       }
       _recipeId = activity.recipeId;
       _ingredientNames = activity.ingredientNames;
+      _allergenNames = activity.allergenNames;
 
       // Growth
       if (activity.weightKg != null) _weightController.text = activity.weightKg.toString();
@@ -311,6 +315,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       reaction: _type == ActivityType.solids ? _reaction.name : null,
       recipeId: _type == ActivityType.solids ? _recipeId : null,
       ingredientNames: _type == ActivityType.solids ? _ingredientNames : null,
+      allergenNames: _type == ActivityType.solids ? _allergenNames : null,
 
       // Growth
       weightKg: _parseDouble(_weightController.text),
@@ -652,9 +657,15 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
             subtitle: Text(recipe.ingredients.join(', ')),
             leading: const Icon(Icons.menu_book),
             onTap: () {
+              final allIngredients =
+                  ref.read(ingredientsProvider).valueOrNull ?? [];
+              final allergens = computeAllergensByName(
+                  recipe.ingredients, allIngredients);
               setState(() {
                 _recipeId = recipe.id;
                 _ingredientNames = List<String>.from(recipe.ingredients);
+                _allergenNames =
+                    allergens.isNotEmpty ? allergens.toList() : null;
                 _foodDescController.text = recipe.name;
               });
               Navigator.pop(context);
@@ -669,11 +680,41 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     setState(() {
       _recipeId = null;
       _ingredientNames = null;
+      _allergenNames = null;
       _foodDescController.clear();
     });
   }
 
+  void _addStandaloneIngredient(String name) {
+    final normalized = name.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    final current = _ingredientNames ?? [];
+    if (current.contains(normalized)) return;
+    final allIngredients =
+        ref.read(ingredientsProvider).valueOrNull ?? [];
+    final updated = [...current, normalized];
+    final allergens = computeAllergensByName(updated, allIngredients);
+    setState(() {
+      _ingredientNames = updated;
+      _allergenNames = allergens.isNotEmpty ? allergens.toList() : null;
+    });
+  }
+
+  void _removeStandaloneIngredient(String name) {
+    final current = _ingredientNames ?? [];
+    final updated = current.where((i) => i != name).toList();
+    final allIngredients =
+        ref.read(ingredientsProvider).valueOrNull ?? [];
+    final allergens = computeAllergensByName(updated, allIngredients);
+    setState(() {
+      _ingredientNames = updated.isEmpty ? null : updated;
+      _allergenNames = allergens.isNotEmpty ? allergens.toList() : null;
+    });
+  }
+
   List<Widget> _buildSolidsFields() {
+    final allIngredients =
+        ref.watch(ingredientsProvider).valueOrNull ?? [];
     return [
       if (_recipeId != null) ...[
         Row(
@@ -702,6 +743,68 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
           label: const Text('Pick a Recipe'),
         ),
         const SizedBox(height: 12),
+        // Standalone ingredient picker
+        if (allIngredients.isNotEmpty) ...[
+          Autocomplete<String>(
+            optionsBuilder: (textEditingValue) {
+              final query = textEditingValue.text.trim().toLowerCase();
+              final names = allIngredients.map((i) => i.name).toList();
+              if (query.isEmpty) return names;
+              return names.where((n) => n.contains(query));
+            },
+            fieldViewBuilder:
+                (context, controller, focusNode, onSubmitted) {
+              return TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: const InputDecoration(
+                  labelText: 'Add ingredient',
+                  border: OutlineInputBorder(),
+                  hintText: 'Type to search ingredients',
+                ),
+                onFieldSubmitted: (_) {
+                  _addStandaloneIngredient(controller.text);
+                  controller.clear();
+                },
+              );
+            },
+            onSelected: (name) {
+              _addStandaloneIngredient(name);
+            },
+          ),
+          if (_ingredientNames != null && _ingredientNames!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: _ingredientNames!
+                  .map((name) => Chip(
+                        label: Text(name),
+                        onDeleted: () =>
+                            _removeStandaloneIngredient(name),
+                      ))
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 12),
+        ],
+      ],
+      if (_allergenNames != null && _allergenNames!.isNotEmpty) ...[
+        Wrap(
+          spacing: 4,
+          runSpacing: 2,
+          children: _allergenNames!
+              .map((a) => Chip(
+                    label: Text(a,
+                        style: Theme.of(context).textTheme.labelSmall),
+                    avatar: const Icon(Icons.warning_amber, size: 14),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize:
+                        MaterialTapTargetSize.shrinkWrap,
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 8),
       ],
       TextFormField(
         controller: _foodDescController,

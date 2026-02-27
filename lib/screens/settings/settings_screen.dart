@@ -35,6 +35,19 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(height: 1, indent: 16, endIndent: 16),
           const _SectionHeader(title: 'Data'),
           ListTile(
+            leading: const Icon(Icons.warning_amber),
+            title: const Text('Manage Allergens'),
+            subtitle:
+                const Text('Define allergen categories for ingredient tagging'),
+            onTap: () => context.push('/settings/allergens'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.egg),
+            title: const Text('Manage Ingredients'),
+            subtitle: const Text('Create ingredients with allergen tags'),
+            onTap: () => context.push('/ingredients'),
+          ),
+          ListTile(
             leading: const Icon(Icons.menu_book),
             title: const Text('Manage Recipes'),
             subtitle: const Text('Create and edit recipes for solids logging'),

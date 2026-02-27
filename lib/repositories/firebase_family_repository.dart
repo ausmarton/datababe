@@ -273,4 +273,15 @@ class FirebaseFamilyRepository implements FamilyRepository {
       'respondedAt': FieldValue.serverTimestamp(),
     });
   }
+
+  // --- Allergen Categories ---
+
+  @override
+  Future<void> updateAllergenCategories(
+      String familyId, List<String> categories) async {
+    await _firestore
+        .collection('families')
+        .doc(familyId)
+        .update({'allergenCategories': categories});
+  }
 }

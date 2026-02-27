@@ -35,5 +35,32 @@ void main() {
       // Firestore doc ID is separate from the data
       expect(map.containsKey('id'), false);
     });
+
+    test('allergenCategories defaults to empty list', () {
+      final model = FamilyModel(
+        id: 'fam-3',
+        name: 'Family',
+        createdBy: 'uid-1',
+        memberUids: ['uid-1'],
+        createdAt: DateTime(2026, 2, 27),
+      );
+
+      expect(model.allergenCategories, isEmpty);
+      expect(model.toFirestore()['allergenCategories'], isEmpty);
+    });
+
+    test('allergenCategories serializes when set', () {
+      final model = FamilyModel(
+        id: 'fam-4',
+        name: 'Family',
+        createdBy: 'uid-1',
+        memberUids: ['uid-1'],
+        createdAt: DateTime(2026, 2, 27),
+        allergenCategories: ['lactose', 'nuts', 'gluten'],
+      );
+
+      final map = model.toFirestore();
+      expect(map['allergenCategories'], ['lactose', 'nuts', 'gluten']);
+    });
   });
 }

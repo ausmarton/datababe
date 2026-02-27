@@ -11,3 +11,9 @@ final familyCarersProvider = StreamProvider<List<CarerModel>>((ref) {
   if (familyId == null) return Stream.value([]);
   return repo.watchCarers(familyId);
 });
+
+/// Allergen categories defined for the selected family.
+final allergenCategoriesProvider = Provider<List<String>>((ref) {
+  final family = ref.watch(selectedFamilyProvider);
+  return family?.allergenCategories ?? [];
+});

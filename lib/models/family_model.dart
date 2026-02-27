@@ -6,6 +6,7 @@ class FamilyModel {
   final String createdBy;
   final List<String> memberUids;
   final DateTime createdAt;
+  final List<String> allergenCategories;
 
   FamilyModel({
     required this.id,
@@ -13,6 +14,7 @@ class FamilyModel {
     required this.createdBy,
     required this.memberUids,
     required this.createdAt,
+    this.allergenCategories = const [],
   });
 
   Map<String, dynamic> toFirestore() => {
@@ -20,6 +22,7 @@ class FamilyModel {
         'createdBy': createdBy,
         'memberUids': memberUids,
         'createdAt': Timestamp.fromDate(createdAt),
+        'allergenCategories': allergenCategories,
       };
 
   factory FamilyModel.fromFirestore(
@@ -31,6 +34,7 @@ class FamilyModel {
       createdBy: d['createdBy'] as String? ?? '',
       memberUids: List<String>.from(d['memberUids'] ?? []),
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      allergenCategories: List<String>.from(d['allergenCategories'] ?? []),
     );
   }
 }
