@@ -94,4 +94,5 @@ enum TargetMetric {
   count,
   uniqueFoods,
   totalDurationMinutes,
+  ingredientExposures,
 }

@@ -18,6 +18,8 @@ ActivityModel _activity({
   double? lengthCm,
   double? headCircumferenceCm,
   double? tempCelsius,
+  String? recipeId,
+  List<String>? ingredientNames,
 }) {
   final now = startTime ?? DateTime(2026, 2, 26, 10, 0);
   return ActivityModel(
@@ -40,6 +42,8 @@ ActivityModel _activity({
     lengthCm: lengthCm,
     headCircumferenceCm: headCircumferenceCm,
     tempCelsius: tempCelsius,
+    recipeId: recipeId,
+    ingredientNames: ingredientNames,
   );
 }
 
@@ -207,6 +211,58 @@ void main() {
       expect(summary.bottleFeedCount, 1);
       expect(summary.diaperCount, 1);
       expect(summary.durationCounts['tummyTime'], 1);
+    });
+
+    test('ingredient exposures from recipe-based activities', () {
+      final activities = [
+        _activity(
+          type: 'solids',
+          foodDescription: 'Banana Porridge',
+          recipeId: 'recipe-1',
+          ingredientNames: ['oats', "cow's milk", 'banana'],
+        ),
+        _activity(
+          type: 'solids',
+          foodDescription: 'Egg Toast',
+          recipeId: 'recipe-2',
+          ingredientNames: ['egg', "cow's milk", 'bread'],
+        ),
+      ];
+      final summary = ActivityAggregator.compute(activities);
+      expect(summary.ingredientExposures['oats'], 1);
+      expect(summary.ingredientExposures["cow's milk"], 2);
+      expect(summary.ingredientExposures['banana'], 1);
+      expect(summary.ingredientExposures['egg'], 1);
+      expect(summary.ingredientExposures['bread'], 1);
+    });
+
+    test('ingredient exposures legacy fallback from foodDescription', () {
+      final activities = [
+        _activity(type: 'solids', foodDescription: 'banana, Apple'),
+        _activity(type: 'solids', foodDescription: 'Banana, pear'),
+      ];
+      final summary = ActivityAggregator.compute(activities);
+      expect(summary.ingredientExposures['banana'], 2);
+      expect(summary.ingredientExposures['apple'], 1);
+      expect(summary.ingredientExposures['pear'], 1);
+    });
+
+    test('ingredient exposures mixed recipe and legacy', () {
+      final activities = [
+        _activity(
+          type: 'solids',
+          foodDescription: 'Banana Porridge',
+          recipeId: 'recipe-1',
+          ingredientNames: ['oats', 'banana'],
+        ),
+        _activity(type: 'solids', foodDescription: 'banana, egg'),
+      ];
+      final summary = ActivityAggregator.compute(activities);
+      // Recipe: oats=1, banana=1
+      // Legacy: banana=1, egg=1
+      expect(summary.ingredientExposures['oats'], 1);
+      expect(summary.ingredientExposures['banana'], 2);
+      expect(summary.ingredientExposures['egg'], 1);
     });
   });
 }

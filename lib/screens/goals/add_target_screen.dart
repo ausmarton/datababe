@@ -6,6 +6,7 @@ import '../../models/enums.dart';
 import '../../models/target_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
 
@@ -21,6 +22,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   TargetMetric _metric = TargetMetric.totalVolumeMl;
   TargetPeriod _period = TargetPeriod.daily;
   final _valueController = TextEditingController();
+  final _ingredientController = TextEditingController();
   bool _saving = false;
 
   /// Returns the metrics supported by the selected activity type.
@@ -34,7 +36,11 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       case ActivityType.potty:
         return [TargetMetric.count];
       case ActivityType.solids:
-        return [TargetMetric.count, TargetMetric.uniqueFoods];
+        return [
+          TargetMetric.count,
+          TargetMetric.uniqueFoods,
+          TargetMetric.ingredientExposures,
+        ];
       case ActivityType.meds:
         return [TargetMetric.count];
       case ActivityType.pump:
@@ -54,6 +60,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   @override
   void dispose() {
     _valueController.dispose();
+    _ingredientController.dispose();
     super.dispose();
   }
 
@@ -61,6 +68,11 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
     final valueText = _valueController.text.trim();
     final value = double.tryParse(valueText);
     if (value == null || value <= 0) return;
+
+    if (_metric == TargetMetric.ingredientExposures &&
+        _ingredientController.text.trim().isEmpty) {
+      return;
+    }
 
     final childId = ref.read(selectedChildIdProvider);
     final familyId = ref.read(selectedFamilyIdProvider);
@@ -78,6 +90,9 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       targetValue: value,
       createdBy: user.uid,
       createdAt: DateTime.now(),
+      ingredientName: _metric == TargetMetric.ingredientExposures
+          ? _ingredientController.text.trim().toLowerCase()
+          : null,
     );
 
     final repo = ref.read(targetRepositoryProvider);
@@ -147,6 +162,50 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
           ),
           const SizedBox(height: 16),
 
+          // Ingredient name (only for ingredient exposures)
+          if (_metric == TargetMetric.ingredientExposures) ...[
+            Autocomplete<String>(
+              optionsBuilder: (textEditingValue) {
+                final query = textEditingValue.text.trim().toLowerCase();
+                if (query.isEmpty) return const [];
+                final recipes =
+                    ref.read(recipesProvider).valueOrNull ?? [];
+                final allIngredients = <String>{};
+                for (final recipe in recipes) {
+                  for (final ingredient in recipe.ingredients) {
+                    allIngredients.add(ingredient);
+                  }
+                }
+                return allIngredients
+                    .where((i) => i.contains(query))
+                    .toList();
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onSubmitted) {
+                // Sync with our controller
+                if (_ingredientController.text.isNotEmpty &&
+                    controller.text.isEmpty) {
+                  controller.text = _ingredientController.text;
+                }
+                controller.addListener(
+                    () => _ingredientController.text = controller.text);
+                return TextFormField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Ingredient name',
+                    border: OutlineInputBorder(),
+                    hintText: 'e.g., egg, cow\'s milk',
+                  ),
+                );
+              },
+              onSelected: (selection) {
+                _ingredientController.text = selection;
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Period
           SegmentedButton<TargetPeriod>(
             segments: const [
@@ -196,6 +255,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       TargetMetric.count => 'Count',
       TargetMetric.uniqueFoods => 'Unique foods',
       TargetMetric.totalDurationMinutes => 'Total duration (min)',
+      TargetMetric.ingredientExposures => 'Ingredient exposures',
     };
   }
 
@@ -205,6 +265,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       TargetMetric.count => '',
       TargetMetric.uniqueFoods => 'foods',
       TargetMetric.totalDurationMinutes => 'min',
+      TargetMetric.ingredientExposures => 'exposures',
     };
   }
 }

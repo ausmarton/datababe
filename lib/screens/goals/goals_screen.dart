@@ -108,7 +108,7 @@ class GoalsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '${_metricLabel(target.metric)}: ${actual.round()} / ${target.targetValue.round()}',
+                          '${_metricLabel(target.metric, ingredientName: target.ingredientName)}: ${actual.round()} / ${target.targetValue.round()}',
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 4),
@@ -131,12 +131,15 @@ class GoalsScreen extends ConsumerWidget {
     );
   }
 
-  String _metricLabel(String metric) {
+  String _metricLabel(String metric, {String? ingredientName}) {
     return switch (metric) {
       'totalVolumeMl' => 'Volume (ml)',
       'count' => 'Count',
       'uniqueFoods' => 'Unique foods',
       'totalDurationMinutes' => 'Duration (min)',
+      'ingredientExposures' => ingredientName != null
+          ? '$ingredientName exposures'
+          : 'Exposures',
       _ => metric,
     };
   }

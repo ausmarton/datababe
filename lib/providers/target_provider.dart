@@ -108,6 +108,17 @@ double? _extractMetric(
       final mins = summary.durationTotals[actType];
       return mins?.toDouble();
 
+    case 'ingredientExposures':
+      if (actType == ActivityType.solids.name &&
+          target.ingredientName != null) {
+        return summary
+                .ingredientExposures[
+                    target.ingredientName!.trim().toLowerCase()]
+                ?.toDouble() ??
+            0.0;
+      }
+      return null;
+
     default:
       return null;
   }

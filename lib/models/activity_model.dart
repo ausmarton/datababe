@@ -36,6 +36,8 @@ class ActivityModel {
   // Solids
   final String? foodDescription;
   final String? reaction;
+  final String? recipeId;
+  final List<String>? ingredientNames;
 
   // Growth
   final double? weightKg;
@@ -71,6 +73,8 @@ class ActivityModel {
     this.doseUnit,
     this.foodDescription,
     this.reaction,
+    this.recipeId,
+    this.ingredientNames,
     this.weightKg,
     this.lengthCm,
     this.headCircumferenceCm,
@@ -102,6 +106,8 @@ class ActivityModel {
         'doseUnit': doseUnit,
         'foodDescription': foodDescription,
         'reaction': reaction,
+        'recipeId': recipeId,
+        'ingredientNames': ingredientNames,
         'weightKg': weightKg,
         'lengthCm': lengthCm,
         'headCircumferenceCm': headCircumferenceCm,
@@ -140,6 +146,10 @@ class ActivityModel {
       doseUnit: d['doseUnit'] as String?,
       foodDescription: d['foodDescription'] as String?,
       reaction: d['reaction'] as String?,
+      recipeId: d['recipeId'] as String?,
+      ingredientNames: (d['ingredientNames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       weightKg: (d['weightKg'] as num?)?.toDouble(),
       lengthCm: (d['lengthCm'] as num?)?.toDouble(),
       headCircumferenceCm: (d['headCircumferenceCm'] as num?)?.toDouble(),

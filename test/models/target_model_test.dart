@@ -62,5 +62,41 @@ void main() {
       final map = target.toFirestore();
       expect(map['isActive'], false);
     });
+
+    test('ingredientName serializes when set', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-3',
+        childId: 'child-1',
+        activityType: 'solids',
+        metric: 'ingredientExposures',
+        period: 'weekly',
+        targetValue: 3,
+        createdBy: 'uid-1',
+        createdAt: now,
+        ingredientName: 'egg',
+      );
+
+      final map = target.toFirestore();
+      expect(map['ingredientName'], 'egg');
+      expect(map['metric'], 'ingredientExposures');
+    });
+
+    test('ingredientName defaults to null', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-4',
+        childId: 'child-1',
+        activityType: 'feedBottle',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 6,
+        createdBy: 'uid-1',
+        createdAt: now,
+      );
+
+      expect(target.ingredientName, isNull);
+      expect(target.toFirestore()['ingredientName'], isNull);
+    });
   });
 }

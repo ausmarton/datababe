@@ -96,6 +96,10 @@ class ActivityTile extends StatelessWidget {
       case ActivityType.solids:
         final parts = <String>[];
         if (activity.foodDescription != null) parts.add(activity.foodDescription!);
+        if (activity.ingredientNames != null &&
+            activity.ingredientNames!.isNotEmpty) {
+          parts.add('${activity.ingredientNames!.length} ingredients');
+        }
         if (activity.reaction != null) parts.add(activity.reaction!);
         return parts.join(' - ');
 

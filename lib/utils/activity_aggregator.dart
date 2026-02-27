@@ -46,6 +46,9 @@ class ActivitySummary {
   final int pottyCount;
   final Map<String, int> pottyBreakdown;
 
+  // Ingredient exposures
+  final Map<String, int> ingredientExposures;
+
   const ActivitySummary({
     required this.totalCount,
     required this.bottleFeedCount,
@@ -70,6 +73,7 @@ class ActivitySummary {
     required this.pumpTotalMl,
     required this.pottyCount,
     required this.pottyBreakdown,
+    required this.ingredientExposures,
   });
 }
 
@@ -102,6 +106,7 @@ class ActivityAggregator {
     double pumpTotalMl = 0;
     int pottyCount = 0;
     final pottyBreakdown = <String, int>{};
+    final ingredientExposures = <String, int>{};
 
     for (final a in activities) {
       final type = ActivityType.values
@@ -142,6 +147,24 @@ class ActivityAggregator {
           if (a.reaction != null) {
             reactionBreakdown[a.reaction!] =
                 (reactionBreakdown[a.reaction!] ?? 0) + 1;
+          }
+          // Count ingredient exposures
+          if (a.ingredientNames != null && a.ingredientNames!.isNotEmpty) {
+            for (final ingredient in a.ingredientNames!) {
+              final n = ingredient.trim().toLowerCase();
+              if (n.isNotEmpty) {
+                ingredientExposures[n] =
+                    (ingredientExposures[n] ?? 0) + 1;
+              }
+            }
+          } else if (a.foodDescription != null) {
+            for (final food in a.foodDescription!.split(',')) {
+              final n = food.trim().toLowerCase();
+              if (n.isNotEmpty) {
+                ingredientExposures[n] =
+                    (ingredientExposures[n] ?? 0) + 1;
+              }
+            }
           }
 
         case ActivityType.meds:
@@ -226,6 +249,7 @@ class ActivityAggregator {
       pumpTotalMl: pumpTotalMl,
       pottyCount: pottyCount,
       pottyBreakdown: pottyBreakdown,
+      ingredientExposures: ingredientExposures,
     );
   }
 }

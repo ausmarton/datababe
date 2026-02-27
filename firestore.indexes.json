@@ -44,6 +44,14 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
+    ,{
+      "collectionGroup": "recipes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isDeleted", "order": "ASCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" }
+      ]
+    }
   ],
   "fieldOverrides": []
 }

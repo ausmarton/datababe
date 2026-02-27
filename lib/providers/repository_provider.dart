@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/activity_repository.dart';
 import '../repositories/family_repository.dart';
+import '../repositories/recipe_repository.dart';
 import '../repositories/target_repository.dart';
 import '../repositories/firebase_activity_repository.dart';
 import '../repositories/firebase_family_repository.dart';
+import '../repositories/firebase_recipe_repository.dart';
 import '../repositories/firebase_target_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
@@ -22,4 +24,8 @@ final familyRepositoryProvider = Provider<FamilyRepository>((ref) {
 
 final targetRepositoryProvider = Provider<TargetRepository>((ref) {
   return FirebaseTargetRepository(ref.watch(firestoreProvider));
+});
+
+final recipeRepositoryProvider = Provider<RecipeRepository>((ref) {
+  return FirebaseRecipeRepository(ref.watch(firestoreProvider));
 });

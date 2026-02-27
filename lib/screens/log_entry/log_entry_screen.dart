@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
+import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -55,6 +56,8 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   // Solids
   final _foodDescController = TextEditingController();
   FoodReaction _reaction = FoodReaction.none;
+  String? _recipeId;
+  List<String>? _ingredientNames;
 
   // Growth
   final _weightController = TextEditingController();
@@ -147,6 +150,8 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       if (activity.reaction != null) {
         _reaction = FoodReaction.values.where((e) => e.name == activity.reaction).firstOrNull ?? _reaction;
       }
+      _recipeId = activity.recipeId;
+      _ingredientNames = activity.ingredientNames;
 
       // Growth
       if (activity.weightKg != null) _weightController.text = activity.weightKg.toString();
@@ -304,6 +309,8 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       // Solids
       foodDescription: _nullIfEmpty(_foodDescController.text),
       reaction: _type == ActivityType.solids ? _reaction.name : null,
+      recipeId: _type == ActivityType.solids ? _recipeId : null,
+      ingredientNames: _type == ActivityType.solids ? _ingredientNames : null,
 
       // Growth
       weightKg: _parseDouble(_weightController.text),
@@ -624,8 +631,78 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     ];
   }
 
+  void _showRecipePicker() {
+    final recipes = ref.read(recipesProvider).valueOrNull ?? [];
+    if (recipes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No recipes yet. Create one in Recipes.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: recipes.length,
+        itemBuilder: (context, index) {
+          final recipe = recipes[index];
+          return ListTile(
+            title: Text(recipe.name),
+            subtitle: Text(recipe.ingredients.join(', ')),
+            leading: const Icon(Icons.menu_book),
+            onTap: () {
+              setState(() {
+                _recipeId = recipe.id;
+                _ingredientNames = List<String>.from(recipe.ingredients);
+                _foodDescController.text = recipe.name;
+              });
+              Navigator.pop(context);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _clearRecipe() {
+    setState(() {
+      _recipeId = null;
+      _ingredientNames = null;
+      _foodDescController.clear();
+    });
+  }
+
   List<Widget> _buildSolidsFields() {
     return [
+      if (_recipeId != null) ...[
+        Row(
+          children: [
+            Expanded(
+              child: Chip(
+                avatar: const Icon(Icons.menu_book, size: 18),
+                label: Text(_foodDescController.text),
+                onDeleted: _clearRecipe,
+              ),
+            ),
+          ],
+        ),
+        if (_ingredientNames != null && _ingredientNames!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              '${_ingredientNames!.length} ingredients: ${_ingredientNames!.join(", ")}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+      ] else ...[
+        OutlinedButton.icon(
+          onPressed: _showRecipePicker,
+          icon: const Icon(Icons.menu_book),
+          label: const Text('Pick a Recipe'),
+        ),
+        const SizedBox(height: 12),
+      ],
       TextFormField(
         controller: _foodDescController,
         decoration: const InputDecoration(

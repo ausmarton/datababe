@@ -11,6 +11,8 @@ import 'screens/charts/charts_screen.dart';
 import 'screens/family/family_screen.dart';
 import 'screens/goals/goals_screen.dart';
 import 'screens/goals/add_target_screen.dart';
+import 'screens/recipes/recipe_list_screen.dart';
+import 'screens/recipes/add_recipe_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'widgets/shell_scaffold.dart';
 
@@ -80,6 +82,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/goals/add',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AddTargetScreen(),
+      ),
+      GoRoute(
+        path: '/recipes',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const RecipeListScreen(),
+      ),
+      GoRoute(
+        path: '/recipes/add',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final recipeId = state.uri.queryParameters['id'];
+          return AddRecipeScreen(recipeId: recipeId);
+        },
       ),
     ],
   );

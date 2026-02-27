@@ -156,6 +156,18 @@ class SummaryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ));
         }
+        if (summary.ingredientExposures.isNotEmpty) {
+          final sorted = summary.ingredientExposures.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          final top = sorted.take(5).map((e) => '${e.key}: ${e.value}x');
+          children.add(const SizedBox(height: 4));
+          children.add(Text(
+            'Top exposures: ${top.join(", ")}',
+            style: Theme.of(context).textTheme.bodySmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ));
+        }
 
       case ActivityType.meds:
         for (final entry in summary.medsBreakdown.entries) {
@@ -236,7 +248,7 @@ class SummaryCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${_metricLabel(tp.target.metric)}: ${tp.actual.round()} of ${tp.target.targetValue.round()}',
+              '${_metricLabel(tp.target.metric, ingredientName: tp.target.ingredientName)}: ${tp.actual.round()} of ${tp.target.targetValue.round()}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 2),
@@ -251,12 +263,15 @@ class SummaryCard extends StatelessWidget {
     }).toList();
   }
 
-  String _metricLabel(String metric) {
+  String _metricLabel(String metric, {String? ingredientName}) {
     return switch (metric) {
       'totalVolumeMl' => 'Volume (ml)',
       'count' => 'Count',
       'uniqueFoods' => 'Unique foods',
       'totalDurationMinutes' => 'Duration (min)',
+      'ingredientExposures' => ingredientName != null
+          ? '$ingredientName exposures'
+          : 'Exposures',
       _ => metric,
     };
   }
