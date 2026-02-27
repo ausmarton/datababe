@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../import/csv_importer.dart';
 import '../../providers/auth_provider.dart';
@@ -33,6 +34,12 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           const _SectionHeader(title: 'Data'),
+          ListTile(
+            leading: const Icon(Icons.menu_book),
+            title: const Text('Manage Recipes'),
+            subtitle: const Text('Create and edit recipes for solids logging'),
+            onTap: () => context.push('/recipes'),
+          ),
           ListTile(
             leading: const Icon(Icons.file_upload),
             title: const Text('Import CSV'),
