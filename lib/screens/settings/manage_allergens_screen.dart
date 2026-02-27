@@ -36,22 +36,38 @@ class _ManageAllergensScreenState
     final familyId = ref.read(selectedFamilyIdProvider);
     if (familyId == null) return;
 
-    final updated = [...categories, text];
-    await ref
-        .read(familyRepositoryProvider)
-        .updateAllergenCategories(familyId, updated);
-    _controller.clear();
+    try {
+      final updated = [...categories, text];
+      await ref
+          .read(familyRepositoryProvider)
+          .updateAllergenCategories(familyId, updated);
+      _controller.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add allergen: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _remove(String allergen) async {
     final familyId = ref.read(selectedFamilyIdProvider);
     if (familyId == null) return;
 
-    final categories = ref.read(allergenCategoriesProvider);
-    final updated = categories.where((c) => c != allergen).toList();
-    await ref
-        .read(familyRepositoryProvider)
-        .updateAllergenCategories(familyId, updated);
+    try {
+      final categories = ref.read(allergenCategoriesProvider);
+      final updated = categories.where((c) => c != allergen).toList();
+      await ref
+          .read(familyRepositoryProvider)
+          .updateAllergenCategories(familyId, updated);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to remove allergen: $e')),
+        );
+      }
+    }
   }
 
   @override

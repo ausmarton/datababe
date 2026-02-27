@@ -6,6 +6,7 @@ import '../../models/ingredient_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/family_provider.dart';
+import '../../providers/ingredient_provider.dart';
 import '../../providers/repository_provider.dart';
 
 class AddIngredientScreen extends ConsumerStatefulWidget {
@@ -74,6 +75,15 @@ class _AddIngredientScreenState extends ConsumerState<AddIngredientScreen> {
     final familyId = ref.read(selectedFamilyIdProvider);
     final user = ref.read(currentUserProvider);
     if (familyId == null || user == null) return;
+
+    final normalizedName = _nameController.text.trim().toLowerCase();
+    final existing = ref.read(ingredientsProvider).valueOrNull ?? [];
+    if (existing.any((i) => i.name == normalizedName && i.id != widget.ingredientId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ingredient "$normalizedName" already exists')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
 

@@ -9,6 +9,7 @@ import '../../providers/child_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
+import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
 
 class AddTargetScreen extends ConsumerStatefulWidget {
@@ -103,6 +104,23 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
                   'Please go back and select a child first.')),
         );
       }
+      return;
+    }
+
+    final existingTargets = ref.read(targetsProvider).valueOrNull ?? [];
+    final isDuplicate = existingTargets.any((t) =>
+        t.activityType == _activityType.name &&
+        t.metric == _metric.name &&
+        t.period == _period.name &&
+        t.ingredientName == (_metric == TargetMetric.ingredientExposures
+            ? _selectedIngredient?.toLowerCase() : null) &&
+        t.allergenName == (_metric == TargetMetric.allergenExposures
+            ? _selectedAllergen?.toLowerCase() : null));
+
+    if (isDuplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A goal with these settings already exists')),
+      );
       return;
     }
 

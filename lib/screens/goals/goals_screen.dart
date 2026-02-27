@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../models/target_model.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/target_provider.dart';
@@ -49,76 +50,45 @@ class GoalsScreen extends ConsumerWidget {
                       ? Colors.amber
                       : Colors.red;
 
-              return Dismissible(
-                key: ValueKey(target.id),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 16),
-                  color: Theme.of(context).colorScheme.error,
-                  child: Icon(Icons.delete,
-                      color: Theme.of(context).colorScheme.onError),
-                ),
-                confirmDismiss: (_) async {
-                  final familyId = ref.read(selectedFamilyIdProvider);
-                  if (familyId == null) return false;
-
-                  bool undone = false;
-                  await ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    SnackBar(
-                      content: const Text('Goal deactivated'),
-                      action: SnackBarAction(
-                        label: 'Undo',
-                        onPressed: () => undone = true,
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (type != null) ...[
+                            Icon(activityIcon(type),
+                                color: activityColor(type), size: 20),
+                            const SizedBox(width: 8),
+                            Text(activityDisplayName(type)),
+                          ] else
+                            Text(target.activityType),
+                          const Spacer(),
+                          Chip(
+                            label: Text(target.period),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () =>
+                                _deleteGoal(context, ref, target),
+                          ),
+                        ],
                       ),
-                    ),
-                  )
-                      .closed
-                      .then((reason) {
-                    if (!undone) {
-                      ref
-                          .read(targetRepositoryProvider)
-                          .deactivateTarget(familyId, target.id);
-                    }
-                  });
-                  return false;
-                },
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (type != null) ...[
-                              Icon(activityIcon(type),
-                                  color: activityColor(type), size: 20),
-                              const SizedBox(width: 8),
-                              Text(activityDisplayName(type)),
-                            ] else
-                              Text(target.activityType),
-                            const Spacer(),
-                            Chip(
-                              label: Text(target.period),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_metricLabel(target.metric, ingredientName: target.ingredientName, allergenName: target.allergenName)}: ${actual.round()} / ${target.targetValue.round()}',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: progressFraction.clamp(0.0, 1.0),
-                          color: color,
-                          backgroundColor: color.withValues(alpha: 0.2),
-                        ),
-                      ],
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_metricLabel(target.metric, ingredientName: target.ingredientName, allergenName: target.allergenName)}: ${actual.round()} / ${target.targetValue.round()}',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      LinearProgressIndicator(
+                        value: progressFraction.clamp(0.0, 1.0),
+                        color: color,
+                        backgroundColor: color.withValues(alpha: 0.2),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -129,6 +99,50 @@ class GoalsScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
+  }
+
+  Future<void> _deleteGoal(
+      BuildContext context, WidgetRef ref, TargetModel target) async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete goal?'),
+        content: const Text('Are you sure you want to delete this goal?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      await ref
+          .read(targetRepositoryProvider)
+          .deactivateTarget(familyId, target.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal deleted')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
   }
 
   String _metricLabel(String metric,

@@ -7,6 +7,7 @@ import '../../models/recipe_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/ingredient_provider.dart';
+import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/allergen_helpers.dart';
 
@@ -88,13 +89,22 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
     final user = ref.read(currentUserProvider);
     if (familyId == null || user == null) return;
 
+    final normalizedName = _nameController.text.trim().toLowerCase();
+    final existing = ref.read(recipesProvider).valueOrNull ?? [];
+    if (existing.any((r) => r.name.toLowerCase() == normalizedName && r.id != widget.recipeId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Recipe "$normalizedName" already exists')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
       final now = DateTime.now();
       final recipe = RecipeModel(
         id: widget.recipeId ?? const Uuid().v4(),
-        name: _nameController.text.trim(),
+        name: normalizedName,
         ingredients: _ingredients,
         createdBy: _isEdit ? _originalCreatedBy : user.uid,
         createdAt: _isEdit ? _originalCreatedAt : now,
