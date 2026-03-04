@@ -24,7 +24,9 @@ jobs:
       - run: flutter pub get
 
       - name: Decode google-services.json
-        run: echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
+          python3 -c "import json; json.load(open('android/app/google-services.json'))" || { echo "::error::google-services.json is not valid JSON — re-encode with: base64 -w0 android/app/google-services.json"; exit 1; }
 
       - name: Decode release keystore
         run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/datababe-release.jks
