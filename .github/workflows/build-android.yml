@@ -28,13 +28,12 @@ jobs:
         run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/datababe-release.jks
 
       - name: Create key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          cat > android/key.properties <<EOF
-          storeFile=datababe-release.jks
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=datababe
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+          printf 'storeFile=datababe-release.jks\nstorePassword=%s\nkeyAlias=datababe\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" > android/key.properties
 
       - run: >
           flutter build apk --release
