@@ -21,6 +21,7 @@ class SyncEngine with WidgetsBindingObserver {
   final SyncQueue _queue;
   final SyncMetadata _metadata;
   final ConnectivityMonitor _connectivity;
+  final String? Function() _getUid;
 
   Timer? _debounceTimer;
   Timer? _periodicTimer;
@@ -60,11 +61,13 @@ class SyncEngine with WidgetsBindingObserver {
     required SyncQueue queue,
     required SyncMetadata metadata,
     required ConnectivityMonitor connectivity,
+    required String? Function() getUid,
   })  : _db = db,
         _firestore = firestore,
         _queue = queue,
         _metadata = metadata,
-        _connectivity = connectivity;
+        _connectivity = connectivity,
+        _getUid = getUid;
 
   /// Start listening for sync triggers.
   void start() {
@@ -192,13 +195,33 @@ class SyncEngine with WidgetsBindingObserver {
 
   /// Pull remote changes for all families the user belongs to.
   Future<void> _pullAll() async {
-    // Get all families from local store.
-    final familyRecords = await StoreRefs.families.find(_db);
-    final familyIds =
-        familyRecords.map((r) => r.key).toList();
+    // Get family IDs from local store.
+    var familyIds = (await StoreRefs.families.find(_db))
+        .map((r) => r.key)
+        .toList();
+
+    // Fallback: if local store is empty, fetch from Firestore user doc.
+    if (familyIds.isEmpty) {
+      familyIds = await _fetchFamilyIdsFromUserDoc();
+    }
 
     for (final familyId in familyIds) {
       await _pullForFamily(familyId);
+    }
+  }
+
+  /// Fetch family IDs from the Firestore user document.
+  Future<List<String>> _fetchFamilyIdsFromUserDoc() async {
+    final uid = _getUid();
+    if (uid == null) return [];
+
+    try {
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (!doc.exists) return [];
+      return List<String>.from(doc.data()?['familyIds'] ?? []);
+    } catch (e) {
+      debugPrint('[Sync] fetchFamilyIds: $e');
+      return [];
     }
   }
 

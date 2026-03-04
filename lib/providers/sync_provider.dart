@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../local/database_provider.dart';
@@ -28,6 +29,7 @@ final syncEngineProvider = Provider<SyncEngine>((ref) {
     queue: ref.watch(syncQueueProvider),
     metadata: ref.watch(syncMetadataProvider),
     connectivity: ref.watch(connectivityMonitorProvider),
+    getUid: () => FirebaseAuth.instance.currentUser?.uid,
   );
   engine.start();
   ref.onDispose(engine.dispose);
