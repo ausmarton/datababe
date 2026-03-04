@@ -21,11 +21,6 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Decode google-services.json
-        run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > android/app/google-services.json
-          python3 -c "import json; json.load(open('android/app/google-services.json'))" || { echo "::error::google-services.json is not valid JSON — re-encode with: base64 -w0 android/app/google-services.json"; exit 1; }
-
       - name: Decode release keystore
         run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/datababe-release.jks
 
@@ -37,13 +32,7 @@ jobs:
           printf 'storeFile=datababe-release.jks\nstorePassword=%s\nkeyAlias=datababe\nkeyPassword=%s\n' \
             "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" > android/key.properties
 
-      - run: >
-          flutter build apk --release
-          --dart-define=ANDROID_API_KEY=${{ secrets.ANDROID_API_KEY }}
-          --dart-define=ANDROID_APP_ID=${{ secrets.ANDROID_APP_ID }}
-          --dart-define=MESSAGING_SENDER_ID=${{ secrets.MESSAGING_SENDER_ID }}
-          --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
-          --dart-define=STORAGE_BUCKET=${{ secrets.STORAGE_BUCKET }}
+      - run: flutter build apk --release
 
       - uses: actions/upload-artifact@v4
         with:

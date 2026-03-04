@@ -50,9 +50,8 @@ data/
 private/
 instructions.txt
 
-# Firebase config (contains API keys)
+# Firebase local dev overrides
 firebase.env
-android/app/google-services.json
 
 # Android signing
 android/key.properties

@@ -37,6 +37,21 @@ class HomeScreen extends ConsumerWidget {
       );
     }
 
+    // Show sync error if it failed (but still let the user proceed).
+    final syncResult = initialSync.valueOrNull;
+    if (syncResult?.error != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Sync error: ${syncResult!.error}'),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      });
+    }
+
     final selectedChild = ref.watch(selectedChildProvider);
     final dailyActivities = ref.watch(dailyActivitiesProvider);
     final pendingInvites = ref.watch(pendingInvitesProvider);

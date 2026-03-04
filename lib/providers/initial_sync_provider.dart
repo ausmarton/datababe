@@ -5,36 +5,53 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_provider.dart';
 import 'sync_provider.dart';
 
+/// Result of the initial sync attempt.
+class InitialSyncResult {
+  final bool complete;
+  final String? error;
+
+  const InitialSyncResult({required this.complete, this.error});
+}
+
 /// Performs initial sync after login by fetching familyIds from
 /// the user's Firestore doc and pulling all family data locally.
 ///
-/// Returns `true` when sync is complete (or skipped/failed).
-/// Returns `null` (loading) while sync is in progress.
 /// Re-evaluates on login/logout.
-final initialSyncProvider = FutureProvider<bool>((ref) async {
+final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
   final user = ref.watch(currentUserProvider);
-  if (user == null) return false;
+  if (user == null) return const InitialSyncResult(complete: false);
 
   try {
+    debugPrint('[Sync] initial sync starting for uid=${user.uid}');
+
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .get();
 
-    if (!userDoc.exists) return true; // New user, no data to sync
+    if (!userDoc.exists) {
+      debugPrint('[Sync] no user doc found — new user');
+      return const InitialSyncResult(complete: true);
+    }
 
     final data = userDoc.data()!;
     final familyIds = (data['familyIds'] as List<dynamic>?)
             ?.cast<String>() ??
         [];
 
-    if (familyIds.isEmpty) return true;
+    debugPrint('[Sync] found ${familyIds.length} families: $familyIds');
+
+    if (familyIds.isEmpty) {
+      return const InitialSyncResult(complete: true);
+    }
 
     final engine = ref.read(syncEngineProvider);
     await engine.initialSync(familyIds);
-  } catch (e) {
-    debugPrint('[Sync] initial sync failed: $e');
-  }
 
-  return true; // App should be usable even if sync failed
+    debugPrint('[Sync] initial sync complete');
+    return const InitialSyncResult(complete: true);
+  } catch (e, st) {
+    debugPrint('[Sync] initial sync failed: $e\n$st');
+    return InitialSyncResult(complete: true, error: e.toString());
+  }
 });

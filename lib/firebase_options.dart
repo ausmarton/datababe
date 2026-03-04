@@ -1,10 +1,9 @@
-// Firebase configuration — values injected at build time via --dart-define.
-// For local development: flutter run --dart-define-from-file=firebase.env
-
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
+/// Firebase configuration for the data-babe project.
+/// These are client-side API keys, protected by Firestore security rules.
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -14,33 +13,33 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError('iOS is not configured — run flutterfire configure');
+        throw UnsupportedError('iOS is not configured');
       case TargetPlatform.macOS:
-        throw UnsupportedError('macOS is not configured — run flutterfire configure');
+        throw UnsupportedError('macOS is not configured');
       case TargetPlatform.windows:
-        throw UnsupportedError('Windows is not configured — run flutterfire configure');
+        throw UnsupportedError('Windows is not configured');
       case TargetPlatform.linux:
-        throw UnsupportedError('Linux is not configured — run flutterfire configure');
+        throw UnsupportedError('Linux is not configured');
       case TargetPlatform.fuchsia:
         throw UnsupportedError('Fuchsia is not configured');
     }
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: String.fromEnvironment('WEB_API_KEY'),
-    appId: String.fromEnvironment('WEB_APP_ID'),
-    messagingSenderId: String.fromEnvironment('MESSAGING_SENDER_ID'),
-    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-    authDomain: String.fromEnvironment('AUTH_DOMAIN'),
-    storageBucket: String.fromEnvironment('STORAGE_BUCKET'),
-    measurementId: String.fromEnvironment('MEASUREMENT_ID'),
+    apiKey: 'AIzaSyBzqXdqTlNIT5zjNX2Jm9CuJz8XyHK0mjk',
+    appId: '1:1093785663342:web:0c5ac11605f649ce63737f',
+    messagingSenderId: '1093785663342',
+    projectId: 'data-babe',
+    authDomain: 'data-babe.firebaseapp.com',
+    storageBucket: 'data-babe.firebasestorage.app',
+    measurementId: 'G-10CKV9LN13',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: String.fromEnvironment('ANDROID_API_KEY'),
-    appId: String.fromEnvironment('ANDROID_APP_ID'),
-    messagingSenderId: String.fromEnvironment('MESSAGING_SENDER_ID'),
-    projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-    storageBucket: String.fromEnvironment('STORAGE_BUCKET'),
+    apiKey: 'AIzaSyCfQHQdeswAg59qsWAuuLuKIaLGXZic-qY',
+    appId: '1:1093785663342:android:44bb7db16241588e63737f',
+    messagingSenderId: '1093785663342',
+    projectId: 'data-babe',
+    storageBucket: 'data-babe.firebasestorage.app',
   );
 }

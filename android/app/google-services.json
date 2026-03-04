@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1093785663342",
+    "project_id": "data-babe",
+    "storage_bucket": "data-babe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093785663342:android:44bb7db16241588e63737f",
+        "android_client_info": {
+          "package_name": "com.datababe.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1093785663342-8jfr04vg03ie2if8o54ehrvti4jnr2pj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfQHQdeswAg59qsWAuuLuKIaLGXZic-qY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1093785663342-8jfr04vg03ie2if8o54ehrvti4jnr2pj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

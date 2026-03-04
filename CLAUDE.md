@@ -84,15 +84,14 @@ lib/
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
 flutter test                                                 # Run tests (138 tests)
-flutter run -d chrome --dart-define-from-file=firebase.env   # Run on web
-flutter run -d <device> --dart-define-from-file=firebase.env # Run on Android
+flutter run -d chrome                                        # Run on web
+flutter run -d <device>                                      # Run on Android
 ```
 
 ## Firebase config
-- API keys are injected at build time via `--dart-define` (not committed to source)
-- Local dev: copy `firebase.env.example` to `firebase.env` and fill in real values
-- CI: keys are stored as GitHub Actions secrets
-- See `firebase.env.example` for the list of required variables
+- Client-side API keys are **hardcoded** in `lib/firebase_options.dart` (public by design, protected by security rules)
+- `android/app/google-services.json` is committed (required by Google Services Gradle plugin)
+- No `--dart-define` needed — `flutter build` / `flutter run` works directly
 - Firebase project name: `data-babe`
 
 ## Git hooks
@@ -169,15 +168,10 @@ invites/{id}                             — Email-based family invites
 ### Required GitHub secrets
 | Secret | Description |
 |--------|-------------|
-| `GOOGLE_SERVICES_JSON` | Base64-encoded `google-services.json` |
 | `RELEASE_KEYSTORE` | Base64-encoded `datababe-release.jks` |
 | `KEYSTORE_PASSWORD` | Keystore password (from `android/key.properties`) |
 | `KEY_PASSWORD` | Key password (same as keystore password) |
-| `ANDROID_API_KEY` | Firebase Android API key |
-| `ANDROID_APP_ID` | Firebase app ID |
-| `MESSAGING_SENDER_ID` | Firebase messaging sender ID |
-| `FIREBASE_PROJECT_ID` | Firebase project ID (`data-babe`) |
-| `STORAGE_BUCKET` | Firebase storage bucket |
+| `FIREBASE_SERVICE_ACCOUNT` | Firebase service account JSON (for web deploy) |
 
 ### Android signing
 - Release keystore: `android/app/datababe-release.jks` (gitignored)
