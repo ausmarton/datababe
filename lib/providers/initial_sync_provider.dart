@@ -13,8 +13,8 @@ class InitialSyncResult {
   const InitialSyncResult({required this.complete, this.error});
 }
 
-/// Performs initial sync after login by fetching familyIds from
-/// the user's Firestore doc and pulling all family data locally.
+/// Performs initial sync after login by querying Firestore for
+/// families where the user is a member, then pulling all data locally.
 ///
 /// Re-evaluates on login/logout.
 final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
@@ -24,24 +24,19 @@ final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
   try {
     debugPrint('[Sync] initial sync starting for uid=${user.uid}');
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
+    // Query families where this user is a member — avoids stale
+    // familyIds in the user doc and works with security rules.
+    final familyDocs = await FirebaseFirestore.instance
+        .collection('families')
+        .where('memberUids', arrayContains: user.uid)
         .get();
 
-    if (!userDoc.exists) {
-      debugPrint('[Sync] no user doc found — new user');
-      return const InitialSyncResult(complete: true);
-    }
-
-    final data = userDoc.data()!;
-    final familyIds = (data['familyIds'] as List<dynamic>?)
-            ?.cast<String>() ??
-        [];
+    final familyIds = familyDocs.docs.map((doc) => doc.id).toList();
 
     debugPrint('[Sync] found ${familyIds.length} families: $familyIds');
 
     if (familyIds.isEmpty) {
+      debugPrint('[Sync] no families found — new user');
       return const InitialSyncResult(complete: true);
     }
 

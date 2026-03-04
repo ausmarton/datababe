@@ -200,9 +200,9 @@ class SyncEngine with WidgetsBindingObserver {
         .map((r) => r.key)
         .toList();
 
-    // Fallback: if local store is empty, fetch from Firestore user doc.
+    // Fallback: if local store is empty, query Firestore directly.
     if (familyIds.isEmpty) {
-      familyIds = await _fetchFamilyIdsFromUserDoc();
+      familyIds = await _fetchFamilyIdsFromFirestore();
     }
 
     for (final familyId in familyIds) {
@@ -210,15 +210,18 @@ class SyncEngine with WidgetsBindingObserver {
     }
   }
 
-  /// Fetch family IDs from the Firestore user document.
-  Future<List<String>> _fetchFamilyIdsFromUserDoc() async {
+  /// Fetch family IDs by querying families where the user is a member.
+  /// More reliable than reading from user doc (which can have stale IDs).
+  Future<List<String>> _fetchFamilyIdsFromFirestore() async {
     final uid = _getUid();
     if (uid == null) return [];
 
     try {
-      final doc = await _firestore.collection('users').doc(uid).get();
-      if (!doc.exists) return [];
-      return List<String>.from(doc.data()?['familyIds'] ?? []);
+      final snapshot = await _firestore
+          .collection('families')
+          .where('memberUids', arrayContains: uid)
+          .get();
+      return snapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
       debugPrint('[Sync] fetchFamilyIds: $e');
       return [];
