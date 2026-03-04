@@ -153,7 +153,7 @@ class FamilyScreen extends ConsumerWidget {
                                   tooltip: 'Cancel invite',
                                   onPressed: () async {
                                     final repo = ref
-                                        .read(familyRepositoryProvider);
+                                        .read(inviteRepositoryProvider);
                                     await repo.cancelInvite(invite.id);
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(context)
@@ -401,7 +401,7 @@ class FamilyScreen extends ConsumerWidget {
                   createdAt: DateTime.now(),
                 );
 
-                final repo = ref.read(familyRepositoryProvider);
+                final repo = ref.read(inviteRepositoryProvider);
                 await repo.createInvite(invite);
 
                 if (context.mounted) {

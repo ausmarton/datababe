@@ -15,6 +15,7 @@ void main() {
         isActive: true,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
       );
 
       final map = target.toFirestore();
@@ -39,6 +40,7 @@ void main() {
         targetValue: 42,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
       );
 
       final map = target.toFirestore();
@@ -57,6 +59,7 @@ void main() {
         isActive: false,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
       );
 
       final map = target.toFirestore();
@@ -74,6 +77,7 @@ void main() {
         targetValue: 3,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
         ingredientName: 'egg',
       );
 
@@ -93,6 +97,7 @@ void main() {
         targetValue: 6,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
       );
 
       expect(target.ingredientName, isNull);
@@ -110,6 +115,7 @@ void main() {
         targetValue: 3,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
         allergenName: 'lactose',
       );
 
@@ -129,10 +135,45 @@ void main() {
         targetValue: 6,
         createdBy: 'uid-1',
         createdAt: now,
+        modifiedAt: now,
       );
 
       expect(target.allergenName, isNull);
       expect(target.toFirestore()['allergenName'], isNull);
+    });
+
+    test('toMap/fromMap round-trip preserves all fields', () {
+      final now = DateTime(2026, 2, 27, 10, 30);
+      final target = TargetModel(
+        id: 'target-rt',
+        childId: 'child-1',
+        activityType: 'solids',
+        metric: 'ingredientExposures',
+        period: 'weekly',
+        targetValue: 5,
+        isActive: true,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+        ingredientName: 'egg',
+        allergenName: 'lactose',
+      );
+
+      final map = target.toMap();
+      final restored = TargetModel.fromMap('target-rt', map);
+
+      expect(restored.id, target.id);
+      expect(restored.childId, target.childId);
+      expect(restored.activityType, target.activityType);
+      expect(restored.metric, target.metric);
+      expect(restored.period, target.period);
+      expect(restored.targetValue, target.targetValue);
+      expect(restored.isActive, target.isActive);
+      expect(restored.createdBy, target.createdBy);
+      expect(restored.createdAt, target.createdAt);
+      expect(restored.modifiedAt, target.modifiedAt);
+      expect(restored.ingredientName, target.ingredientName);
+      expect(restored.allergenName, target.allergenName);
     });
   });
 }

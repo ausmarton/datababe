@@ -65,6 +65,7 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
         createdBy: user.uid,
         memberUids: [user.uid],
         createdAt: now,
+        modifiedAt: now,
       );
 
       final child = ChildModel(

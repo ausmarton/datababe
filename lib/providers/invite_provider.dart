@@ -9,7 +9,7 @@ import 'repository_provider.dart';
 final pendingInvitesProvider = StreamProvider<List<InviteModel>>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null || user.email == null) return Stream.value([]);
-  final repo = ref.watch(familyRepositoryProvider);
+  final repo = ref.watch(inviteRepositoryProvider);
   return repo.watchPendingInvites(user.email!);
 });
 
@@ -17,6 +17,6 @@ final pendingInvitesProvider = StreamProvider<List<InviteModel>>((ref) {
 final familyInvitesProvider = StreamProvider<List<InviteModel>>((ref) {
   final familyId = ref.watch(selectedFamilyIdProvider);
   if (familyId == null) return Stream.value([]);
-  final repo = ref.watch(familyRepositoryProvider);
+  final repo = ref.watch(inviteRepositoryProvider);
   return repo.watchFamilyInvites(familyId);
 });

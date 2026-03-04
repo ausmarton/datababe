@@ -79,5 +79,29 @@ void main() {
 
       expect(model.toFirestore()['isDeleted'], true);
     });
+
+    test('toMap/fromMap round-trip preserves all fields', () {
+      final now = DateTime(2026, 2, 27, 10, 30);
+      final model = IngredientModel(
+        id: 'ing-rt',
+        name: 'cheese',
+        allergens: ['lactose', 'dairy'],
+        isDeleted: false,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      final map = model.toMap();
+      final restored = IngredientModel.fromMap('ing-rt', map);
+
+      expect(restored.id, model.id);
+      expect(restored.name, model.name);
+      expect(restored.allergens, model.allergens);
+      expect(restored.isDeleted, model.isDeleted);
+      expect(restored.createdBy, model.createdBy);
+      expect(restored.createdAt, model.createdAt);
+      expect(restored.modifiedAt, model.modifiedAt);
+    });
   });
 }

@@ -117,6 +117,83 @@ class ActivityModel {
         'tempCelsius': tempCelsius,
       };
 
+  Map<String, dynamic> toMap() => {
+        'childId': childId,
+        'type': type,
+        'startTime': startTime.toIso8601String(),
+        'endTime': endTime?.toIso8601String(),
+        'durationMinutes': durationMinutes,
+        'createdBy': createdBy,
+        'createdAt': createdAt.toIso8601String(),
+        'modifiedAt': modifiedAt.toIso8601String(),
+        'isDeleted': isDeleted,
+        'notes': notes,
+        'feedType': feedType,
+        'volumeMl': volumeMl,
+        'rightBreastMinutes': rightBreastMinutes,
+        'leftBreastMinutes': leftBreastMinutes,
+        'contents': contents,
+        'contentSize': contentSize,
+        'pooColour': pooColour,
+        'pooConsistency': pooConsistency,
+        'peeSize': peeSize,
+        'medicationName': medicationName,
+        'dose': dose,
+        'doseUnit': doseUnit,
+        'foodDescription': foodDescription,
+        'reaction': reaction,
+        'recipeId': recipeId,
+        'ingredientNames': ingredientNames,
+        'allergenNames': allergenNames,
+        'weightKg': weightKg,
+        'lengthCm': lengthCm,
+        'headCircumferenceCm': headCircumferenceCm,
+        'tempCelsius': tempCelsius,
+      };
+
+  factory ActivityModel.fromMap(String id, Map<String, dynamic> d) {
+    return ActivityModel(
+      id: id,
+      childId: d['childId'] as String? ?? '',
+      type: d['type'] as String? ?? '',
+      startTime: DateTime.parse(d['startTime'] as String),
+      endTime: d['endTime'] != null
+          ? DateTime.parse(d['endTime'] as String)
+          : null,
+      durationMinutes: d['durationMinutes'] as int?,
+      createdBy: d['createdBy'] as String?,
+      createdAt: DateTime.parse(d['createdAt'] as String),
+      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+      isDeleted: d['isDeleted'] as bool? ?? false,
+      notes: d['notes'] as String?,
+      feedType: d['feedType'] as String?,
+      volumeMl: (d['volumeMl'] as num?)?.toDouble(),
+      rightBreastMinutes: d['rightBreastMinutes'] as int?,
+      leftBreastMinutes: d['leftBreastMinutes'] as int?,
+      contents: d['contents'] as String?,
+      contentSize: d['contentSize'] as String?,
+      pooColour: d['pooColour'] as String?,
+      pooConsistency: d['pooConsistency'] as String?,
+      peeSize: d['peeSize'] as String?,
+      medicationName: d['medicationName'] as String?,
+      dose: d['dose'] as String?,
+      doseUnit: d['doseUnit'] as String?,
+      foodDescription: d['foodDescription'] as String?,
+      reaction: d['reaction'] as String?,
+      recipeId: d['recipeId'] as String?,
+      ingredientNames: (d['ingredientNames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      allergenNames: (d['allergenNames'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      weightKg: (d['weightKg'] as num?)?.toDouble(),
+      lengthCm: (d['lengthCm'] as num?)?.toDouble(),
+      headCircumferenceCm: (d['headCircumferenceCm'] as num?)?.toDouble(),
+      tempCelsius: (d['tempCelsius'] as num?)?.toDouble(),
+    );
+  }
+
   factory ActivityModel.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;

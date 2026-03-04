@@ -81,5 +81,29 @@ void main() {
 
       expect(recipe.toFirestore()['ingredients'], []);
     });
+
+    test('toMap/fromMap round-trip preserves all fields', () {
+      final now = DateTime(2026, 2, 27, 10, 30);
+      final recipe = RecipeModel(
+        id: 'recipe-rt',
+        name: 'banana porridge',
+        ingredients: ['oats', 'banana', "cow's milk"],
+        isDeleted: false,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      final map = recipe.toMap();
+      final restored = RecipeModel.fromMap('recipe-rt', map);
+
+      expect(restored.id, recipe.id);
+      expect(restored.name, recipe.name);
+      expect(restored.ingredients, recipe.ingredients);
+      expect(restored.isDeleted, recipe.isDeleted);
+      expect(restored.createdBy, recipe.createdBy);
+      expect(restored.createdAt, recipe.createdAt);
+      expect(restored.modifiedAt, recipe.modifiedAt);
+    });
   });
 }

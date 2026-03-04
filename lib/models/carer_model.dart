@@ -22,6 +22,23 @@ class CarerModel {
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
+  Map<String, dynamic> toMap() => {
+        'uid': uid,
+        'displayName': displayName,
+        'role': role,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory CarerModel.fromMap(String id, Map<String, dynamic> d) {
+    return CarerModel(
+      id: id,
+      uid: d['uid'] as String? ?? '',
+      displayName: d['displayName'] as String? ?? '',
+      role: d['role'] as String? ?? 'carer',
+      createdAt: DateTime.parse(d['createdAt'] as String),
+    );
+  }
+
   factory CarerModel.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;

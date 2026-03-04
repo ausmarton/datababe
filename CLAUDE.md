@@ -1,42 +1,89 @@
 # DataBabe — Baby Care Tracking App
 
 ## What this is
-A cloud-first baby care tracking app for parents and caregivers. Tracks feeds, diapers, medications, growth, play, and other daily care activities.
+A local-first baby care tracking app for parents and caregivers. Tracks feeds, diapers, medications, growth, play, and other daily care activities. Also tracks **recipes, ingredients, allergen exposure, and goals/targets**.
 
 ## Tech stack
 - **Flutter + Dart** — Android native + Flutter Web (for iOS/desktop browsers)
-- **Firebase** — Firestore (database), Firebase Auth (authentication)
+- **Sembast** — Local database (file-based on mobile, IndexedDB on web)
+- **Firebase** — Firestore (cloud sync), Firebase Auth (authentication)
 - **Riverpod** — State management
 - **go_router** — Declarative routing
 - **fl_chart** — Charts and data visualisation
 - **csv** — CSV import
+- **uuid** — UUID generation for all entity IDs
+- **connectivity_plus** — Network status monitoring
 
 ## Architecture
-- Cloud-first: all data in Firestore, synced across devices
+- **Local-first**: all reads/writes go to local Sembast DB, then sync to Firestore
+- **Sync engine**: event-driven push (debounced 30s) + pull on foreground/reconnect
 - Firebase Auth with Google Sign-In
 - Multi-carer: Family groups with parent/carer roles
-- Repository pattern: abstract interfaces with Firebase implementations
+- Repository pattern: abstract interfaces → local repos (Sembast) → syncing wrappers → Firestore sync
+- All data is **family-scoped** — local repos filter by `familyId` field, Firestore uses path segments
+- Models have dual serialization: `toMap()`/`fromMap()` (Sembast, ISO 8601 dates) + `toFirestore()`/`fromFirestore()` (Firestore Timestamps)
+- Deletion: **soft delete** via `isDeleted` flag (ingredients, recipes) or `isActive: false` (targets)
+- Deletion UI: **confirmation dialog → awaited delete → try/catch** (not Dismissible/fire-and-forget)
+- Duplicate prevention: client-side checks in `_save()` before writing
+- Names normalized to **lowercase** (ingredients and recipes)
+- **Invites remain online-only** (Firebase direct, not synced locally)
+
+## Data flow
+```
+UI ← Riverpod Providers ← Syncing Repos → Local Repos (Sembast)
+                                         ↘ SyncQueue → SyncEngine → Firestore
+```
 
 ## Project structure
 ```
 lib/
-  main.dart              — App entry point (Firebase init)
+  main.dart              — App entry point (Firebase + Sembast init)
   app.dart               — MaterialApp with router + auth guard
-  firebase_options.dart  — Generated Firebase config
-  models/                — Data model classes + enums
-  repositories/          — Abstract + Firebase repository implementations
-  providers/             — Riverpod providers (auth, repositories, UI state)
-  screens/               — Feature screens (auth, home, timeline, log_entry, charts, etc.)
-  widgets/               — Shared UI components
-  import/                — CSV import logic
+  firebase_options.dart  — Generated Firebase config (TODO placeholders for API keys)
+  models/                — Data model classes + enums (toMap/fromMap + toFirestore/fromFirestore)
+    activity_model.dart, app_user.dart, carer_model.dart, child_model.dart,
+    enums.dart, family_model.dart, ingredient_model.dart, invite_model.dart,
+    recipe_model.dart, target_model.dart
+  local/                 — Sembast database setup
+    database_provider.dart, store_refs.dart
+  repositories/          — Abstract interfaces + Firebase + Local implementations
+    activity, auth, family, ingredient, invite, recipe, target
+    local_*_repository.dart — Sembast implementations
+    firebase_*_repository.dart — Firestore implementations
+  sync/                  — Sync infrastructure
+    sync_engine.dart     — Push/pull orchestration with debounce
+    sync_queue.dart      — Pending change tracking
+    sync_metadata.dart   — Last-pull timestamps
+    connectivity_monitor.dart — Online/offline detection
+    firestore_converter.dart  — Map ↔ Firestore format conversion
+    syncing_*_repository.dart — Write-intercepting decorator wrappers
+  providers/             — Riverpod providers (auth, repositories, sync, UI state)
+    activity_provider, auth_provider, child_provider, family_provider,
+    ingredient_provider, invite_provider, recipe_provider, repository_provider,
+    sync_provider, target_provider
+  screens/               — Feature screens
+    auth/                — LoginScreen with Google Sign-In
+    home/                — Home screen
+    timeline/            — Timeline view with time window modes
+    log_entry/           — Activity logging
+    charts/              — Charts and data visualisation
+    goals/               — goals_screen.dart, add_target_screen.dart
+    ingredients/         — ingredient_list_screen.dart, add_ingredient_screen.dart
+    recipes/             — recipe_list_screen.dart, add_recipe_screen.dart
+    settings/            — settings_screen.dart, manage_allergens_screen.dart (+ sync controls)
+    family/              — Family management
+  widgets/               — Shared UI components (summary_card, shell_scaffold with sync dot)
+  import/                — CSV import logic (CsvParser pure + CsvImporter with repo)
   utils/                 — Helpers
+    activity_aggregator.dart, activity_helpers.dart,
+    allergen_helpers.dart, date_range_helpers.dart
 ```
 
 ## Key commands
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests
+flutter test                                                 # Run tests (135 tests)
 flutter run -d chrome --dart-define-from-file=firebase.env   # Run on web
 flutter run -d <device> --dart-define-from-file=firebase.env # Run on Android
 ```
@@ -46,6 +93,7 @@ flutter run -d <device> --dart-define-from-file=firebase.env # Run on Android
 - Local dev: copy `firebase.env.example` to `firebase.env` and fill in real values
 - CI: keys are stored as GitHub Actions secrets
 - See `firebase.env.example` for the list of required variables
+- Firebase project name: `data-babe`
 
 ## Git hooks
 ```bash
@@ -55,18 +103,50 @@ git config core.hooksPath .githooks      # Enable pre-commit secrets detection
 ## Firestore data model
 ```
 users/{uid}                              — User profile + familyIds
-families/{familyId}                      — Family name + memberUids
+families/{familyId}                      — Family name + memberUids + allergenCategories[]
 families/{familyId}/children/{childId}   — Child records
-families/{familyId}/activities/{id}      — Activity entries
+families/{familyId}/activities/{id}      — Activity entries (all types)
 families/{familyId}/carers/{carerId}     — Carer records
+families/{familyId}/ingredients/{id}     — Ingredient with name + allergens[]
+families/{familyId}/recipes/{id}         — Recipe with name + ingredients[]
+families/{familyId}/targets/{id}         — Goals/targets (activityType, metric, period, targetValue)
+invites/{id}                             — Email-based family invites
 ```
 
 ## Conventions
 - No code generation needed (no Drift, no build_runner)
 - Activity types: each type has its own typed fields (not generic columns)
 - UUIDs for all entity IDs (not auto-increment)
-- Soft delete via `isDeleted` flag
-- Dates stored as Firestore Timestamps
+- Soft delete via `isDeleted` flag (or `isActive: false` for targets)
+- Local dates as ISO 8601 strings (Sembast), Firestore dates as Timestamps
+- Ingredient and recipe names stored **lowercase**
+- All list screens use **IconButton + confirmation dialog** for deletion (not Dismissible swipe)
+- All save/delete operations use **await + try/catch** with SnackBar feedback
+- Duplicate checks happen **client-side** in `_save()` before write
+- Sembast maps are immutable — always `Map.from()` before mutating
+
+## Sync behavior
+- **Push**: debounced 30s after writes, immediate on app background, on reconnect
+- **Pull**: on app foreground, after push, on reconnect, every 15 min safety net, manual "Sync Now"
+- **Conflict resolution**: last-write-wins on `modifiedAt`
+- **Delta sync**: collections with `modifiedAt` use `where('modifiedAt', isGreaterThan: lastPull)`
+- **Full sync**: small collections (children, carers) always pulled in full
+- **Queue collapse**: multiple writes to same document produce one push
+
+## Features implemented
+- **Core tracking**: feeds (bottle/breast), diapers, potty, meds, solids, pump, growth, temperature, tummy time, indoor/outdoor play, bath, skin-to-skin
+- **Timeline**: calendar day/week/month and rolling 24h/7d/30d views with summary cards
+- **Charts**: fl_chart visualisations
+- **CSV import**: parse exported CSV from another baby tracker app
+- **Multi-parent collaboration**: email invites, family groups, carer roles
+- **Recipes**: create/edit/delete recipes with ingredient lists; allergen warnings derived from ingredients
+- **Ingredients**: create/edit/delete with allergen category tags; duplicate name prevention
+- **Allergen tracking**: family-level allergen categories; exposure counting in goals
+- **Goals/targets**: per-child targets (count, volume, duration, unique foods, ingredient/allergen exposures) with daily/weekly/monthly periods and progress bars
+- **Activity editing**: tap timeline entries to edit
+- **Activity deletion**: soft delete with confirmation
+- **Offline support**: local-first with Sembast, background sync to Firestore
+- **Sync indicators**: status dot in nav bar, Sync Now button in Settings
 
 ## Privacy
 - Never commit real user data (CSV files, personal names, health data)

@@ -28,6 +28,27 @@ class IngredientModel {
         'modifiedAt': Timestamp.fromDate(modifiedAt),
       };
 
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'allergens': allergens,
+        'isDeleted': isDeleted,
+        'createdBy': createdBy,
+        'createdAt': createdAt.toIso8601String(),
+        'modifiedAt': modifiedAt.toIso8601String(),
+      };
+
+  factory IngredientModel.fromMap(String id, Map<String, dynamic> d) {
+    return IngredientModel(
+      id: id,
+      name: d['name'] as String? ?? '',
+      allergens: List<String>.from(d['allergens'] ?? []),
+      isDeleted: d['isDeleted'] as bool? ?? false,
+      createdBy: d['createdBy'] as String? ?? '',
+      createdAt: DateTime.parse(d['createdAt'] as String),
+      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+    );
+  }
+
   factory IngredientModel.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;

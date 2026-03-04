@@ -127,6 +127,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
     setState(() => _saving = true);
 
     try {
+      final now = DateTime.now();
       final target = TargetModel(
         id: const Uuid().v4(),
         childId: childId,
@@ -135,7 +136,8 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
         period: _period.name,
         targetValue: value,
         createdBy: user.uid,
-        createdAt: DateTime.now(),
+        createdAt: now,
+        modifiedAt: now,
         ingredientName: _metric == TargetMetric.ingredientExposures
             ? _selectedIngredient!.toLowerCase()
             : null,

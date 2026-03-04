@@ -32,7 +32,7 @@ class _InvitePendingPromptState extends ConsumerState<InvitePendingPrompt> {
 
     setState(() => _processingId = invite.id);
     try {
-      final repo = ref.read(familyRepositoryProvider);
+      final repo = ref.read(inviteRepositoryProvider);
       await repo.acceptInvite(
         invite: invite,
         uid: user.uid,
@@ -54,7 +54,7 @@ class _InvitePendingPromptState extends ConsumerState<InvitePendingPrompt> {
   Future<void> _decline(InviteModel invite) async {
     setState(() => _processingId = invite.id);
     try {
-      final repo = ref.read(familyRepositoryProvider);
+      final repo = ref.read(inviteRepositoryProvider);
       await repo.declineInvite(invite.id);
     } catch (e) {
       if (mounted) {

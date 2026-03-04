@@ -22,6 +22,23 @@ class ChildModel {
         'createdAt': Timestamp.fromDate(createdAt),
       };
 
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'dateOfBirth': dateOfBirth.toIso8601String(),
+        'notes': notes,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory ChildModel.fromMap(String id, Map<String, dynamic> d) {
+    return ChildModel(
+      id: id,
+      name: d['name'] as String? ?? '',
+      dateOfBirth: DateTime.parse(d['dateOfBirth'] as String),
+      notes: d['notes'] as String? ?? '',
+      createdAt: DateTime.parse(d['createdAt'] as String),
+    );
+  }
+
   factory ChildModel.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;

@@ -9,6 +9,8 @@ import '../../import/csv_importer.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/sync_provider.dart';
+import '../../sync/sync_engine.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -65,6 +67,9 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: const Text('Import data from a CSV export'),
             onTap: () => _importCsv(context, ref),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          const _SectionHeader(title: 'Sync'),
+          _SyncStatusTile(),
         ],
       ),
     );
@@ -141,6 +146,65 @@ class SettingsScreen extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class _SyncStatusTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final syncStatus = ref.watch(syncStatusProvider);
+    final lastSync = ref.watch(lastSyncTimeProvider);
+    final pendingCount = ref.watch(pendingSyncCountProvider);
+
+    final status = syncStatus.valueOrNull ?? SyncStatus.idle;
+    final lastTime = lastSync.valueOrNull;
+    final pending = pendingCount.valueOrNull ?? 0;
+
+    final statusLabel = switch (status) {
+      SyncStatus.idle => 'Synced',
+      SyncStatus.syncing => 'Syncing...',
+      SyncStatus.error => 'Sync error',
+      SyncStatus.offline => 'Offline',
+    };
+
+    final subtitle = StringBuffer(statusLabel);
+    if (pending > 0) {
+      subtitle.write(' ($pending pending)');
+    }
+    if (lastTime != null) {
+      final ago = DateTime.now().difference(lastTime);
+      if (ago.inMinutes < 1) {
+        subtitle.write(' — just now');
+      } else if (ago.inHours < 1) {
+        subtitle.write(' — ${ago.inMinutes}m ago');
+      } else {
+        subtitle.write(' — ${ago.inHours}h ago');
+      }
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.sync),
+      title: const Text('Sync Now'),
+      subtitle: Text(subtitle.toString()),
+      trailing: status == SyncStatus.syncing
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : null,
+      onTap: status == SyncStatus.syncing
+          ? null
+          : () async {
+              final engine = ref.read(syncEngineProvider);
+              await engine.syncNow();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Sync complete')),
+                );
+              }
+            },
+    );
   }
 }
 

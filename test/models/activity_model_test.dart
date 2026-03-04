@@ -103,5 +103,103 @@ void main() {
       expect(model.allergenNames, isNull);
       expect(model.toFirestore()['allergenNames'], isNull);
     });
+
+    test('toMap/fromMap round-trip preserves all fields', () {
+      final now = DateTime(2026, 2, 27, 10, 30);
+      final end = DateTime(2026, 2, 27, 10, 45);
+
+      final model = ActivityModel(
+        id: 'act-rt',
+        childId: 'child-1',
+        type: 'solids',
+        startTime: now,
+        endTime: end,
+        durationMinutes: 15,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+        isDeleted: false,
+        notes: 'test',
+        feedType: 'formula',
+        volumeMl: 120.0,
+        rightBreastMinutes: 10,
+        leftBreastMinutes: 8,
+        contents: 'poo',
+        contentSize: 'medium',
+        pooColour: 'yellow',
+        pooConsistency: 'soft',
+        peeSize: 'large',
+        medicationName: 'vitamin D',
+        dose: '400',
+        doseUnit: 'IU',
+        foodDescription: 'banana',
+        reaction: 'loved',
+        recipeId: 'recipe-1',
+        ingredientNames: ['banana', 'oats'],
+        allergenNames: ['gluten'],
+        weightKg: 6.5,
+        lengthCm: 62.0,
+        headCircumferenceCm: 40.5,
+        tempCelsius: 36.8,
+      );
+
+      final map = model.toMap();
+      final restored = ActivityModel.fromMap('act-rt', map);
+
+      expect(restored.id, model.id);
+      expect(restored.childId, model.childId);
+      expect(restored.type, model.type);
+      expect(restored.startTime, model.startTime);
+      expect(restored.endTime, model.endTime);
+      expect(restored.durationMinutes, model.durationMinutes);
+      expect(restored.createdBy, model.createdBy);
+      expect(restored.createdAt, model.createdAt);
+      expect(restored.modifiedAt, model.modifiedAt);
+      expect(restored.isDeleted, model.isDeleted);
+      expect(restored.notes, model.notes);
+      expect(restored.feedType, model.feedType);
+      expect(restored.volumeMl, model.volumeMl);
+      expect(restored.rightBreastMinutes, model.rightBreastMinutes);
+      expect(restored.leftBreastMinutes, model.leftBreastMinutes);
+      expect(restored.contents, model.contents);
+      expect(restored.contentSize, model.contentSize);
+      expect(restored.pooColour, model.pooColour);
+      expect(restored.pooConsistency, model.pooConsistency);
+      expect(restored.peeSize, model.peeSize);
+      expect(restored.medicationName, model.medicationName);
+      expect(restored.dose, model.dose);
+      expect(restored.doseUnit, model.doseUnit);
+      expect(restored.foodDescription, model.foodDescription);
+      expect(restored.reaction, model.reaction);
+      expect(restored.recipeId, model.recipeId);
+      expect(restored.ingredientNames, model.ingredientNames);
+      expect(restored.allergenNames, model.allergenNames);
+      expect(restored.weightKg, model.weightKg);
+      expect(restored.lengthCm, model.lengthCm);
+      expect(restored.headCircumferenceCm, model.headCircumferenceCm);
+      expect(restored.tempCelsius, model.tempCelsius);
+    });
+
+    test('toMap/fromMap handles nullable fields as null', () {
+      final now = DateTime(2026, 2, 27);
+      final model = ActivityModel(
+        id: 'act-null',
+        childId: 'child-1',
+        type: 'diaper',
+        startTime: now,
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      final map = model.toMap();
+      final restored = ActivityModel.fromMap('act-null', map);
+
+      expect(restored.endTime, isNull);
+      expect(restored.feedType, isNull);
+      expect(restored.volumeMl, isNull);
+      expect(restored.ingredientNames, isNull);
+      expect(restored.allergenNames, isNull);
+      expect(restored.weightKg, isNull);
+    });
   });
 }

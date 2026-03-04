@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class ShellScaffold extends StatelessWidget {
+import '../providers/sync_provider.dart';
+import '../sync/sync_engine.dart';
+
+class ShellScaffold extends ConsumerWidget {
   final Widget child;
 
   const ShellScaffold({super.key, required this.child});
@@ -16,9 +20,20 @@ class ShellScaffold extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final syncStatus = ref.watch(syncStatusProvider);
+
     return Scaffold(
-      body: child,
+      body: Stack(
+        children: [
+          child,
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 4,
+            right: 8,
+            child: _SyncDot(status: syncStatus.valueOrNull),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex(context),
         onDestinationSelected: (index) {
@@ -62,6 +77,35 @@ class ShellScaffold extends StatelessWidget {
             label: 'Settings',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SyncDot extends StatelessWidget {
+  final SyncStatus? status;
+
+  const _SyncDot({this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, tooltip) = switch (status) {
+      SyncStatus.idle => (Colors.green, 'Synced'),
+      SyncStatus.syncing => (Colors.amber, 'Syncing...'),
+      SyncStatus.error => (Colors.red, 'Sync error'),
+      SyncStatus.offline => (Colors.grey, 'Offline'),
+      null => (Colors.grey, 'Unknown'),
+    };
+
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }
