@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <include domain="database" path="filho.db" />
+    <include domain="database" path="datababe.db" />
     <include domain="sharedpref" path="." />
-    <exclude domain="database" path="filho.db-journal" />
-    <exclude domain="database" path="filho.db-wal" />
-    <exclude domain="database" path="filho.db-shm" />
+    <exclude domain="database" path="datababe.db-journal" />
+    <exclude domain="database" path="datababe.db-wal" />
+    <exclude domain="database" path="datababe.db-shm" />
 </full-backup-content>

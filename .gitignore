@@ -54,5 +54,9 @@ instructions.txt
 firebase.env
 android/app/google-services.json
 
+# Android signing
+android/key.properties
+*.jks
+
 # Generated code (reproducible via build_runner)
 *.g.dart

@@ -1,12 +1,14 @@
-name: Build Android APK
+name: Release
 
 on:
   push:
-    branches: [main]
+    tags: ['v*']
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +38,8 @@ jobs:
           keyPassword=${{ secrets.KEY_PASSWORD }}
           EOF
 
-      - run: >
+      - name: Build APK
+        run: >
           flutter build apk --release
           --dart-define=ANDROID_API_KEY=${{ secrets.ANDROID_API_KEY }}
           --dart-define=ANDROID_APP_ID=${{ secrets.ANDROID_APP_ID }}
@@ -44,7 +47,25 @@ jobs:
           --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
           --dart-define=STORAGE_BUCKET=${{ secrets.STORAGE_BUCKET }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Build AAB (for future Play Store)
+        run: >
+          flutter build appbundle --release
+          --dart-define=ANDROID_API_KEY=${{ secrets.ANDROID_API_KEY }}
+          --dart-define=ANDROID_APP_ID=${{ secrets.ANDROID_APP_ID }}
+          --dart-define=MESSAGING_SENDER_ID=${{ secrets.MESSAGING_SENDER_ID }}
+          --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          --dart-define=STORAGE_BUCKET=${{ secrets.STORAGE_BUCKET }}
+
+      - name: Rename artifacts with version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp build/app/outputs/flutter-apk/app-release.apk "datababe-${VERSION}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "datababe-${VERSION}.aab"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          generate_release_notes: true
+          files: |
+            datababe-*.apk
+            datababe-*.aab

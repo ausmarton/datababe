@@ -76,6 +76,50 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final engine = ref.read(syncEngineProvider);
+    final monitor = ref.read(connectivityMonitorProvider);
+    final pending = await engine.pendingCount;
+
+    // Warn if offline with unsynced changes.
+    if (!monitor.isOnline && pending > 0 && context.mounted) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Unsynced changes'),
+          content: Text(
+            'You have $pending unsynced change${pending == 1 ? '' : 's'}. '
+            'Signing out while offline will discard them.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Sign out anyway'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    // Best-effort push before clearing.
+    try {
+      await engine.syncNow();
+    } catch (_) {}
+
+    // Clear local data to prevent leaking to next user.
+    await engine.clearLocalData();
+
+    // Reset selection state.
+    ref.read(selectedFamilyIdProvider.notifier).state = null;
+    ref.read(selectedChildIdProvider.notifier).state = null;
+
     await ref.read(authRepositoryProvider).signOut();
   }
 

@@ -180,8 +180,8 @@ class SyncEngine with WidgetsBindingObserver {
 
         await docRef.set(firestoreData);
         completedIds.add(entry.id);
-      } catch (_) {
-        // Will retry on next trigger.
+      } catch (e) {
+        debugPrint('[Sync] push ${entry.collection}/${entry.documentId}: $e');
       }
     }
 
@@ -240,7 +240,9 @@ class SyncEngine with WidgetsBindingObserver {
       }
 
       await _metadata.setLastPull(familyId, 'families', DateTime.now());
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Sync] pullFamilyDoc $familyId: $e');
+    }
   }
 
   /// Delta pull: only documents modified since last pull.
@@ -276,7 +278,9 @@ class SyncEngine with WidgetsBindingObserver {
       });
 
       await _metadata.setLastPull(familyId, collection, DateTime.now());
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Sync] pullDelta $familyId/$collection: $e');
+    }
   }
 
   /// Full pull for small collections (children, carers).
@@ -301,7 +305,9 @@ class SyncEngine with WidgetsBindingObserver {
       });
 
       await _metadata.setLastPull(familyId, collection, DateTime.now());
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Sync] pullFull $familyId/$collection: $e');
+    }
   }
 
   /// Check if there's a pending sync entry for a specific document.
@@ -326,6 +332,19 @@ class SyncEngine with WidgetsBindingObserver {
         .doc(familyId)
         .collection(collection)
         .doc(documentId);
+  }
+
+  /// Clear all local data (entity stores + sync queue + sync metadata).
+  /// Called on logout to prevent data leaking to the next user.
+  Future<void> clearLocalData() async {
+    _debounceTimer?.cancel();
+    await _db.transaction((txn) async {
+      for (final store in _storeMap.values) {
+        await store.drop(txn);
+      }
+      await StoreRefs.syncQueue.drop(txn);
+      await StoreRefs.syncMeta.drop(txn);
+    });
   }
 
   /// Initial sync: full pull of all data for given family IDs.

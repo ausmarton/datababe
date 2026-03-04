@@ -248,9 +248,16 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     if (familyId == null) return;
 
     final repo = ref.read(activityRepositoryProvider);
-    await repo.softDeleteActivity(familyId, widget.activityId!);
-
-    if (mounted) Navigator.of(context).pop();
+    try {
+      await repo.softDeleteActivity(familyId, widget.activityId!);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -330,13 +337,21 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     );
 
     final repo = ref.read(activityRepositoryProvider);
-    if (widget.activityId != null) {
-      await repo.updateActivity(familyId, entry);
-    } else {
-      await repo.insertActivity(familyId, entry);
+    try {
+      if (widget.activityId != null) {
+        await repo.updateActivity(familyId, entry);
+      } else {
+        await repo.insertActivity(familyId, entry);
+      }
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
+        );
+      }
     }
-
-    if (mounted) Navigator.of(context).pop();
   }
 
   double? _parseDouble(String s) {

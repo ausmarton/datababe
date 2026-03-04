@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/enums.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/activity_provider.dart';
+import '../../providers/initial_sync_provider.dart';
 import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -20,6 +21,22 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final initialSync = ref.watch(initialSyncProvider);
+
+    // Show loading while initial sync is in progress.
+    if (initialSync.isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Syncing your data...'),
+          ],
+        ),
+      );
+    }
+
     final selectedChild = ref.watch(selectedChildProvider);
     final dailyActivities = ref.watch(dailyActivitiesProvider);
     final pendingInvites = ref.watch(pendingInvitesProvider);
@@ -123,9 +140,17 @@ void _deleteActivity(BuildContext context, WidgetRef ref, dynamic activity) {
         onPressed: () => undone = true,
       ),
     ),
-  ).closed.then((reason) {
+  ).closed.then((reason) async {
     if (!undone) {
-      repo.softDeleteActivity(familyId, activityId);
+      try {
+        await repo.softDeleteActivity(familyId, activityId);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Delete failed: $e')),
+          );
+        }
+      }
     }
   });
 }

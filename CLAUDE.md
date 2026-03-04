@@ -59,8 +59,8 @@ lib/
     syncing_*_repository.dart — Write-intercepting decorator wrappers
   providers/             — Riverpod providers (auth, repositories, sync, UI state)
     activity_provider, auth_provider, child_provider, family_provider,
-    ingredient_provider, invite_provider, recipe_provider, repository_provider,
-    sync_provider, target_provider
+    ingredient_provider, initial_sync_provider, invite_provider,
+    recipe_provider, repository_provider, sync_provider, target_provider
   screens/               — Feature screens
     auth/                — LoginScreen with Google Sign-In
     home/                — Home screen
@@ -83,7 +83,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (135 tests)
+flutter test                                                 # Run tests (138 tests)
 flutter run -d chrome --dart-define-from-file=firebase.env   # Run on web
 flutter run -d <device> --dart-define-from-file=firebase.env # Run on Android
 ```
@@ -132,6 +132,9 @@ invites/{id}                             — Email-based family invites
 - **Delta sync**: collections with `modifiedAt` use `where('modifiedAt', isGreaterThan: lastPull)`
 - **Full sync**: small collections (children, carers) always pulled in full
 - **Queue collapse**: multiple writes to same document produce one push
+- **Initial sync**: on login, fetches `familyIds` from user doc, pulls all data
+- **Logout**: best-effort push → `clearLocalData()` (drops all stores) → sign out
+- **Error logging**: `debugPrint('[Sync] ...')` in all catch blocks (stripped in release)
 
 ## Features implemented
 - **Core tracking**: feeds (bottle/breast), diapers, potty, meds, solids, pump, growth, temperature, tummy time, indoor/outdoor play, bath, skin-to-skin
@@ -147,6 +150,44 @@ invites/{id}                             — Email-based family invites
 - **Activity deletion**: soft delete with confirmation
 - **Offline support**: local-first with Sembast, background sync to Firestore
 - **Sync indicators**: status dot in nav bar, Sync Now button in Settings
+- **Initial sync**: automatic full pull after login via `initialSyncProvider`
+- **Logout cleanup**: best-effort push, local data wipe, offline warning if unsynced changes
+- **GitHub Releases**: tag-triggered CI builds signed APK + AAB
+
+## Releasing
+
+### GitHub Releases (current)
+1. Update `version` in `pubspec.yaml` (e.g., `1.1.0+2`)
+2. Commit and push to `main`
+3. Tag the commit: `git tag v1.1.0 && git push origin v1.1.0`
+4. The `release.yml` workflow automatically:
+   - Builds a signed APK and AAB
+   - Creates a GitHub Release with auto-generated release notes
+   - Attaches `datababe-1.1.0.apk` and `datababe-1.1.0.aab`
+5. Share the APK download link with users
+
+### Required GitHub secrets
+| Secret | Description |
+|--------|-------------|
+| `GOOGLE_SERVICES_JSON` | Base64-encoded `google-services.json` |
+| `RELEASE_KEYSTORE` | Base64-encoded `datababe-release.jks` |
+| `KEYSTORE_PASSWORD` | Keystore password (from `android/key.properties`) |
+| `KEY_PASSWORD` | Key password (same as keystore password) |
+| `ANDROID_API_KEY` | Firebase Android API key |
+| `ANDROID_APP_ID` | Firebase app ID |
+| `MESSAGING_SENDER_ID` | Firebase messaging sender ID |
+| `FIREBASE_PROJECT_ID` | Firebase project ID (`data-babe`) |
+| `STORAGE_BUCKET` | Firebase storage bucket |
+
+### Android signing
+- Release keystore: `android/app/datababe-release.jks` (gitignored)
+- Key properties: `android/key.properties` (gitignored)
+- `build.gradle.kts` auto-detects `key.properties` — falls back to debug signing when absent
+
+### Future: Google Play Store
+- AAB is already built by the release workflow
+- Will need: Play Developer account ($25), store listing, privacy policy, content rating
+- Upload the `.aab` from the GitHub Release to Play Console
 
 ## Privacy
 - Never commit real user data (CSV files, personal names, health data)
