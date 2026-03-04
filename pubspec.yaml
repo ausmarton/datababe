@@ -42,7 +42,7 @@ dependencies:
 
   # Connectivity
   connectivity_plus: ^6.1.3
-  shared_preferences: ^2.3.4
+  shared_preferences: ^2.5.4
 
   # Local database
   sembast: ^3.7.2
