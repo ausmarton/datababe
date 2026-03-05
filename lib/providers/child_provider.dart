@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/child_model.dart';
 import 'auth_provider.dart';
+import 'initial_sync_provider.dart';
 import 'repository_provider.dart';
 
 /// Currently selected family ID.
@@ -18,7 +19,13 @@ final allChildrenProvider = StreamProvider<List<ChildModel>>((ref) {
 });
 
 /// Watch families for the current user.
+/// Depends on initialSyncProvider so the Sembast stream is created
+/// AFTER sync writes data — avoids race on web where onSnapshots
+/// may miss writes that happened before the stream was created.
 final userFamiliesProvider = StreamProvider((ref) {
+  final syncState = ref.watch(initialSyncProvider);
+  if (syncState.isLoading) return Stream.value([]);
+
   final user = ref.watch(currentUserProvider);
   if (user == null) return Stream.value([]);
   final repo = ref.watch(familyRepositoryProvider);
