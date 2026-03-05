@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sembast/sembast.dart';
 
+import '../local/database_provider.dart';
+import '../local/store_refs.dart';
 import 'auth_provider.dart';
 import 'sync_provider.dart';
 
@@ -43,7 +46,20 @@ final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
     final engine = ref.read(syncEngineProvider);
     await engine.initialSync(familyIds);
 
-    debugPrint('[Sync] initial sync complete');
+    // Verify data was stored in Sembast.
+    final db = ref.read(localDatabaseProvider);
+    final storedFamilies = await StoreRefs.families.find(db);
+    final storedChildren = await StoreRefs.children.find(db);
+    final storedActivities = await StoreRefs.activities.find(db);
+    debugPrint('[Sync] initial sync complete — '
+        'Sembast has ${storedFamilies.length} families, '
+        '${storedChildren.length} children, '
+        '${storedActivities.length} activities');
+    for (final f in storedFamilies) {
+      debugPrint('[Sync]   family ${f.key}: ${f.value['name']} '
+          'memberUids=${f.value['memberUids']}');
+    }
+
     return const InitialSyncResult(complete: true);
   } catch (e, st) {
     debugPrint('[Sync] initial sync failed: $e\n$st');
