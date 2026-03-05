@@ -252,7 +252,10 @@ class SyncEngine with WidgetsBindingObserver {
           .collection('families')
           .doc(familyId)
           .get();
-      if (!doc.exists) return;
+      if (!doc.exists) {
+        debugPrint('[Sync] pullFamilyDoc $familyId: doc does not exist');
+        return;
+      }
 
       final remoteData = FirestoreConverter.fromFirestore(
         doc.data()!,
@@ -263,6 +266,9 @@ class SyncEngine with WidgetsBindingObserver {
       final hasPending = await _hasPendingForDoc('families', doc.id);
       if (!hasPending) {
         await StoreRefs.families.record(doc.id).put(_db, remoteData);
+        debugPrint('[Sync] pullFamilyDoc $familyId: stored "${remoteData['name']}"');
+      } else {
+        debugPrint('[Sync] pullFamilyDoc $familyId: skipped (pending local changes)');
       }
 
       await _metadata.setLastPull(familyId, 'families', DateTime.now());
@@ -288,6 +294,8 @@ class SyncEngine with WidgetsBindingObserver {
 
       final snapshot = await query.get();
       final store = _storeMap[collection]!;
+
+      debugPrint('[Sync] pullDelta $familyId/$collection: ${snapshot.docs.length} docs');
 
       await _db.transaction((txn) async {
         for (final doc in snapshot.docs) {
@@ -319,6 +327,8 @@ class SyncEngine with WidgetsBindingObserver {
           .get();
 
       final store = _storeMap[collection]!;
+
+      debugPrint('[Sync] pullFull $familyId/$collection: ${snapshot.docs.length} docs');
 
       await _db.transaction((txn) async {
         for (final doc in snapshot.docs) {
