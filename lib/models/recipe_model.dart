@@ -38,6 +38,9 @@ class RecipeModel {
       };
 
   factory RecipeModel.fromMap(String id, Map<String, dynamic> d) {
+    final createdAt = d['createdAt'] != null
+        ? DateTime.parse(d['createdAt'] as String)
+        : DateTime.now();
     return RecipeModel(
       id: id,
       name: d['name'] as String? ?? '',
@@ -47,8 +50,10 @@ class RecipeModel {
           [],
       isDeleted: d['isDeleted'] as bool? ?? false,
       createdBy: d['createdBy'] as String? ?? '',
-      createdAt: DateTime.parse(d['createdAt'] as String),
-      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+      createdAt: createdAt,
+      modifiedAt: d['modifiedAt'] != null
+          ? DateTime.parse(d['modifiedAt'] as String)
+          : createdAt,
     );
   }
 

@@ -58,6 +58,9 @@ class TargetModel {
       };
 
   factory TargetModel.fromMap(String id, Map<String, dynamic> d) {
+    final createdAt = d['createdAt'] != null
+        ? DateTime.parse(d['createdAt'] as String)
+        : DateTime.now();
     return TargetModel(
       id: id,
       childId: d['childId'] as String? ?? '',
@@ -67,8 +70,10 @@ class TargetModel {
       targetValue: (d['targetValue'] as num?)?.toDouble() ?? 0,
       isActive: d['isActive'] as bool? ?? true,
       createdBy: d['createdBy'] as String? ?? '',
-      createdAt: DateTime.parse(d['createdAt'] as String),
-      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+      createdAt: createdAt,
+      modifiedAt: d['modifiedAt'] != null
+          ? DateTime.parse(d['modifiedAt'] as String)
+          : createdAt,
       ingredientName: d['ingredientName'] as String?,
       allergenName: d['allergenName'] as String?,
     );

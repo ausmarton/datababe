@@ -152,18 +152,25 @@ class ActivityModel {
       };
 
   factory ActivityModel.fromMap(String id, Map<String, dynamic> d) {
+    final createdAt = d['createdAt'] != null
+        ? DateTime.parse(d['createdAt'] as String)
+        : DateTime.now();
     return ActivityModel(
       id: id,
       childId: d['childId'] as String? ?? '',
       type: d['type'] as String? ?? '',
-      startTime: DateTime.parse(d['startTime'] as String),
+      startTime: d['startTime'] != null
+          ? DateTime.parse(d['startTime'] as String)
+          : DateTime.now(),
       endTime: d['endTime'] != null
           ? DateTime.parse(d['endTime'] as String)
           : null,
       durationMinutes: d['durationMinutes'] as int?,
       createdBy: d['createdBy'] as String?,
-      createdAt: DateTime.parse(d['createdAt'] as String),
-      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+      createdAt: createdAt,
+      modifiedAt: d['modifiedAt'] != null
+          ? DateTime.parse(d['modifiedAt'] as String)
+          : createdAt,
       isDeleted: d['isDeleted'] as bool? ?? false,
       notes: d['notes'] as String?,
       feedType: d['feedType'] as String?,

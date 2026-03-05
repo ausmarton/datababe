@@ -35,7 +35,9 @@ class CarerModel {
       uid: d['uid'] as String? ?? '',
       displayName: d['displayName'] as String? ?? '',
       role: d['role'] as String? ?? 'carer',
-      createdAt: DateTime.parse(d['createdAt'] as String),
+      createdAt: d['createdAt'] != null
+          ? DateTime.parse(d['createdAt'] as String)
+          : DateTime.now(),
     );
   }
 

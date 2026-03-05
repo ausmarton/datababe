@@ -38,13 +38,18 @@ class FamilyModel {
       };
 
   factory FamilyModel.fromMap(String id, Map<String, dynamic> d) {
+    final createdAt = d['createdAt'] != null
+        ? DateTime.parse(d['createdAt'] as String)
+        : DateTime.now();
     return FamilyModel(
       id: id,
       name: d['name'] as String? ?? '',
       createdBy: d['createdBy'] as String? ?? '',
       memberUids: List<String>.from(d['memberUids'] ?? []),
-      createdAt: DateTime.parse(d['createdAt'] as String),
-      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+      createdAt: createdAt,
+      modifiedAt: d['modifiedAt'] != null
+          ? DateTime.parse(d['modifiedAt'] as String)
+          : createdAt,
       allergenCategories: List<String>.from(d['allergenCategories'] ?? []),
     );
   }

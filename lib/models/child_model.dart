@@ -33,9 +33,13 @@ class ChildModel {
     return ChildModel(
       id: id,
       name: d['name'] as String? ?? '',
-      dateOfBirth: DateTime.parse(d['dateOfBirth'] as String),
+      dateOfBirth: d['dateOfBirth'] != null
+          ? DateTime.parse(d['dateOfBirth'] as String)
+          : DateTime.now(),
       notes: d['notes'] as String? ?? '',
-      createdAt: DateTime.parse(d['createdAt'] as String),
+      createdAt: d['createdAt'] != null
+          ? DateTime.parse(d['createdAt'] as String)
+          : DateTime.now(),
     );
   }
 

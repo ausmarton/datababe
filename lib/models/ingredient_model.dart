@@ -38,14 +38,19 @@ class IngredientModel {
       };
 
   factory IngredientModel.fromMap(String id, Map<String, dynamic> d) {
+    final createdAt = d['createdAt'] != null
+        ? DateTime.parse(d['createdAt'] as String)
+        : DateTime.now();
     return IngredientModel(
       id: id,
       name: d['name'] as String? ?? '',
       allergens: List<String>.from(d['allergens'] ?? []),
       isDeleted: d['isDeleted'] as bool? ?? false,
       createdBy: d['createdBy'] as String? ?? '',
-      createdAt: DateTime.parse(d['createdAt'] as String),
-      modifiedAt: DateTime.parse(d['modifiedAt'] as String),
+      createdAt: createdAt,
+      modifiedAt: d['modifiedAt'] != null
+          ? DateTime.parse(d['modifiedAt'] as String)
+          : createdAt,
     );
   }
 
