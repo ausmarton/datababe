@@ -6,6 +6,7 @@ import '../../models/enums.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/initial_sync_provider.dart';
+import '../../providers/insights_provider.dart';
 import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -91,6 +92,9 @@ class HomeScreen extends ConsumerWidget {
         SliverAppBar.large(
           title: Text(selectedChild.name),
         ),
+        SliverToBoxAdapter(
+          child: _StatusBanner(),
+        ),
         SliverPadding(
           padding: const EdgeInsets.all(16),
           sliver: SliverToBoxAdapter(
@@ -168,6 +172,76 @@ void _deleteActivity(BuildContext context, WidgetRef ref, dynamic activity) {
       }
     }
   });
+}
+
+class _StatusBanner extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(todayProgressProvider);
+    if (progress.isEmpty) return const SizedBox.shrink();
+
+    // Show up to 4 key metrics
+    final metrics = progress.take(4).toList();
+
+    return GestureDetector(
+      onTap: () => GoRouter.of(context).go('/insights'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                for (var i = 0; i < metrics.length; i++) ...[
+                  if (i > 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('|',
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .outlineVariant)),
+                    ),
+                  Flexible(
+                    child: _StatusMetric(metric: metrics[i]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusMetric extends StatelessWidget {
+  final MetricProgress metric;
+
+  const _StatusMetric({required this.metric});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = metric.fraction >= 0.8
+        ? Colors.green
+        : metric.fraction >= 0.4
+            ? Colors.amber
+            : Colors.red;
+
+    final valueStr = metric.unit.isNotEmpty
+        ? '${metric.actual.round()}${metric.unit}'
+        : '${metric.actual.round()}';
+
+    return Text(
+      '${metric.label}: $valueStr',
+      style: Theme.of(context)
+          .textTheme
+          .labelMedium
+          ?.copyWith(color: statusColor),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
 }
 
 class _QuickLogGrid extends StatelessWidget {

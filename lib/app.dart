@@ -7,7 +7,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/timeline/timeline_screen.dart';
 import 'screens/log_entry/log_entry_screen.dart';
-import 'screens/charts/charts_screen.dart';
+import 'screens/insights/insights_screen.dart';
 import 'screens/family/family_screen.dart';
 import 'screens/goals/goals_screen.dart';
 import 'screens/goals/add_target_screen.dart';
@@ -15,6 +15,8 @@ import 'screens/recipes/recipe_list_screen.dart';
 import 'screens/recipes/add_recipe_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/manage_allergens_screen.dart';
+import 'screens/insights/allergen_detail_screen.dart';
+import 'screens/insights/metric_detail_screen.dart';
 import 'screens/ingredients/ingredient_list_screen.dart';
 import 'screens/ingredients/add_ingredient_screen.dart';
 import 'widgets/shell_scaffold.dart';
@@ -54,8 +56,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const TimelineScreen(),
           ),
           GoRoute(
-            path: '/charts',
-            builder: (context, state) => const ChartsScreen(),
+            path: '/insights',
+            builder: (context, state) => const InsightsScreen(),
           ),
           GoRoute(
             path: '/family',
@@ -85,6 +87,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/goals/add',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AddTargetScreen(),
+      ),
+      GoRoute(
+        path: '/insights/metric/:key',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final key = state.pathParameters['key']!;
+          return MetricDetailScreen(metricKey: key);
+        },
+      ),
+      GoRoute(
+        path: '/insights/allergens',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AllergenDetailScreen(),
       ),
       GoRoute(
         path: '/settings/allergens',

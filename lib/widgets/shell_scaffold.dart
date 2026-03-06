@@ -13,7 +13,7 @@ class ShellScaffold extends ConsumerWidget {
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     if (location.startsWith('/timeline')) return 1;
-    if (location.startsWith('/charts')) return 2;
+    if (location.startsWith('/insights')) return 2;
     if (location.startsWith('/family')) return 3;
     if (location.startsWith('/settings')) return 4;
     return 0;
@@ -43,7 +43,7 @@ class ShellScaffold extends ConsumerWidget {
             case 1:
               context.go('/timeline');
             case 2:
-              context.go('/charts');
+              context.go('/insights');
             case 3:
               context.go('/family');
             case 4:
@@ -62,9 +62,9 @@ class ShellScaffold extends ConsumerWidget {
             label: 'Timeline',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Charts',
+            icon: Icon(Icons.insights_outlined),
+            selectedIcon: Icon(Icons.insights),
+            label: 'Insights',
           ),
           NavigationDestination(
             icon: Icon(Icons.family_restroom_outlined),

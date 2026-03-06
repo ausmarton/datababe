@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/child_provider.dart';
 import '../../providers/family_provider.dart';
+import '../../providers/ingredient_provider.dart';
 import '../../providers/repository_provider.dart';
 
 class ManageAllergensScreen extends ConsumerStatefulWidget {
@@ -51,9 +52,33 @@ class _ManageAllergensScreenState
     }
   }
 
-  Future<void> _remove(String allergen) async {
+  Future<void> _remove(String allergen, int usageCount) async {
     final familyId = ref.read(selectedFamilyIdProvider);
     if (familyId == null) return;
+
+    if (usageCount > 0) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete allergen?'),
+          content: Text(
+            '"$allergen" is used by $usageCount ingredient${usageCount == 1 ? '' : 's'}. '
+            'Removing it will not update existing ingredients.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
 
     try {
       final categories = ref.read(allergenCategoriesProvider);
@@ -73,6 +98,17 @@ class _ManageAllergensScreenState
   @override
   Widget build(BuildContext context) {
     final categories = ref.watch(allergenCategoriesProvider);
+    final ingredients =
+        ref.watch(ingredientsProvider).valueOrNull ?? [];
+
+    // Count how many ingredients use each allergen
+    final usageCounts = <String, int>{};
+    for (final cat in categories) {
+      usageCounts[cat] = ingredients
+          .where((i) =>
+              i.allergens.any((a) => a.toLowerCase() == cat.toLowerCase()))
+          .length;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Manage Allergens')),
@@ -106,12 +142,15 @@ class _ManageAllergensScreenState
             Wrap(
               spacing: 6,
               runSpacing: 4,
-              children: categories
-                  .map((c) => Chip(
-                        label: Text(c),
-                        onDeleted: () => _remove(c),
-                      ))
-                  .toList(),
+              children: categories.map((c) {
+                final count = usageCounts[c] ?? 0;
+                final label =
+                    count > 0 ? '$c ($count)' : c;
+                return Chip(
+                  label: Text(label),
+                  onDeleted: () => _remove(c, count),
+                );
+              }).toList(),
             ),
         ],
       ),
