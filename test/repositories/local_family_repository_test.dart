@@ -46,6 +46,7 @@ void main() {
       name: 'Baby',
       dateOfBirth: DateTime(2025, 6, 1),
       createdAt: now,
+      modifiedAt: now,
     );
     final carer = CarerModel(
       id: 'carer-1',
@@ -53,6 +54,7 @@ void main() {
       displayName: 'Parent',
       role: 'parent',
       createdAt: now,
+      modifiedAt: now,
     );
 
     await repo.createFamilyWithChild(
@@ -96,6 +98,7 @@ void main() {
       displayName: 'Carer 2',
       role: 'carer',
       createdAt: now,
+      modifiedAt: now,
     );
     await repo.createCarer('fam-5', carer);
 

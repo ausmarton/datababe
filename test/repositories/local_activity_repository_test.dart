@@ -118,4 +118,110 @@ void main() {
     final result = await repo.getActivity(familyId, 'act-11');
     expect(result!.notes, 'updated note');
   });
+
+  group('findByTimeRange', () {
+    test('returns activities within range', () async {
+      final now = DateTime(2026, 3, 1, 10, 0);
+      final a1 = ActivityModel(
+        id: 'ft-1',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 1, 8, 0),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      final a2 = ActivityModel(
+        id: 'ft-2',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 2, 8, 0),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      final a3 = ActivityModel(
+        id: 'ft-3',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 3, 8, 0),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      await repo.insertActivity(familyId, a1);
+      await repo.insertActivity(familyId, a2);
+      await repo.insertActivity(familyId, a3);
+
+      final result = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 2, 23, 59),
+      );
+      expect(result.length, 2);
+      expect(result.map((a) => a.id).toSet(), {'ft-1', 'ft-2'});
+    });
+
+    test('includes soft-deleted records', () async {
+      final now = DateTime(2026, 3, 1, 10, 0);
+      final activity = ActivityModel(
+        id: 'ft-del',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 1, 8, 0),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      await repo.insertActivity(familyId, activity);
+      await repo.softDeleteActivity(familyId, 'ft-del');
+
+      final result = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 1, 23, 59),
+      );
+      expect(result.length, 1);
+      expect(result.first.isDeleted, true);
+    });
+
+    test('filters by childId', () async {
+      final now = DateTime(2026, 3, 1, 10, 0);
+      final a1 = ActivityModel(
+        id: 'ft-c1',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 1, 8, 0),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      final a2 = ActivityModel(
+        id: 'ft-c2',
+        childId: 'child-other',
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 1, 8, 0),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      await repo.insertActivity(familyId, a1);
+      await repo.insertActivity(familyId, a2);
+
+      final result = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 1, 23, 59),
+      );
+      expect(result.length, 1);
+      expect(result.first.childId, childId);
+    });
+
+    test('returns empty list when no matches', () async {
+      final result = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 1, 23, 59),
+      );
+      expect(result, isEmpty);
+    });
+  });
 }

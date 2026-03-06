@@ -73,6 +73,7 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
         name: name,
         dateOfBirth: _dateOfBirth!,
         createdAt: now,
+        modifiedAt: now,
       );
 
       final carer = CarerModel(
@@ -81,6 +82,7 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
         displayName: user.displayName ?? 'Parent',
         role: 'parent',
         createdAt: now,
+        modifiedAt: now,
       );
 
       final repo = ref.read(familyRepositoryProvider);

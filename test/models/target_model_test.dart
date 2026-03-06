@@ -174,6 +174,112 @@ void main() {
       expect(restored.modifiedAt, target.modifiedAt);
       expect(restored.ingredientName, target.ingredientName);
       expect(restored.allergenName, target.allergenName);
+      expect(restored.isDeleted, false);
+    });
+
+    test('isDeleted defaults to false', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-def',
+        childId: 'child-1',
+        activityType: 'feedBottle',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 6,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+      expect(target.isDeleted, false);
+    });
+
+    test('toFirestore includes isDeleted', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-del',
+        childId: 'child-1',
+        activityType: 'feedBottle',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 6,
+        isDeleted: true,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      final map = target.toFirestore();
+      expect(map['isDeleted'], true);
+    });
+
+    test('toMap includes isDeleted', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-del',
+        childId: 'child-1',
+        activityType: 'feedBottle',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 6,
+        isDeleted: true,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      final map = target.toMap();
+      expect(map['isDeleted'], true);
+    });
+
+    test('fromMap with missing isDeleted defaults to false', () {
+      final map = {
+        'childId': 'child-1',
+        'activityType': 'feedBottle',
+        'metric': 'count',
+        'period': 'daily',
+        'targetValue': 6,
+        'createdBy': 'uid-1',
+        'createdAt': '2026-02-27T00:00:00.000',
+        'modifiedAt': '2026-02-27T00:00:00.000',
+      };
+
+      final restored = TargetModel.fromMap('target-1', map);
+      expect(restored.isDeleted, false);
+    });
+
+    test('toMap/fromMap round-trip with isDeleted true', () {
+      final now = DateTime(2026, 2, 27);
+      final target = TargetModel(
+        id: 'target-del-rt',
+        childId: 'child-1',
+        activityType: 'feedBottle',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 6,
+        isDeleted: true,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+
+      final map = target.toMap();
+      final restored = TargetModel.fromMap('target-del-rt', map);
+      expect(restored.isDeleted, true);
+    });
+
+    test('fromMap with missing modifiedAt falls back to createdAt', () {
+      final map = {
+        'childId': 'child-1',
+        'activityType': 'feedBottle',
+        'metric': 'count',
+        'period': 'daily',
+        'targetValue': 6,
+        'createdBy': 'uid-1',
+        'createdAt': '2026-02-27T00:00:00.000',
+      };
+
+      final restored = TargetModel.fromMap('target-1', map);
+      expect(restored.modifiedAt, restored.createdAt);
     });
   });
 }

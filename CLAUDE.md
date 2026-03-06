@@ -57,10 +57,13 @@ lib/
     connectivity_monitor.dart — Online/offline detection
     firestore_converter.dart  — Map ↔ Firestore format conversion
     syncing_*_repository.dart — Write-intercepting decorator wrappers
+  backup/                — Backup/restore service (JSON export/import with merge)
+    backup_service.dart  — Export/import logic + BackupResult types
   providers/             — Riverpod providers (auth, repositories, sync, UI state)
-    activity_provider, auth_provider, child_provider, family_provider,
-    ingredient_provider, initial_sync_provider, invite_provider,
-    recipe_provider, repository_provider, sync_provider, target_provider
+    activity_provider, auth_provider, backup_provider, child_provider,
+    family_provider, ingredient_provider, initial_sync_provider,
+    invite_provider, recipe_provider, repository_provider, sync_provider,
+    target_provider
   screens/               — Feature screens
     auth/                — LoginScreen with Google Sign-In
     home/                — Home screen
@@ -73,7 +76,7 @@ lib/
     settings/            — settings_screen.dart, manage_allergens_screen.dart (+ sync controls)
     family/              — Family management
   widgets/               — Shared UI components (summary_card, shell_scaffold with sync dot)
-  import/                — CSV import logic (CsvParser pure + CsvImporter with repo)
+  import/                — CSV import logic (CsvParser pure + CsvImporter with dedup)
   utils/                 — Helpers
     activity_aggregator.dart, activity_helpers.dart,
     allergen_helpers.dart, date_range_helpers.dart
@@ -83,7 +86,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (138 tests)
+flutter test                                                 # Run tests (263 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -116,7 +119,7 @@ invites/{id}                             — Email-based family invites
 - No code generation needed (no Drift, no build_runner)
 - Activity types: each type has its own typed fields (not generic columns)
 - UUIDs for all entity IDs (not auto-increment)
-- Soft delete via `isDeleted` flag (or `isActive: false` for targets)
+- Soft delete via `isDeleted` flag on all models (targets also have `isActive`)
 - Local dates as ISO 8601 strings (Sembast), Firestore dates as Timestamps
 - Ingredient and recipe names stored **lowercase**
 - All list screens use **IconButton + confirmation dialog** for deletion (not Dismissible swipe)
@@ -128,8 +131,7 @@ invites/{id}                             — Email-based family invites
 - **Push**: debounced 30s after writes, immediate on app background, on reconnect
 - **Pull**: on app foreground, after push, on reconnect, every 15 min safety net, manual "Sync Now"
 - **Conflict resolution**: last-write-wins on `modifiedAt`
-- **Delta sync**: collections with `modifiedAt` use `where('modifiedAt', isGreaterThan: lastPull)`
-- **Full sync**: small collections (children, carers) always pulled in full
+- **Delta sync**: all collections (including children, carers) use `where('modifiedAt', isGreaterThan: lastPull)`
 - **Queue collapse**: multiple writes to same document produce one push
 - **Initial sync**: on login, fetches `familyIds` from user doc, pulls all data
 - **Logout**: best-effort push → `clearLocalData()` (drops all stores) → sign out
@@ -151,6 +153,8 @@ invites/{id}                             — Email-based family invites
 - **Sync indicators**: status dot in nav bar, Sync Now button in Settings
 - **Initial sync**: automatic full pull after login via `initialSyncProvider`
 - **Logout cleanup**: best-effort push, local data wipe, offline warning if unsynced changes
+- **CSV import dedup**: fingerprint-based dedup prevents duplicate entries on re-import
+- **Backup/restore**: JSON export/import of family data with last-write-wins merge
 - **GitHub Releases**: tag-triggered CI builds signed APK + AAB
 
 ## Releasing

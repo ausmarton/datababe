@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/invite_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/child_provider.dart';
+import '../../providers/initial_sync_provider.dart';
 import '../../providers/repository_provider.dart';
 
 /// Shown when the user has pending invites but no family yet.
@@ -38,8 +38,9 @@ class _InvitePendingPromptState extends ConsumerState<InvitePendingPrompt> {
         uid: user.uid,
         displayName: user.displayName ?? 'Carer',
       );
-      // Select the joined family so the app navigates to it.
-      ref.read(selectedFamilyIdProvider.notifier).state = invite.familyId;
+      // Re-trigger initial sync — user is now a member of the family.
+      // This pulls all family data into Sembast; auto-selection handles the rest.
+      ref.invalidate(initialSyncProvider);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

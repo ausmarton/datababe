@@ -96,6 +96,20 @@ class FirebaseActivityRepository implements ActivityRepository {
   }
 
   @override
+  Future<List<ActivityModel>> findByTimeRange(
+      String familyId, String childId, DateTime start, DateTime end) async {
+    final snapshot = await _activitiesRef(familyId)
+        .where('childId', isEqualTo: childId)
+        .where('startTime',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startTime', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .get();
+    return snapshot.docs
+        .map((doc) => ActivityModel.fromFirestore(doc))
+        .toList();
+  }
+
+  @override
   Future<void> softDeleteActivity(String familyId, String activityId) {
     return _activitiesRef(familyId)
         .doc(activityId)

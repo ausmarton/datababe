@@ -484,6 +484,7 @@ class FamilyScreen extends ConsumerWidget {
                   name: name,
                   dateOfBirth: dateOfBirth!,
                   createdAt: now,
+                  modifiedAt: now,
                 );
 
                 await repo.createChild(familyId, child);

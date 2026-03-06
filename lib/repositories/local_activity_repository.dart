@@ -105,6 +105,23 @@ class LocalActivityRepository implements ActivityRepository {
   }
 
   @override
+  Future<List<ActivityModel>> findByTimeRange(
+      String familyId, String childId, DateTime start, DateTime end) async {
+    final finder = Finder(
+      filter: Filter.and([
+        Filter.equals('familyId', familyId),
+        Filter.equals('childId', childId),
+        Filter.greaterThanOrEquals('startTime', start.toIso8601String()),
+        Filter.lessThanOrEquals('startTime', end.toIso8601String()),
+      ]),
+    );
+    final records = await _store.find(_db, finder: finder);
+    return records
+        .map((r) => ActivityModel.fromMap(r.key, r.value))
+        .toList();
+  }
+
+  @override
   Future<void> softDeleteActivity(
       String familyId, String activityId) async {
     final record = await _store.record(activityId).get(_db);

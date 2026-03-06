@@ -71,6 +71,11 @@ class SyncingActivityRepository implements ActivityRepository {
   }
 
   @override
+  Future<List<ActivityModel>> findByTimeRange(
+          String familyId, String childId, DateTime start, DateTime end) =>
+      _local.findByTimeRange(familyId, childId, start, end);
+
+  @override
   Future<void> softDeleteActivity(
       String familyId, String activityId) async {
     await _local.softDeleteActivity(familyId, activityId);

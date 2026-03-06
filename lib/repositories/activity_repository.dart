@@ -20,4 +20,7 @@ abstract class ActivityRepository {
   Future<void> updateActivity(String familyId, ActivityModel activity);
 
   Future<void> softDeleteActivity(String familyId, String activityId);
+
+  Future<List<ActivityModel>> findByTimeRange(
+      String familyId, String childId, DateTime start, DateTime end);
 }

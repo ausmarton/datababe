@@ -13,6 +13,7 @@ class TargetModel {
   final DateTime modifiedAt;
   final String? ingredientName;
   final String? allergenName;
+  final bool isDeleted;
 
   const TargetModel({
     required this.id,
@@ -27,6 +28,7 @@ class TargetModel {
     required this.modifiedAt,
     this.ingredientName,
     this.allergenName,
+    this.isDeleted = false,
   });
 
   Map<String, dynamic> toFirestore() => {
@@ -41,6 +43,7 @@ class TargetModel {
         'modifiedAt': Timestamp.fromDate(modifiedAt),
         'ingredientName': ingredientName,
         'allergenName': allergenName,
+        'isDeleted': isDeleted,
       };
 
   Map<String, dynamic> toMap() => {
@@ -55,6 +58,7 @@ class TargetModel {
         'modifiedAt': modifiedAt.toIso8601String(),
         'ingredientName': ingredientName,
         'allergenName': allergenName,
+        'isDeleted': isDeleted,
       };
 
   factory TargetModel.fromMap(String id, Map<String, dynamic> d) {
@@ -76,6 +80,7 @@ class TargetModel {
           : createdAt,
       ingredientName: d['ingredientName'] as String?,
       allergenName: d['allergenName'] as String?,
+      isDeleted: d['isDeleted'] as bool? ?? false,
     );
   }
 
@@ -98,6 +103,7 @@ class TargetModel {
           (d['modifiedAt'] as Timestamp?)?.toDate() ?? createdAt,
       ingredientName: d['ingredientName'] as String?,
       allergenName: d['allergenName'] as String?,
+      isDeleted: d['isDeleted'] as bool? ?? false,
     );
   }
 }

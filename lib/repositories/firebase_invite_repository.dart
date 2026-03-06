@@ -81,6 +81,7 @@ class FirebaseInviteRepository implements InviteRepository {
     );
 
     final carerId = const Uuid().v4();
+    final now = DateTime.now();
     batch2.set(
       _firestore
           .collection('families')
@@ -92,7 +93,8 @@ class FirebaseInviteRepository implements InviteRepository {
         uid: uid,
         displayName: displayName,
         role: invite.role,
-        createdAt: DateTime.now(),
+        createdAt: now,
+        modifiedAt: now,
       ).toFirestore(),
     );
 

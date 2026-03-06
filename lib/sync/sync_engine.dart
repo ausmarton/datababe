@@ -39,10 +39,9 @@ class SyncEngine with WidgetsBindingObserver {
     'recipes',
     'targets',
     'families',
+    'children',
+    'carers',
   ];
-
-  /// Collections that are small and always pulled in full.
-  static const _fullPullCollections = ['children', 'carers'];
 
   /// Map from collection name to Sembast store.
   static final _storeMap = <String, StoreRef<String, Map<String, dynamic>>>{
@@ -230,18 +229,12 @@ class SyncEngine with WidgetsBindingObserver {
 
   /// Pull changes for a specific family.
   Future<void> _pullForFamily(String familyId) async {
-    // Delta collections: use modifiedAt > lastPull.
     for (final collection in _deltaCollections) {
       if (collection == 'families') {
         await _pullFamilyDoc(familyId);
       } else {
         await _pullDelta(familyId, collection);
       }
-    }
-
-    // Full-pull small collections.
-    for (final collection in _fullPullCollections) {
-      await _pullFull(familyId, collection);
     }
   }
 
@@ -317,35 +310,6 @@ class SyncEngine with WidgetsBindingObserver {
     }
   }
 
-  /// Full pull for small collections (children, carers).
-  Future<void> _pullFull(String familyId, String collection) async {
-    try {
-      final snapshot = await _firestore
-          .collection('families')
-          .doc(familyId)
-          .collection(collection)
-          .get();
-
-      final store = _storeMap[collection]!;
-
-      debugPrint('[Sync] pullFull $familyId/$collection: ${snapshot.docs.length} docs');
-
-      await _db.transaction((txn) async {
-        for (final doc in snapshot.docs) {
-          final localData = FirestoreConverter.fromFirestore(
-            doc.data(),
-            familyId,
-          );
-          await store.record(doc.id).put(txn, localData);
-        }
-      });
-
-      await _metadata.setLastPull(familyId, collection, DateTime.now());
-    } catch (e) {
-      debugPrint('[Sync] pullFull $familyId/$collection: $e');
-    }
-  }
-
   /// Check if there's a pending sync entry for a specific document.
   Future<bool> _hasPendingForDoc(
       String collection, String documentId) async {
@@ -390,18 +354,7 @@ class SyncEngine with WidgetsBindingObserver {
 
     try {
       for (final familyId in familyIds) {
-        // Pull the family doc itself.
-        await _pullFamilyDoc(familyId);
-
-        // Pull all subcollections.
-        for (final collection in _deltaCollections) {
-          if (collection != 'families') {
-            await _pullDelta(familyId, collection);
-          }
-        }
-        for (final collection in _fullPullCollections) {
-          await _pullFull(familyId, collection);
-        }
+        await _pullForFamily(familyId);
       }
       _setStatus(SyncStatus.idle);
     } catch (e) {

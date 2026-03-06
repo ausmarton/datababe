@@ -1,12 +1,15 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../import/csv_importer.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/backup_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/sync_provider.dart';
@@ -67,6 +70,18 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: const Text('Import data from a CSV export'),
             onTap: () => _importCsv(context, ref),
           ),
+          ListTile(
+            leading: const Icon(Icons.file_download),
+            title: const Text('Export Backup'),
+            subtitle: const Text('Save family data as JSON'),
+            onTap: () => _exportBackup(context, ref),
+          ),
+          ListTile(
+            leading: const Icon(Icons.restore),
+            title: const Text('Restore Backup'),
+            subtitle: const Text('Merge data from a JSON backup'),
+            onTap: () => _restoreBackup(context, ref),
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           const _SectionHeader(title: 'Sync'),
           _SyncStatusTile(),
@@ -123,6 +138,149 @@ class SettingsScreen extends ConsumerWidget {
     await ref.read(authRepositoryProvider).signOut();
   }
 
+  Future<void> _exportBackup(BuildContext context, WidgetRef ref) async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No family selected')),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Exporting...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final backupService = ref.read(backupServiceProvider);
+      final jsonContent = await backupService.exportFamily(familyId);
+      final bytes = Uint8List.fromList(utf8.encode(jsonContent));
+      final now = DateTime.now();
+      final datePart =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      await FileSaver.instance.saveFile(
+        name: 'datababe-backup-$datePart',
+        bytes: bytes,
+        ext: 'json',
+        mimeType: MimeType.json,
+      );
+
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Backup exported')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreBackup(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore backup'),
+        content: const Text(
+          'This will merge backup data into your current family. '
+          'Newer records win.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Restoring...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final file = result.files.first;
+      String jsonContent;
+      if (file.bytes != null) {
+        jsonContent = utf8.decode(file.bytes!);
+      } else {
+        throw Exception('Could not read file');
+      }
+
+      final backupService = ref.read(backupServiceProvider);
+      final backupResult = await backupService.restoreFamily(jsonContent);
+
+      // Trigger sync push for restored records.
+      final engine = ref.read(syncEngineProvider);
+      engine.notifyWrite();
+
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Restored: ${backupResult.totalInserted} added, '
+              '${backupResult.totalUpdated} updated, '
+              '${backupResult.totalSkipped} skipped',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Restore failed: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _importCsv(BuildContext context, WidgetRef ref) async {
     final childId = ref.read(selectedChildIdProvider);
     final familyId = ref.read(selectedFamilyIdProvider);
@@ -170,7 +328,7 @@ class SettingsScreen extends ConsumerWidget {
       }
 
       final importer = CsvImporter(ref.read(activityRepositoryProvider));
-      final count = await importer.importFromString(
+      final importResult = await importer.importFromString(
         csvContent,
         childId,
         familyId,
@@ -178,8 +336,11 @@ class SettingsScreen extends ConsumerWidget {
 
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
+        final msg = importResult.skipped > 0
+            ? 'Imported ${importResult.imported}, skipped ${importResult.skipped} duplicates'
+            : 'Imported ${importResult.imported} activities';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported $count activities')),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
