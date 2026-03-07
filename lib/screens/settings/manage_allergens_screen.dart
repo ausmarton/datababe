@@ -56,40 +56,96 @@ class _ManageAllergensScreenState
     final familyId = ref.read(selectedFamilyIdProvider);
     if (familyId == null) return;
 
-    if (usageCount > 0) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Delete allergen?'),
-          content: Text(
-            '"$allergen" is used by $usageCount ingredient${usageCount == 1 ? '' : 's'}. '
-            'Removing it will not update existing ingredients.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete allergen?'),
+        content: Text(
+          usageCount > 0
+              ? '"$allergen" is used by $usageCount ingredient${usageCount == 1 ? '' : 's'}. '
+                  'Removing it will update all affected ingredients, targets, and activities.'
+              : 'Remove "$allergen"?',
         ),
-      );
-      if (confirmed != true) return;
-    }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
 
     try {
-      final categories = ref.read(allergenCategoriesProvider);
-      final updated = categories.where((c) => c != allergen).toList();
       await ref
           .read(familyRepositoryProvider)
-          .updateAllergenCategories(familyId, updated);
+          .removeAllergenCategory(familyId, allergen);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to remove allergen: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _rename(String oldName) async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    final renameController = TextEditingController(text: oldName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename allergen'),
+        content: TextField(
+          controller: renameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'New name',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (value) => Navigator.of(ctx).pop(value.trim().toLowerCase()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(ctx).pop(renameController.text.trim().toLowerCase()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    renameController.dispose();
+
+    if (newName == null || newName.isEmpty || newName == oldName) return;
+
+    final categories = ref.read(allergenCategoriesProvider);
+    if (categories.contains(newName)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Allergen "$newName" already exists')),
+        );
+      }
+      return;
+    }
+
+    try {
+      await ref
+          .read(familyRepositoryProvider)
+          .renameAllergenCategory(familyId, oldName, newName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to rename allergen: $e')),
         );
       }
     }
@@ -146,9 +202,12 @@ class _ManageAllergensScreenState
                 final count = usageCounts[c] ?? 0;
                 final label =
                     count > 0 ? '$c ($count)' : c;
-                return Chip(
-                  label: Text(label),
-                  onDeleted: () => _remove(c, count),
+                return GestureDetector(
+                  onTap: () => _rename(c),
+                  child: Chip(
+                    label: Text(label),
+                    onDeleted: () => _remove(c, count),
+                  ),
                 );
               }).toList(),
             ),

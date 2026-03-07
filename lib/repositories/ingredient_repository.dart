@@ -1,7 +1,7 @@
 import '../models/ingredient_model.dart';
+import 'cascaded_change.dart';
 
-/// A (collection, documentId) pair identifying a cascaded change.
-typedef CascadedChange = ({String collection, String documentId});
+export 'cascaded_change.dart';
 
 abstract class IngredientRepository {
   Stream<List<IngredientModel>> watchIngredients(String familyId);

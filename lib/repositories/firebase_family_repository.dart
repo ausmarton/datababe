@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/family_model.dart';
 import '../models/child_model.dart';
 import '../models/carer_model.dart';
+import 'cascaded_change.dart';
 import 'family_repository.dart';
 
 class FirebaseFamilyRepository implements FamilyRepository {
@@ -177,5 +178,34 @@ class FirebaseFamilyRepository implements FamilyRepository {
         .collection('families')
         .doc(familyId)
         .update({'allergenCategories': categories});
+  }
+
+  @override
+  Future<List<CascadedChange>> renameAllergenCategory(
+      String familyId, String oldName, String newName) async {
+    // Cascade handled locally; Firestore gets individual doc updates via sync.
+    final doc =
+        await _firestore.collection('families').doc(familyId).get();
+    if (doc.exists) {
+      final categories = List<String>.from(
+          (doc.data()!['allergenCategories'] as List<dynamic>?) ?? []);
+      final idx = categories.indexOf(oldName);
+      if (idx >= 0) categories[idx] = newName;
+      await _firestore
+          .collection('families')
+          .doc(familyId)
+          .update({'allergenCategories': categories});
+    }
+    return [];
+  }
+
+  @override
+  Future<List<CascadedChange>> removeAllergenCategory(
+      String familyId, String name) async {
+    // Cascade handled locally; Firestore gets individual doc updates via sync.
+    await _firestore.collection('families').doc(familyId).update({
+      'allergenCategories': FieldValue.arrayRemove([name]),
+    });
+    return [];
   }
 }

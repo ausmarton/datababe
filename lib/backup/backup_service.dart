@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:sembast/sembast.dart';
 
 import '../local/store_refs.dart';
+import '../utils/dedup_helper.dart';
 
 /// Per-store import result.
 class StoreResult {
@@ -181,6 +182,38 @@ class BackupService {
 
       results[storeName] =
           StoreResult(inserted: inserted, updated: updated, skipped: skipped);
+    }
+
+    // Post-restore dedup: remove duplicates that may have been reintroduced.
+    if (familyId != null) {
+      final helper = DedupHelper(_db);
+      final dedupedIngredientIds = await helper.dedupIngredients(familyId);
+      final dedupedRecipeIds = await helper.dedupRecipes(familyId);
+
+      // Enqueue deduped records for sync.
+      if (dedupedIngredientIds.isNotEmpty || dedupedRecipeIds.isNotEmpty) {
+        final syncStore = StoreRefs.syncQueue;
+        await _db.transaction((txn) async {
+          for (final id in dedupedIngredientIds) {
+            final key = 'ingredients_$id';
+            await syncStore.record(key).put(txn, {
+              'collection': 'ingredients',
+              'documentId': id,
+              'familyId': familyId,
+              'createdAt': DateTime.now().toIso8601String(),
+            });
+          }
+          for (final id in dedupedRecipeIds) {
+            final key = 'recipes_$id';
+            await syncStore.record(key).put(txn, {
+              'collection': 'recipes',
+              'documentId': id,
+              'familyId': familyId,
+              'createdAt': DateTime.now().toIso8601String(),
+            });
+          }
+        });
+      }
     }
 
     return BackupResult(results);

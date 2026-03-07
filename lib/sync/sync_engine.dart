@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:sembast/sembast.dart';
 
 import '../local/store_refs.dart';
-import '../models/ingredient_model.dart';
+import '../utils/dedup_helper.dart';
 import 'connectivity_monitor.dart';
 import 'firestore_converter.dart';
 import 'sync_metadata.dart';
@@ -360,8 +360,9 @@ class SyncEngine with WidgetsBindingObserver {
       }
     }
 
-    // Resolve ingredient duplicates introduced by sync pull.
+    // Resolve duplicates introduced by sync pull.
     await _resolveIngredientDuplicates(familyId);
+    await _resolveRecipeDuplicates(familyId);
 
     // Reconcile: remove local records whose Firestore counterparts were hard-deleted.
     var result = const _ReconcileResult();
@@ -559,88 +560,40 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Resolve ingredient duplicates for a single family after pull.
-  /// Keeps oldest by createdAt, merges allergens, soft-deletes rest.
-  /// Enqueues soft-deleted duplicates for sync propagation.
   Future<void> _resolveIngredientDuplicates(String familyId) async {
     try {
-      final ingredients = await StoreRefs.ingredients.find(_db,
-          finder: Finder(
-            filter: Filter.and([
-              Filter.equals('familyId', familyId),
-              Filter.equals('isDeleted', false),
-            ]),
-          ));
-
-      // Group by name.
-      final byName =
-          <String, List<RecordSnapshot<String, Map<String, dynamic>>>>{};
-      for (final record in ingredients) {
-        final name = record.value['name'] as String? ?? '';
-        byName.putIfAbsent(name, () => []).add(record);
+      final deletedIds = await DedupHelper(_db).dedupIngredients(familyId);
+      for (final id in deletedIds) {
+        await _queue.enqueue(
+          collection: 'ingredients',
+          documentId: id,
+          familyId: familyId,
+        );
       }
-
-      final hasDups = byName.values.any((g) => g.length > 1);
-      if (!hasDups) return;
-
-      final now = DateTime.now().toIso8601String();
-
-      await _db.transaction((txn) async {
-        for (final entry in byName.entries) {
-          if (entry.value.length <= 1) continue;
-
-          final group = entry.value;
-          group.sort((a, b) {
-            final aModel = IngredientModel.fromMap(a.key, a.value);
-            final bModel = IngredientModel.fromMap(b.key, b.value);
-            return aModel.createdAt.compareTo(bModel.createdAt);
-          });
-
-          final keeper = group.first;
-
-          // Merge allergens.
-          final mergedAllergens = <String>{};
-          for (final record in group) {
-            final allergens = List<String>.from(
-                (record.value['allergens'] as List<dynamic>?) ?? []);
-            mergedAllergens.addAll(allergens);
-          }
-
-          final keeperAllergens = List<String>.from(
-              (keeper.value['allergens'] as List<dynamic>?) ?? []);
-          if (keeperAllergens.toSet().length != mergedAllergens.length ||
-              !keeperAllergens.toSet().containsAll(mergedAllergens)) {
-            final updated = Map<String, dynamic>.from(keeper.value);
-            updated['allergens'] = mergedAllergens.toList()..sort();
-            updated['modifiedAt'] = now;
-            await StoreRefs.ingredients.record(keeper.key).put(txn, updated);
-          }
-
-          // Soft-delete duplicates and enqueue for sync.
-          for (var i = 1; i < group.length; i++) {
-            final dup = group[i];
-            final updated = Map<String, dynamic>.from(dup.value);
-            updated['isDeleted'] = true;
-            updated['modifiedAt'] = now;
-            await StoreRefs.ingredients.record(dup.key).put(txn, updated);
-          }
-        }
-      });
-
-      // Enqueue changes outside transaction.
-      for (final entry in byName.entries) {
-        if (entry.value.length <= 1) continue;
-        for (var i = 1; i < entry.value.length; i++) {
-          await _queue.enqueue(
-            collection: 'ingredients',
-            documentId: entry.value[i].key,
-            familyId: familyId,
-          );
-        }
+      if (deletedIds.isNotEmpty) {
+        debugPrint('[Sync] resolved ingredient duplicates for $familyId');
       }
-
-      debugPrint('[Sync] resolved ingredient duplicates for $familyId');
     } catch (e) {
       debugPrint('[Sync] resolveIngredientDuplicates $familyId: $e');
+    }
+  }
+
+  /// Resolve recipe duplicates for a single family after pull.
+  Future<void> _resolveRecipeDuplicates(String familyId) async {
+    try {
+      final deletedIds = await DedupHelper(_db).dedupRecipes(familyId);
+      for (final id in deletedIds) {
+        await _queue.enqueue(
+          collection: 'recipes',
+          documentId: id,
+          familyId: familyId,
+        );
+      }
+      if (deletedIds.isNotEmpty) {
+        debugPrint('[Sync] resolved recipe duplicates for $familyId');
+      }
+    } catch (e) {
+      debugPrint('[Sync] resolveRecipeDuplicates $familyId: $e');
     }
   }
 

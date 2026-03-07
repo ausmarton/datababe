@@ -50,6 +50,7 @@ lib/
     activity, auth, family, ingredient, invite, recipe, target
     local_*_repository.dart — Sembast implementations
     firebase_*_repository.dart — Firestore implementations
+    cascaded_change.dart          — Shared CascadedChange typedef
     duplicate_name_exception.dart — Typed exception for name collisions
   sync/                  — Sync infrastructure
     sync_engine.dart     — Push/pull orchestration with debounce
@@ -82,7 +83,7 @@ lib/
   import/                — CSV import logic (CsvParser pure + CsvImporter with dedup)
   utils/                 — Helpers
     activity_aggregator.dart, activity_helpers.dart,
-    allergen_helpers.dart, date_range_helpers.dart,
+    allergen_helpers.dart, date_range_helpers.dart, dedup_helper.dart,
     file_reader.dart (conditional import barrel), file_reader_io.dart, file_reader_web.dart
 ```
 
@@ -90,7 +91,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (390 tests)
+flutter test                                                 # Run tests (422 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -130,7 +131,10 @@ invites/{id}                             — Email-based family invites
 - All save/delete operations use **await + try/catch** with SnackBar feedback
 - Duplicate checks happen **client-side** in `_save()` before write
 - Sembast maps are immutable — always `Map.from()` before mutating
-- **Ingredient name uniqueness**: enforced per family at repository level; renaming cascades to recipes and targets
+- **Ingredient name uniqueness**: enforced per family at repository level; renaming cascades to recipes, targets, and activities
+- **Recipe name uniqueness**: enforced per family at repository level; post-pull dedup merges ingredient lists
+- **Allergen category rename/delete**: cascades to ingredients, targets, and activities via `FamilyRepository`
+- **Dedup logic**: shared `DedupHelper` used by SyncEngine, IngredientDedupMigration, and BackupService
 
 ## Sync behavior
 - **Push**: debounced 30s after writes, immediate on app background, on reconnect

@@ -7,8 +7,8 @@ import '../../models/recipe_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/ingredient_provider.dart';
-import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
+import '../../repositories/duplicate_name_exception.dart';
 import '../../utils/allergen_helpers.dart';
 
 class AddRecipeScreen extends ConsumerStatefulWidget {
@@ -90,13 +90,6 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
     if (familyId == null || user == null) return;
 
     final normalizedName = _nameController.text.trim().toLowerCase();
-    final existing = ref.read(recipesProvider).valueOrNull ?? [];
-    if (existing.any((r) => r.name.toLowerCase() == normalizedName && r.id != widget.recipeId)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Recipe "$normalizedName" already exists')),
-      );
-      return;
-    }
 
     setState(() => _saving = true);
 
@@ -119,6 +112,13 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
       }
 
       if (mounted) Navigator.of(context).pop();
+    } on DuplicateNameException catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);

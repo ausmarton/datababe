@@ -128,6 +128,51 @@ class LocalIngredientRepository implements IngredientRepository {
         await StoreRefs.targets.record(target.key).put(txn, updated);
         changes.add((collection: 'targets', documentId: target.key));
       }
+
+      // 5. Cascade to activities containing oldName in ingredientNames.
+      // Build name→allergens lookup from all non-deleted ingredients.
+      final allIngredients = await _store.find(txn,
+          finder: Finder(
+            filter: Filter.and([
+              Filter.equals('familyId', familyId),
+              Filter.equals('isDeleted', false),
+            ]),
+          ));
+      final allergenLookup = <String, List<String>>{};
+      for (final ing in allIngredients) {
+        final name = ing.value['name'] as String? ?? '';
+        final allergens = List<String>.from(
+            (ing.value['allergens'] as List<dynamic>?) ?? []);
+        allergenLookup[name] = allergens;
+      }
+
+      final activities = await StoreRefs.activities.find(txn,
+          finder: Finder(
+            filter: Filter.equals('familyId', familyId),
+          ));
+      for (final activity in activities) {
+        final ingredientNames = (activity.value['ingredientNames']
+                as List<dynamic>?)
+            ?.cast<String>();
+        if (ingredientNames == null || !ingredientNames.contains(oldName)) {
+          continue;
+        }
+        final updated = Map<String, dynamic>.from(activity.value);
+        final newIngredientNames =
+            ingredientNames.map((n) => n == oldName ? ingredient.name : n).toList();
+        updated['ingredientNames'] = newIngredientNames;
+
+        // Recompute allergenNames from updated ingredient names.
+        final newAllergenNames = <String>{};
+        for (final name in newIngredientNames) {
+          final allergens = allergenLookup[name];
+          if (allergens != null) newAllergenNames.addAll(allergens);
+        }
+        updated['allergenNames'] = newAllergenNames.toList()..sort();
+        updated['modifiedAt'] = now;
+        await StoreRefs.activities.record(activity.key).put(txn, updated);
+        changes.add((collection: 'activities', documentId: activity.key));
+      }
     });
 
     return changes;

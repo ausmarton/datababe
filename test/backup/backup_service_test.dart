@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' hide Finder;
 import 'package:sembast/sembast_memory.dart';
 
 import 'package:datababe/backup/backup_service.dart';
@@ -681,6 +681,105 @@ void main() {
       expect(result2.totalInserted, 0);
       expect(result2.totalUpdated, 0);
       expect(result2.totalSkipped, 2);
+    });
+
+    test('restore with duplicate ingredient names deduplicates', () async {
+      final backupData = {
+        'version': 1,
+        'appVersion': '',
+        'exportedAt': now.toIso8601String(),
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': <String, dynamic>{},
+          'carers': <String, dynamic>{},
+          'activities': <String, dynamic>{},
+          'ingredients': {
+            'ing-1': {
+              'familyId': familyId,
+              'name': 'egg',
+              'allergens': ['egg'],
+              'isDeleted': false,
+              'createdBy': 'uid-1',
+              'createdAt': now.toIso8601String(),
+              'modifiedAt': now.toIso8601String(),
+            },
+            'ing-2': {
+              'familyId': familyId,
+              'name': 'egg',
+              'allergens': ['dairy'],
+              'isDeleted': false,
+              'createdBy': 'uid-1',
+              'createdAt': later.toIso8601String(),
+              'modifiedAt': later.toIso8601String(),
+            },
+          },
+          'recipes': <String, dynamic>{},
+          'targets': <String, dynamic>{},
+        },
+      };
+
+      await service.restoreFamily(jsonEncode(backupData));
+
+      // Only one should survive as non-deleted.
+      final all = await StoreRefs.ingredients.find(db,
+          finder: Finder(
+            filter: Filter.and([
+              Filter.equals('familyId', familyId),
+              Filter.equals('isDeleted', false),
+            ]),
+          ));
+      expect(all.length, 1);
+      expect(all.first.key, 'ing-1'); // oldest kept
+    });
+
+    test('restore with duplicate recipe names deduplicates', () async {
+      final backupData = {
+        'version': 1,
+        'appVersion': '',
+        'exportedAt': now.toIso8601String(),
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': <String, dynamic>{},
+          'carers': <String, dynamic>{},
+          'activities': <String, dynamic>{},
+          'ingredients': <String, dynamic>{},
+          'recipes': {
+            'rec-1': {
+              'familyId': familyId,
+              'name': 'omelette',
+              'ingredients': ['egg'],
+              'isDeleted': false,
+              'createdBy': 'uid-1',
+              'createdAt': now.toIso8601String(),
+              'modifiedAt': now.toIso8601String(),
+            },
+            'rec-2': {
+              'familyId': familyId,
+              'name': 'omelette',
+              'ingredients': ['milk'],
+              'isDeleted': false,
+              'createdBy': 'uid-1',
+              'createdAt': later.toIso8601String(),
+              'modifiedAt': later.toIso8601String(),
+            },
+          },
+          'targets': <String, dynamic>{},
+        },
+      };
+
+      await service.restoreFamily(jsonEncode(backupData));
+
+      final all = await StoreRefs.recipes.find(db,
+          finder: Finder(
+            filter: Filter.and([
+              Filter.equals('familyId', familyId),
+              Filter.equals('isDeleted', false),
+            ]),
+          ));
+      expect(all.length, 1);
+      expect(all.first.key, 'rec-1'); // oldest kept
     });
 
     test('BackupResult counts are correct', () {

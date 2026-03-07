@@ -1,6 +1,7 @@
 import '../models/family_model.dart';
 import '../models/child_model.dart';
 import '../models/carer_model.dart';
+import '../repositories/cascaded_change.dart';
 import '../repositories/family_repository.dart';
 import 'sync_engine.dart';
 import 'sync_queue.dart';
@@ -136,5 +137,47 @@ class SyncingFamilyRepository implements FamilyRepository {
       familyId: familyId,
     );
     _engine.notifyWrite();
+  }
+
+  @override
+  Future<List<CascadedChange>> renameAllergenCategory(
+      String familyId, String oldName, String newName) async {
+    final changes =
+        await _local.renameAllergenCategory(familyId, oldName, newName);
+    await _queue.enqueue(
+      collection: 'families',
+      documentId: familyId,
+      familyId: familyId,
+    );
+    for (final change in changes) {
+      await _queue.enqueue(
+        collection: change.collection,
+        documentId: change.documentId,
+        familyId: familyId,
+      );
+    }
+    _engine.notifyWrite();
+    return changes;
+  }
+
+  @override
+  Future<List<CascadedChange>> removeAllergenCategory(
+      String familyId, String name) async {
+    final changes =
+        await _local.removeAllergenCategory(familyId, name);
+    await _queue.enqueue(
+      collection: 'families',
+      documentId: familyId,
+      familyId: familyId,
+    );
+    for (final change in changes) {
+      await _queue.enqueue(
+        collection: change.collection,
+        documentId: change.documentId,
+        familyId: familyId,
+      );
+    }
+    _engine.notifyWrite();
+    return changes;
   }
 }
