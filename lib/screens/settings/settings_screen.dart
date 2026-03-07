@@ -355,6 +355,22 @@ class SettingsScreen extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(msg)),
         );
+
+        // Trigger immediate sync to push imported activities to Firestore.
+        if (importResult.imported > 0) {
+          final engine = ref.read(syncEngineProvider);
+          final pushResult = await engine.syncNow();
+          if (context.mounted) {
+            final syncMsg = pushResult.failed > 0
+                ? 'Synced ${pushResult.pushed}, ${pushResult.failed} failed'
+                : pushResult.pushed > 0
+                    ? 'Synced ${pushResult.pushed} to cloud'
+                    : 'Nothing to sync';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(syncMsg)),
+            );
+          }
+        }
       }
     } catch (e) {
       if (context.mounted) {
@@ -415,10 +431,15 @@ class _SyncStatusTile extends ConsumerWidget {
           ? null
           : () async {
               final engine = ref.read(syncEngineProvider);
-              await engine.syncNow();
+              final result = await engine.syncNow();
               if (context.mounted) {
+                final msg = result.failed > 0
+                    ? 'Pushed ${result.pushed}, ${result.failed} failed'
+                    : result.pushed > 0
+                        ? 'Pushed ${result.pushed} to cloud'
+                        : 'Sync complete';
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Sync complete')),
+                  SnackBar(content: Text(msg)),
                 );
               }
             },

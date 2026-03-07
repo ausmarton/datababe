@@ -52,6 +52,8 @@ final lastSyncTimeProvider = FutureProvider<DateTime?>((ref) {
 });
 
 final pendingSyncCountProvider = FutureProvider<int>((ref) {
+  // Re-evaluate when sync status changes (after push/pull completes).
+  ref.watch(syncStatusProvider);
   final queue = ref.watch(syncQueueProvider);
   return queue.pendingCount();
 });

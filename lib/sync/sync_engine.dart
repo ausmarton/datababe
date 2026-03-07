@@ -13,6 +13,16 @@ import 'sync_queue.dart';
 /// Sync status for UI display.
 enum SyncStatus { idle, syncing, error, offline }
 
+/// Result of a push operation.
+class PushResult {
+  final int pushed;
+  final int failed;
+
+  const PushResult({required this.pushed, required this.failed});
+
+  static const empty = PushResult(pushed: 0, failed: 0);
+}
+
 /// Core sync orchestration: push local changes to Firestore,
 /// pull remote changes to local Sembast.
 class SyncEngine with WidgetsBindingObserver {
@@ -132,7 +142,7 @@ class SyncEngine with WidgetsBindingObserver {
   Future<int> get pendingCount => _queue.pendingCount();
 
   /// Manual sync trigger (from Settings > Sync Now).
-  Future<void> syncNow() => _pushThenPull();
+  Future<PushResult> syncNow() => _pushThenPull();
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -151,34 +161,37 @@ class SyncEngine with WidgetsBindingObserver {
     _statusController.add(status);
   }
 
-  Future<void> _pushThenPull() async {
-    if (_isSyncing) return;
+  Future<PushResult> _pushThenPull() async {
+    if (_isSyncing) return PushResult.empty;
     if (!_connectivity.isOnline) {
       _setStatus(SyncStatus.offline);
-      return;
+      return PushResult.empty;
     }
     _isSyncing = true;
     _setStatus(SyncStatus.syncing);
 
     try {
-      await _push();
+      final result = await _push();
       await _pullAll();
       _setStatus(SyncStatus.idle);
+      return result;
     } catch (e) {
       _setStatus(SyncStatus.error);
+      return PushResult.empty;
     } finally {
       _isSyncing = false;
     }
   }
 
   /// Push pending local changes to Firestore.
-  Future<void> _push() async {
-    if (!_connectivity.isOnline) return;
+  Future<PushResult> _push() async {
+    if (!_connectivity.isOnline) return PushResult.empty;
 
     final entries = await _queue.getPending();
-    if (entries.isEmpty) return;
+    if (entries.isEmpty) return PushResult.empty;
 
     final completedIds = <String>[];
+    var failCount = 0;
 
     for (final entry in entries) {
       try {
@@ -206,6 +219,7 @@ class SyncEngine with WidgetsBindingObserver {
         });
         completedIds.add(entry.id);
       } catch (e) {
+        failCount++;
         debugPrint('[Sync] push ${entry.collection}/${entry.documentId}: $e');
       }
     }
@@ -213,6 +227,8 @@ class SyncEngine with WidgetsBindingObserver {
     if (completedIds.isNotEmpty) {
       await _queue.removeAll(completedIds);
     }
+
+    return PushResult(pushed: completedIds.length, failed: failCount);
   }
 
   /// Pull remote changes for all families the user belongs to.
