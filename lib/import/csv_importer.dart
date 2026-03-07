@@ -1,3 +1,4 @@
+import 'package:csv/csv.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/activity_model.dart';
@@ -8,8 +9,15 @@ import 'csv_parser.dart';
 class ImportResult {
   final int imported;
   final int skipped;
+  final List<ParseError> parseErrors;
+  final List<String> skippedRows; // CSV lines of fingerprint dupes
 
-  const ImportResult({required this.imported, required this.skipped});
+  const ImportResult({
+    required this.imported,
+    required this.skipped,
+    this.parseErrors = const [],
+    this.skippedRows = const [],
+  });
 }
 
 /// Imports CSV data into the repository, deduplicating against existing records.
@@ -20,54 +28,70 @@ class CsvImporter {
   CsvImporter(this._repo);
 
   /// Import from CSV string. Returns counts of imported and skipped entries.
+  ///
+  /// When [includeSoftDeleted] is false (the default), soft-deleted records
+  /// are excluded from dedup, allowing re-import of previously deleted entries.
   Future<ImportResult> importFromString(
-      String csvContent, String childId, String familyId) async {
+    String csvContent,
+    String childId,
+    String familyId, {
+    bool includeSoftDeleted = false,
+  }) async {
     final parser = CsvParser();
-    final activities = parser.parse(csvContent);
+    final parseResult = parser.parse(csvContent);
+    final activities = parseResult.activities;
     if (activities.isEmpty) {
-      return const ImportResult(imported: 0, skipped: 0);
+      return ImportResult(
+        imported: 0,
+        skipped: 0,
+        parseErrors: parseResult.errors,
+      );
     }
 
     final now = DateTime.now();
 
-    // Build ActivityModels from parsed rows.
-    final entries = activities
-        .map((a) => ActivityModel(
-              id: _uuid.v4(),
-              childId: childId,
-              type: a.type.name,
-              startTime: a.startTime,
-              endTime: a.endTime,
-              durationMinutes: a.durationMinutes,
-              createdAt: now,
-              modifiedAt: now,
-              feedType: a.feedType,
-              volumeMl: a.volumeMl,
-              rightBreastMinutes: a.rightBreastMinutes,
-              leftBreastMinutes: a.leftBreastMinutes,
-              contents: a.contents,
-              contentSize: a.contentSize,
-              peeSize: a.peeSize,
-              pooColour: a.pooColour,
-              pooConsistency: a.pooConsistency,
-              medicationName: a.medicationName,
-              dose: a.dose,
-              foodDescription: a.foodDescription,
-              reaction: a.reaction,
-              weightKg: a.weightKg,
-              lengthCm: a.lengthCm,
-              headCircumferenceCm: a.headCircumferenceCm,
-              tempCelsius: a.tempCelsius,
-              notes: a.notes,
-            ))
-        .toList();
+    // Build ActivityModels from parsed rows, keeping the index for CSV reconstruction.
+    final entries = <(ActivityModel, ParsedActivity)>[];
+    for (final a in activities) {
+      entries.add((
+        ActivityModel(
+          id: _uuid.v4(),
+          childId: childId,
+          type: a.type.name,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          durationMinutes: a.durationMinutes,
+          createdAt: now,
+          modifiedAt: now,
+          feedType: a.feedType,
+          volumeMl: a.volumeMl,
+          rightBreastMinutes: a.rightBreastMinutes,
+          leftBreastMinutes: a.leftBreastMinutes,
+          contents: a.contents,
+          contentSize: a.contentSize,
+          peeSize: a.peeSize,
+          pooColour: a.pooColour,
+          pooConsistency: a.pooConsistency,
+          medicationName: a.medicationName,
+          dose: a.dose,
+          foodDescription: a.foodDescription,
+          reaction: a.reaction,
+          weightKg: a.weightKg,
+          lengthCm: a.lengthCm,
+          headCircumferenceCm: a.headCircumferenceCm,
+          tempCelsius: a.tempCelsius,
+          notes: a.notes,
+        ),
+        a,
+      ));
+    }
 
     // Find the time range of incoming entries for a targeted query.
-    var minTime = entries.first.startTime;
-    var maxTime = entries.first.startTime;
-    for (final e in entries) {
-      if (e.startTime.isBefore(minTime)) minTime = e.startTime;
-      if (e.startTime.isAfter(maxTime)) maxTime = e.startTime;
+    var minTime = entries.first.$1.startTime;
+    var maxTime = entries.first.$1.startTime;
+    for (final (model, _) in entries) {
+      if (model.startTime.isBefore(minTime)) minTime = model.startTime;
+      if (model.startTime.isAfter(maxTime)) maxTime = model.startTime;
     }
 
     // Query existing activities in that range (including soft-deleted).
@@ -78,17 +102,25 @@ class CsvImporter {
       maxTime,
     );
 
-    // Build fingerprint set from existing records.
+    // Filter candidates based on soft-delete preference.
+    final candidates = includeSoftDeleted
+        ? existing
+        : existing.where((a) => !a.isDeleted).toList();
+
+    // Build fingerprint set from candidates.
     final existingFingerprints = <String>{};
-    for (final a in existing) {
+    for (final a in candidates) {
       existingFingerprints.add(_fingerprint(a));
     }
 
-    // Filter out duplicates.
+    // Filter out duplicates, capturing skipped CSV lines.
     final toInsert = <ActivityModel>[];
-    for (final entry in entries) {
-      if (!existingFingerprints.contains(_fingerprint(entry))) {
-        toInsert.add(entry);
+    final skippedRows = <String>[];
+    for (final (model, parsed) in entries) {
+      if (!existingFingerprints.contains(_fingerprint(model))) {
+        toInsert.add(model);
+      } else {
+        skippedRows.add(_toCsvLine(parsed.rawCsvRow));
       }
     }
 
@@ -99,6 +131,8 @@ class CsvImporter {
     return ImportResult(
       imported: toInsert.length,
       skipped: entries.length - toInsert.length,
+      parseErrors: parseResult.errors,
+      skippedRows: skippedRows,
     );
   }
 
@@ -117,5 +151,10 @@ class CsvImporter {
       _ => '|${a.durationMinutes}',
     };
     return '$base$extra';
+  }
+
+  /// Convert a raw CSV row back to a CSV line string.
+  static String _toCsvLine(List<dynamic> row) {
+    return const ListToCsvConverter().convert([row]);
   }
 }

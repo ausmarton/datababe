@@ -299,23 +299,41 @@ class SettingsScreen extends ConsumerWidget {
 
     if (!context.mounted) return;
 
-    // Confirm the target child before importing.
+    // Confirm the target child before importing + soft-delete toggle.
     final childName = ref.read(selectedChildProvider)?.name ?? 'selected child';
+    var includeDeleted = true;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm import'),
-        content: Text('Import activities to $childName?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Confirm import'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Import activities to $childName?'),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                value: includeDeleted,
+                onChanged: (v) => setState(() => includeDeleted = v ?? true),
+                title: const Text('Include previously deleted entries'),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Import'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
       ),
     );
     if (confirmed != true) return;
@@ -345,19 +363,26 @@ class SettingsScreen extends ConsumerWidget {
         csvContent,
         childId,
         familyId,
+        includeSoftDeleted: !includeDeleted,
       );
 
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
-        final msg = importResult.skipped > 0
-            ? 'Imported ${importResult.imported}, skipped ${importResult.skipped} duplicates'
-            : 'Imported ${importResult.imported} activities';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
+
+        final hasIssues = importResult.skipped > 0 ||
+            importResult.parseErrors.isNotEmpty;
+
+        if (hasIssues) {
+          await _showImportResultDialog(context, importResult);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Imported ${importResult.imported} activities')),
+          );
+        }
 
         // Trigger immediate sync to push imported activities to Firestore.
-        if (importResult.imported > 0) {
+        if (importResult.imported > 0 && context.mounted) {
           final engine = ref.read(syncEngineProvider);
           final result = await engine.syncNow();
           if (context.mounted) {
@@ -372,6 +397,106 @@ class SettingsScreen extends ConsumerWidget {
         Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Import failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showImportResultDialog(
+      BuildContext context, ImportResult result) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _ImportResultDialog(result: result),
+    );
+  }
+}
+
+class _ImportResultDialog extends StatelessWidget {
+  final ImportResult result;
+  const _ImportResultDialog({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Import complete'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Imported: ${result.imported}'),
+            if (result.skipped > 0)
+              Text('Skipped (duplicates): ${result.skipped}'),
+            if (result.parseErrors.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Parse errors: ${result.parseErrors.length}',
+                style: TextStyle(
+                    color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 4),
+              ...result.parseErrors.map((e) => Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 2),
+                    child: Text(
+                      'Row ${e.rowNumber}: ${e.reason}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  )),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        if (result.skippedRows.isNotEmpty ||
+            result.parseErrors.isNotEmpty)
+          TextButton(
+            onPressed: () => _downloadRejects(context),
+            child: const Text('Download rejects CSV'),
+          ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('OK'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _downloadRejects(BuildContext context) async {
+    final lines = <String>[];
+    // Add header.
+    lines.add(
+        'Type,Start,End,Duration,Start Condition,Start Location,End Condition,Notes');
+    // Add skipped duplicate rows.
+    for (final row in result.skippedRows) {
+      lines.add(row);
+    }
+    // Add error rows as comments.
+    for (final e in result.parseErrors) {
+      lines.add('# Row ${e.rowNumber}: ${e.reason} (type: ${e.rawType})');
+    }
+
+    final content = lines.join('\n');
+    final bytes = Uint8List.fromList(utf8.encode(content));
+    final now = DateTime.now();
+    final datePart =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    try {
+      await FileSaver.instance.saveFile(
+        name: 'datababe-rejects-$datePart',
+        bytes: bytes,
+        ext: 'csv',
+        mimeType: MimeType.csv,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rejects file saved')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e')),
         );
       }
     }

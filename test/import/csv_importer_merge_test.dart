@@ -67,7 +67,7 @@ void main() {
     expect(result.skipped, 1);
   });
 
-  test('soft-deleted records not re-imported', () async {
+  test('soft-deleted records re-imported by default', () async {
     final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
 
     final importer = CsvImporter(repo);
@@ -83,11 +83,11 @@ void main() {
     expect(activities, hasLength(1));
     await repo.softDeleteActivity(familyId, activities.first.id);
 
-    // Re-import — should still be skipped because fingerprint matches.
+    // Re-import — default excludes soft-deleted from dedup, so re-import succeeds.
     final result =
         await importer.importFromString(csv, childId, familyId);
-    expect(result.imported, 0);
-    expect(result.skipped, 1);
+    expect(result.imported, 1);
+    expect(result.skipped, 0);
   });
 
   test('different children not considered duplicates', () async {
@@ -308,6 +308,109 @@ void main() {
       final result =
           await importer.importFromString(csv, childId, familyId);
       expect(result.skipped, 1);
+    });
+  });
+
+  group('ImportResult details', () {
+    test('parseErrors passed through in ImportResult', () async {
+      // Include an unknown type row alongside a valid row.
+      final csv = '${csvHeader}Feed,2026-03-01 08:00,,,120ml,Bottle,120ml,\n'
+          'UnknownType,2026-03-01 09:00,,,,,,,\n';
+
+      final importer = CsvImporter(repo);
+      final result =
+          await importer.importFromString(csv, childId, familyId);
+
+      expect(result.imported, 1);
+      expect(result.parseErrors, hasLength(1));
+      expect(result.parseErrors.first.reason, contains('unknown type'));
+    });
+
+    test('skippedRows contains CSV lines of duplicates', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csv, childId, familyId);
+
+      final result =
+          await importer.importFromString(csv, childId, familyId);
+
+      expect(result.skipped, 1);
+      expect(result.skippedRows, hasLength(1));
+      expect(result.skippedRows.first, contains('Feed'));
+      expect(result.skippedRows.first, contains('2026-03-01 08:00'));
+    });
+  });
+
+  group('soft-delete dedup toggle', () {
+    test('soft-deleted records excluded from dedup by default', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csv, childId, familyId);
+
+      // Soft-delete the activity.
+      final activities = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 2),
+      );
+      await repo.softDeleteActivity(familyId, activities.first.id);
+
+      // Re-import — default excludes soft-deleted from dedup, so re-import succeeds.
+      final result =
+          await importer.importFromString(csv, childId, familyId);
+      expect(result.imported, 1);
+      expect(result.skipped, 0);
+    });
+
+    test('soft-deleted records included in dedup when includeSoftDeleted=true',
+        () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csv, childId, familyId);
+
+      // Soft-delete the activity.
+      final activities = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 2),
+      );
+      await repo.softDeleteActivity(familyId, activities.first.id);
+
+      // Re-import with includeSoftDeleted=true — should skip.
+      final result = await importer.importFromString(
+        csv,
+        childId,
+        familyId,
+        includeSoftDeleted: true,
+      );
+      expect(result.imported, 0);
+      expect(result.skipped, 1);
+    });
+
+    test('includeSoftDeleted=false is the default', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csv, childId, familyId);
+
+      // Soft-delete.
+      final activities = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        DateTime(2026, 3, 2),
+      );
+      await repo.softDeleteActivity(familyId, activities.first.id);
+
+      // Default call (no parameter) should behave like includeSoftDeleted=false.
+      final result =
+          await importer.importFromString(csv, childId, familyId);
+      expect(result.imported, 1, reason: 'default should allow re-import of soft-deleted');
     });
   });
 }

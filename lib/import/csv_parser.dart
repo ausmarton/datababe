@@ -1,6 +1,27 @@
 import 'package:csv/csv.dart';
 import '../models/enums.dart';
 
+/// A row that could not be parsed from the CSV.
+class ParseError {
+  final int rowNumber; // 1-based (after header)
+  final String rawType; // The type column value (or empty)
+  final String reason; // e.g. "invalid date", "unknown type", "too few columns"
+
+  const ParseError({
+    required this.rowNumber,
+    required this.rawType,
+    required this.reason,
+  });
+}
+
+/// Result of parsing a CSV file — parsed activities plus any errors.
+class ParseResult {
+  final List<ParsedActivity> activities;
+  final List<ParseError> errors;
+
+  const ParseResult({required this.activities, required this.errors});
+}
+
 /// A parsed activity — pure data, no database dependency.
 class ParsedActivity {
   final ActivityType type;
@@ -42,6 +63,9 @@ class ParsedActivity {
   // Notes
   final String? notes;
 
+  /// The original CSV row values (for rejects file).
+  final List<dynamic> rawCsvRow;
+
   ParsedActivity({
     required this.type,
     required this.startTime,
@@ -65,6 +89,7 @@ class ParsedActivity {
     this.headCircumferenceCm,
     this.tempCelsius,
     this.notes,
+    this.rawCsvRow = const [],
   });
 }
 
@@ -76,18 +101,31 @@ class ParsedActivity {
 ///
 /// Columns are overloaded — different activity types use them differently.
 class CsvParser {
-  /// Parse CSV content into a list of activities.
-  List<ParsedActivity> parse(String csvContent) {
+  /// Parse CSV content into a [ParseResult] with activities and errors.
+  ParseResult parse(String csvContent) {
     final normalized =
         csvContent.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     final rows = const CsvToListConverter(eol: '\n').convert(normalized);
-    if (rows.isEmpty) return [];
+    if (rows.isEmpty) {
+      return const ParseResult(activities: [], errors: []);
+    }
 
     final dataRows = rows.skip(1).toList();
     final results = <ParsedActivity>[];
+    final errors = <ParseError>[];
 
-    for (final row in dataRows) {
-      if (row.length < 8) continue;
+    for (var i = 0; i < dataRows.length; i++) {
+      final row = dataRows[i];
+      final rowNumber = i + 1; // 1-based after header
+
+      if (row.length < 8) {
+        errors.add(ParseError(
+          rowNumber: rowNumber,
+          rawType: row.isNotEmpty ? _str(row[0]) : '',
+          reason: 'too few columns',
+        ));
+        continue;
+      }
 
       final type = _str(row[0]);
       final startStr = _str(row[1]);
@@ -98,10 +136,24 @@ class CsvParser {
       final col6 = _str(row[6]);
       final col7 = _str(row[7]);
 
-      if (startStr.isEmpty) continue;
+      if (startStr.isEmpty) {
+        errors.add(ParseError(
+          rowNumber: rowNumber,
+          rawType: type,
+          reason: 'invalid date: (empty)',
+        ));
+        continue;
+      }
 
       final startTime = _parseDateTime(startStr);
-      if (startTime == null) continue;
+      if (startTime == null) {
+        errors.add(ParseError(
+          rowNumber: rowNumber,
+          rawType: type,
+          reason: 'invalid date: $startStr',
+        ));
+        continue;
+      }
 
       final endTime = endStr.isNotEmpty ? _parseDateTime(endStr) : null;
       final duration = _parseDurationMinutes(durationStr);
@@ -118,10 +170,42 @@ class CsvParser {
         col7: col7,
       );
 
-      if (entry != null) results.add(entry);
+      if (entry != null) {
+        results.add(ParsedActivity(
+          type: entry.type,
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          durationMinutes: entry.durationMinutes,
+          feedType: entry.feedType,
+          volumeMl: entry.volumeMl,
+          rightBreastMinutes: entry.rightBreastMinutes,
+          leftBreastMinutes: entry.leftBreastMinutes,
+          contents: entry.contents,
+          contentSize: entry.contentSize,
+          peeSize: entry.peeSize,
+          pooColour: entry.pooColour,
+          pooConsistency: entry.pooConsistency,
+          medicationName: entry.medicationName,
+          dose: entry.dose,
+          foodDescription: entry.foodDescription,
+          reaction: entry.reaction,
+          weightKg: entry.weightKg,
+          lengthCm: entry.lengthCm,
+          headCircumferenceCm: entry.headCircumferenceCm,
+          tempCelsius: entry.tempCelsius,
+          notes: entry.notes,
+          rawCsvRow: row,
+        ));
+      } else {
+        errors.add(ParseError(
+          rowNumber: rowNumber,
+          rawType: type,
+          reason: 'unknown type: $type',
+        ));
+      }
     }
 
-    return results;
+    return ParseResult(activities: results, errors: errors);
   }
 
   ParsedActivity? _parseRow({
