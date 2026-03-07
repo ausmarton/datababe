@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../local/database_provider.dart';
+import '../sync/ingredient_dedup_migration.dart';
 import 'auth_provider.dart';
 import 'sync_provider.dart';
 
@@ -42,6 +44,27 @@ final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
 
     final engine = ref.read(syncEngineProvider);
     await engine.initialSync(familyIds);
+
+    // Run one-time ingredient dedup migration after initial sync.
+    try {
+      final db = ref.read(localDatabaseProvider);
+      final migration = IngredientDedupMigration(db);
+      final changes = await migration.run();
+      if (changes.isNotEmpty) {
+        final queue = ref.read(syncQueueProvider);
+        for (final change in changes) {
+          await queue.enqueue(
+            collection: change.collection,
+            documentId: change.documentId,
+            familyId: familyIds.first,
+          );
+        }
+        engine.notifyWrite();
+        debugPrint('[Sync] dedup migration: ${changes.length} docs enqueued');
+      }
+    } catch (e) {
+      debugPrint('[Sync] dedup migration failed: $e');
+    }
 
     debugPrint('[Sync] initial sync complete');
     return const InitialSyncResult(complete: true);

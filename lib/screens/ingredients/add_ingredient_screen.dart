@@ -6,8 +6,8 @@ import '../../models/ingredient_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/family_provider.dart';
-import '../../providers/ingredient_provider.dart';
 import '../../providers/repository_provider.dart';
+import '../../repositories/duplicate_name_exception.dart';
 
 class AddIngredientScreen extends ConsumerStatefulWidget {
   final String? ingredientId;
@@ -28,6 +28,7 @@ class _AddIngredientScreenState extends ConsumerState<AddIngredientScreen> {
 
   DateTime _originalCreatedAt = DateTime.now();
   String _originalCreatedBy = '';
+  String? _originalName;
 
   bool get _isEdit => widget.ingredientId != null;
 
@@ -59,6 +60,7 @@ class _AddIngredientScreenState extends ConsumerState<AddIngredientScreen> {
         ..addAll(ingredient.allergens);
       _originalCreatedAt = ingredient.createdAt;
       _originalCreatedBy = ingredient.createdBy;
+      _originalName = ingredient.name;
       _loading = false;
     });
   }
@@ -76,22 +78,14 @@ class _AddIngredientScreenState extends ConsumerState<AddIngredientScreen> {
     final user = ref.read(currentUserProvider);
     if (familyId == null || user == null) return;
 
-    final normalizedName = _nameController.text.trim().toLowerCase();
-    final existing = ref.read(ingredientsProvider).valueOrNull ?? [];
-    if (existing.any((i) => i.name == normalizedName && i.id != widget.ingredientId)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ingredient "$normalizedName" already exists')),
-      );
-      return;
-    }
-
     setState(() => _saving = true);
 
     try {
       final now = DateTime.now();
+      final normalizedName = _nameController.text.trim().toLowerCase();
       final ingredient = IngredientModel(
         id: widget.ingredientId ?? const Uuid().v4(),
-        name: _nameController.text.trim().toLowerCase(),
+        name: normalizedName,
         allergens: _selectedAllergens.toList(),
         createdBy: _isEdit ? _originalCreatedBy : user.uid,
         createdAt: _isEdit ? _originalCreatedAt : now,
@@ -99,13 +93,22 @@ class _AddIngredientScreenState extends ConsumerState<AddIngredientScreen> {
       );
 
       final repo = ref.read(ingredientRepositoryProvider);
-      if (_isEdit) {
+      if (_isEdit && _originalName != null && _originalName != normalizedName) {
+        await repo.renameIngredient(familyId, ingredient, _originalName!);
+      } else if (_isEdit) {
         await repo.updateIngredient(familyId, ingredient);
       } else {
         await repo.createIngredient(familyId, ingredient);
       }
 
       if (mounted) Navigator.of(context).pop();
+    } on DuplicateNameException catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);

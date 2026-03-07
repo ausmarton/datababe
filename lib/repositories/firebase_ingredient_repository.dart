@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/ingredient_model.dart';
-import 'ingredient_repository.dart';
+import 'ingredient_repository.dart' show IngredientRepository, CascadedChange;
 
 class FirebaseIngredientRepository implements IngredientRepository {
   final FirebaseFirestore _firestore;
@@ -56,5 +56,12 @@ class FirebaseIngredientRepository implements IngredientRepository {
     await _ingredientsCol(familyId)
         .doc(ingredientId)
         .update({'isDeleted': true});
+  }
+
+  @override
+  Future<List<CascadedChange>> renameIngredient(
+      String familyId, IngredientModel ingredient, String oldName) async {
+    await updateIngredient(familyId, ingredient);
+    return [];
   }
 }

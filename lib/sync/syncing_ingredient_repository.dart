@@ -1,5 +1,6 @@
 import '../models/ingredient_model.dart';
-import '../repositories/ingredient_repository.dart';
+import '../repositories/ingredient_repository.dart'
+    show IngredientRepository, CascadedChange;
 import 'sync_engine.dart';
 import 'sync_queue.dart';
 
@@ -54,5 +55,25 @@ class SyncingIngredientRepository implements IngredientRepository {
       familyId: familyId,
     );
     _engine.notifyWrite();
+  }
+
+  @override
+  Future<List<CascadedChange>> renameIngredient(
+      String familyId, IngredientModel ingredient, String oldName) async {
+    final changes = await _local.renameIngredient(familyId, ingredient, oldName);
+    await _queue.enqueue(
+      collection: 'ingredients',
+      documentId: ingredient.id,
+      familyId: familyId,
+    );
+    for (final change in changes) {
+      await _queue.enqueue(
+        collection: change.collection,
+        documentId: change.documentId,
+        familyId: familyId,
+      );
+    }
+    _engine.notifyWrite();
+    return changes;
   }
 }

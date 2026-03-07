@@ -50,6 +50,7 @@ lib/
     activity, auth, family, ingredient, invite, recipe, target
     local_*_repository.dart — Sembast implementations
     firebase_*_repository.dart — Firestore implementations
+    duplicate_name_exception.dart — Typed exception for name collisions
   sync/                  — Sync infrastructure
     sync_engine.dart     — Push/pull orchestration with debounce
     sync_queue.dart      — Pending change tracking
@@ -57,6 +58,7 @@ lib/
     connectivity_monitor.dart — Online/offline detection
     firestore_converter.dart  — Map ↔ Firestore format conversion
     syncing_*_repository.dart — Write-intercepting decorator wrappers
+    ingredient_dedup_migration.dart — One-time ingredient dedup migration
   backup/                — Backup/restore service (JSON export/import with merge)
     backup_service.dart  — Export/import logic + BackupResult types
   providers/             — Riverpod providers (auth, repositories, sync, UI state)
@@ -88,7 +90,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (373 tests)
+flutter test                                                 # Run tests (390 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -128,6 +130,7 @@ invites/{id}                             — Email-based family invites
 - All save/delete operations use **await + try/catch** with SnackBar feedback
 - Duplicate checks happen **client-side** in `_save()` before write
 - Sembast maps are immutable — always `Map.from()` before mutating
+- **Ingredient name uniqueness**: enforced per family at repository level; renaming cascades to recipes and targets
 
 ## Sync behavior
 - **Push**: debounced 30s after writes, immediate on app background, on reconnect
