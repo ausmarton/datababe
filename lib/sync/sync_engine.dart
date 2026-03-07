@@ -63,14 +63,6 @@ class SyncEngine with WidgetsBindingObserver {
     'activities',
   ];
 
-  /// Small collections reconcile every sync; activities are rate-limited.
-  static const _smallCollections = {
-    'children',
-    'carers',
-    'ingredients',
-    'recipes',
-    'targets',
-  };
 
   /// Map from collection name to Sembast store.
   static final _storeMap = <String, StoreRef<String, Map<String, dynamic>>>{
@@ -390,46 +382,38 @@ class SyncEngine with WidgetsBindingObserver {
     return localModifiedAt.toDate().isAfter(remoteModifiedAt.toDate());
   }
 
-  /// Whether reconciliation should run for this collection.
-  /// Small collections reconcile every sync; activities at most once per 24h.
-  Future<bool> _shouldReconcile(String familyId, String collection) async {
-    if (_smallCollections.contains(collection)) return true;
-    final lastReconcile =
-        await _metadata.getLastReconcile(familyId, collection);
-    if (lastReconcile == null) return true;
-    return DateTime.now().difference(lastReconcile) >=
-        const Duration(hours: 24);
-  }
-
   /// Pre-check: do local and remote document counts match?
+  /// Returns true if counts match (no reconciliation needed),
+  /// false if they differ or the check fails.
   Future<bool> _countsMatch(String familyId, String collection) async {
-    final store = _storeMap[collection]!;
-    final localRecords = await store.find(_db,
-        finder: Finder(filter: Filter.equals('familyId', familyId)));
-    final localCount = localRecords.length;
+    try {
+      final store = _storeMap[collection]!;
+      final localRecords = await store.find(_db,
+          finder: Finder(filter: Filter.equals('familyId', familyId)));
+      final localCount = localRecords.length;
 
-    final remoteSnapshot = await _firestore
-        .collection('families')
-        .doc(familyId)
-        .collection(collection)
-        .count()
-        .get();
-    final remoteCount = remoteSnapshot.count ?? 0;
+      final remoteSnapshot = await _firestore
+          .collection('families')
+          .doc(familyId)
+          .collection(collection)
+          .count()
+          .get();
+      final remoteCount = remoteSnapshot.count ?? 0;
 
-    return localCount == remoteCount;
+      return localCount == remoteCount;
+    } catch (e) {
+      debugPrint('[Sync] countsMatch $familyId/$collection: $e');
+      return false; // Assume mismatch — proceed with full reconciliation.
+    }
   }
 
   /// Reconcile: remove local records whose Firestore counterparts were hard-deleted.
   Future<void> _reconcileCollection(
       String familyId, String collection) async {
     try {
-      if (!await _shouldReconcile(familyId, collection)) return;
-
       // For activities, use count pre-check to skip when nothing changed.
       if (collection == 'activities') {
         if (await _countsMatch(familyId, collection)) {
-          await _metadata.setLastReconcile(
-              familyId, collection, DateTime.now());
           return;
         }
       }
@@ -450,11 +434,7 @@ class SyncEngine with WidgetsBindingObserver {
 
       // Find orphans: local records not in Firestore.
       final orphanedIds = localIds.difference(remoteIds);
-      if (orphanedIds.isEmpty) {
-        await _metadata.setLastReconcile(
-            familyId, collection, DateTime.now());
-        return;
-      }
+      if (orphanedIds.isEmpty) return;
 
       // Skip orphans with pending sync queue entries (freshly created locally).
       final toDelete = <String>[];
@@ -474,8 +454,6 @@ class SyncEngine with WidgetsBindingObserver {
             '[Sync] reconcile $familyId/$collection: removed ${toDelete.length} orphaned docs');
       }
 
-      await _metadata.setLastReconcile(
-          familyId, collection, DateTime.now());
     } catch (e) {
       debugPrint('[Sync] reconcile $familyId/$collection: $e');
     }
