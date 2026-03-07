@@ -117,6 +117,10 @@ families/{familyId}/targets/{id}         — Goals/targets (activityType, metric
 invites/{id}                             — Email-based family invites
 ```
 
+## Workflow rules
+- **Always commit when done**: When code changes are complete and tests pass, commit immediately as part of the task. Do not stop to summarize or ask — the commit is the final step, not an afterthought.
+- **Be proactive**: When the next step is obvious (run tests, fix lint, commit), do it without asking.
+
 ## Conventions
 - No code generation needed (no Drift, no build_runner)
 - Activity types: each type has its own typed fields (not generic columns)
