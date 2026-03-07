@@ -180,7 +180,11 @@ class SyncEngine with WidgetsBindingObserver {
           entry.documentId,
         );
 
-        await docRef.set(firestoreData);
+        await _firestore.runTransaction((txn) async {
+          final remote = await txn.get(docRef);
+          if (!shouldPush(remote.data(), firestoreData)) return;
+          txn.set(docRef, firestoreData);
+        });
         completedIds.add(entry.id);
       } catch (e) {
         debugPrint('[Sync] push ${entry.collection}/${entry.documentId}: $e');
@@ -332,6 +336,18 @@ class SyncEngine with WidgetsBindingObserver {
         .doc(familyId)
         .collection(collection)
         .doc(documentId);
+  }
+
+  /// Returns true if local data should overwrite remote.
+  /// Exposed as static for testability.
+  static bool shouldPush(
+      Map<String, dynamic>? remoteData, Map<String, dynamic> localData) {
+    if (remoteData == null) return true;
+    final remoteModifiedAt = remoteData['modifiedAt'];
+    if (remoteModifiedAt is! Timestamp) return true;
+    final localModifiedAt = localData['modifiedAt'];
+    if (localModifiedAt is! Timestamp) return true;
+    return localModifiedAt.toDate().isAfter(remoteModifiedAt.toDate());
   }
 
   /// Clear all local data (entity stores + sync queue + sync metadata).

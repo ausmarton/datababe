@@ -526,6 +526,163 @@ void main() {
       );
     });
 
+    test('missing modifiedAt falls back to createdAt', () async {
+      // Local record with createdAt only (no modifiedAt).
+      await StoreRefs.children.record('child-1').put(db, {
+        'familyId': familyId,
+        'name': 'LocalName',
+        'dateOfBirth': '2025-06-15T00:00:00.000',
+        'notes': '',
+        'createdAt': now.toIso8601String(),
+        'isDeleted': false,
+      });
+
+      // Incoming with createdAt only, newer.
+      final backupData = {
+        'version': 1,
+        'appVersion': '',
+        'exportedAt': later.toIso8601String(),
+        'familyId': familyId,
+        'stores': {
+          'families': <String, dynamic>{},
+          'children': {
+            'child-1': {
+              'familyId': familyId,
+              'name': 'NewerName',
+              'dateOfBirth': '2025-06-15T00:00:00.000',
+              'notes': '',
+              'createdAt': later.toIso8601String(),
+              'isDeleted': false,
+            },
+          },
+          'carers': <String, dynamic>{},
+          'activities': <String, dynamic>{},
+          'ingredients': <String, dynamic>{},
+          'recipes': <String, dynamic>{},
+          'targets': <String, dynamic>{},
+        },
+      };
+
+      final result = await service.restoreFamily(jsonEncode(backupData));
+      expect(result.stores['children']!.updated, 1);
+
+      final child = await StoreRefs.children.record('child-1').get(db);
+      expect(child!['name'], 'NewerName');
+    });
+
+    test('incoming with createdAt only vs local with modifiedAt', () async {
+      // Local with modifiedAt.
+      await StoreRefs.children
+          .record('child-1')
+          .put(db, makeChild('LocalName', modifiedAt: later));
+
+      // Incoming has only createdAt, older than local modifiedAt.
+      final backupData = {
+        'version': 1,
+        'appVersion': '',
+        'exportedAt': now.toIso8601String(),
+        'familyId': familyId,
+        'stores': {
+          'families': <String, dynamic>{},
+          'children': {
+            'child-1': {
+              'familyId': familyId,
+              'name': 'OlderIncoming',
+              'dateOfBirth': '2025-06-15T00:00:00.000',
+              'notes': '',
+              'createdAt': now.toIso8601String(),
+              'isDeleted': false,
+            },
+          },
+          'carers': <String, dynamic>{},
+          'activities': <String, dynamic>{},
+          'ingredients': <String, dynamic>{},
+          'recipes': <String, dynamic>{},
+          'targets': <String, dynamic>{},
+        },
+      };
+
+      final result = await service.restoreFamily(jsonEncode(backupData));
+      expect(result.stores['children']!.skipped, 1);
+
+      final child = await StoreRefs.children.record('child-1').get(db);
+      expect(child!['name'], 'LocalName');
+    });
+
+    test('local has no timestamps at all → incoming wins', () async {
+      // Local with no createdAt/modifiedAt.
+      await StoreRefs.children.record('child-1').put(db, {
+        'familyId': familyId,
+        'name': 'NoTimestamp',
+        'dateOfBirth': '2025-06-15T00:00:00.000',
+        'notes': '',
+        'isDeleted': false,
+      });
+
+      final backupData = {
+        'version': 1,
+        'appVersion': '',
+        'exportedAt': now.toIso8601String(),
+        'familyId': familyId,
+        'stores': {
+          'families': <String, dynamic>{},
+          'children': {
+            'child-1': makeChild('IncomingWins', modifiedAt: now),
+          },
+          'carers': <String, dynamic>{},
+          'activities': <String, dynamic>{},
+          'ingredients': <String, dynamic>{},
+          'recipes': <String, dynamic>{},
+          'targets': <String, dynamic>{},
+        },
+      };
+
+      final result = await service.restoreFamily(jsonEncode(backupData));
+      expect(result.stores['children']!.updated, 1);
+
+      final child = await StoreRefs.children.record('child-1').get(db);
+      expect(child!['name'], 'IncomingWins');
+    });
+
+    test('compact JSON output (no indentation)', () async {
+      await StoreRefs.families.record(familyId).put(db, makeFamily());
+
+      final exported = await service.exportFamily(familyId);
+      // Compact JSON should not contain newlines within the output
+      // (except possibly at the very end, but within the body).
+      expect(exported, isNot(contains('\n')));
+    });
+
+    test('double restore with identical timestamps → all skipped', () async {
+      final backupData = {
+        'version': 1,
+        'appVersion': '',
+        'exportedAt': now.toIso8601String(),
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': {'child-1': makeChild('Baby')},
+          'carers': <String, dynamic>{},
+          'activities': <String, dynamic>{},
+          'ingredients': <String, dynamic>{},
+          'recipes': <String, dynamic>{},
+          'targets': <String, dynamic>{},
+        },
+      };
+
+      final jsonStr = jsonEncode(backupData);
+
+      // First restore: inserts.
+      final result1 = await service.restoreFamily(jsonStr);
+      expect(result1.totalInserted, 2);
+
+      // Second restore with same data: all skipped.
+      final result2 = await service.restoreFamily(jsonStr);
+      expect(result2.totalInserted, 0);
+      expect(result2.totalUpdated, 0);
+      expect(result2.totalSkipped, 2);
+    });
+
     test('BackupResult counts are correct', () {
       final result = BackupResult({
         'children': const StoreResult(inserted: 2, updated: 1, skipped: 3),

@@ -81,7 +81,7 @@ class BackupService {
       'stores': stores,
     };
 
-    return const JsonEncoder.withIndent('  ').convert(envelope);
+    return json.encode(envelope);
   }
 
   /// Restore (merge) data from a JSON backup string.
@@ -141,12 +141,18 @@ class BackupService {
             inserted++;
             changedIds.add(recordId);
           } else {
-            final incomingModified = _parseModifiedAt(incomingData);
-            final localModified = _parseModifiedAt(existing);
+            final incomingModified = _parseTimestamp(incomingData, 'modifiedAt')
+                ?? _parseTimestamp(incomingData, 'createdAt');
+            final localModified = _parseTimestamp(existing, 'modifiedAt')
+                ?? _parseTimestamp(existing, 'createdAt');
 
             if (incomingModified != null &&
                 localModified != null &&
                 incomingModified.isAfter(localModified)) {
+              await store.record(recordId).put(txn, incomingData);
+              updated++;
+              changedIds.add(recordId);
+            } else if (incomingModified != null && localModified == null) {
               await store.record(recordId).put(txn, incomingData);
               updated++;
               changedIds.add(recordId);
@@ -180,11 +186,9 @@ class BackupService {
     return BackupResult(results);
   }
 
-  DateTime? _parseModifiedAt(Map<String, dynamic> data) {
-    final value = data['modifiedAt'];
-    if (value is String) {
-      return DateTime.tryParse(value);
-    }
+  DateTime? _parseTimestamp(Map<String, dynamic> data, String field) {
+    final value = data[field];
+    if (value is String) return DateTime.tryParse(value);
     return null;
   }
 }

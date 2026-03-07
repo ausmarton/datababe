@@ -110,7 +110,7 @@ class CsvImporter {
       'feedBreast' => '|${a.rightBreastMinutes}|${a.leftBreastMinutes}',
       'diaper' || 'potty' => '|${a.contents}|${a.contentSize}',
       'meds' => '|${a.medicationName}|${a.dose}',
-      'solids' => '|${a.foodDescription}',
+      'solids' => '|${a.foodDescription}|${a.reaction}',
       'growth' => '|${a.weightKg}|${a.lengthCm}|${a.headCircumferenceCm}',
       'pump' => '|${a.volumeMl}',
       'temperature' => '|${a.tempCelsius}',

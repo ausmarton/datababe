@@ -137,6 +137,46 @@ void main() {
     expect(result.skipped, 0);
   });
 
+  group('solids reaction fingerprint', () {
+    test('same time, same food, different reaction → NOT deduped', () async {
+      const row1 = 'Solids,2026-03-01 08:00,,,banana,,Loved,\n';
+      const row2 = 'Solids,2026-03-01 08:00,,,banana,,Disliked,\n';
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csvHeader + row1, childId, familyId);
+      final result =
+          await importer.importFromString(csvHeader + row2, childId, familyId);
+
+      expect(result.imported, 1);
+      expect(result.skipped, 0);
+    });
+
+    test('same time, no food, different reaction → NOT deduped', () async {
+      const row1 = 'Solids,2026-03-01 08:00,,,,,Loved,\n';
+      const row2 = 'Solids,2026-03-01 08:00,,,,,Meh,\n';
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csvHeader + row1, childId, familyId);
+      final result =
+          await importer.importFromString(csvHeader + row2, childId, familyId);
+
+      expect(result.imported, 1);
+      expect(result.skipped, 0);
+    });
+
+    test('same time, same food, same reaction → deduped', () async {
+      const row = 'Solids,2026-03-01 08:00,,,banana,,Loved,\n';
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csvHeader + row, childId, familyId);
+      final result =
+          await importer.importFromString(csvHeader + row, childId, familyId);
+
+      expect(result.imported, 0);
+      expect(result.skipped, 1);
+    });
+  });
+
   group('fingerprint dedup per activity type', () {
     // Each type uses different distinguishing fields in its fingerprint.
 
