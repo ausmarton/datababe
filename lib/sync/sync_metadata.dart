@@ -33,6 +33,29 @@ class SyncMetadata {
     });
   }
 
+  String _reconcileKey(String familyId, String collection) =>
+      '${familyId}_${collection}_reconcile';
+
+  /// Get the last reconciliation timestamp for a family+collection.
+  Future<DateTime?> getLastReconcile(
+      String familyId, String collection) async {
+    final record =
+        await _store.record(_reconcileKey(familyId, collection)).get(_db);
+    if (record == null) return null;
+    final ts = record['lastReconcile'] as String?;
+    return ts != null ? DateTime.parse(ts) : null;
+  }
+
+  /// Update the last reconciliation timestamp for a family+collection.
+  Future<void> setLastReconcile(
+      String familyId, String collection, DateTime timestamp) async {
+    await _store.record(_reconcileKey(familyId, collection)).put(_db, {
+      'familyId': familyId,
+      'collection': collection,
+      'lastReconcile': timestamp.toIso8601String(),
+    });
+  }
+
   /// Get the last sync time across all collections for display.
   Future<DateTime?> getLastSyncTime() async {
     final records = await _store.find(_db,

@@ -59,6 +59,54 @@ void main() {
     });
   });
 
+  group('getLastReconcile / setLastReconcile', () {
+    test('returns null when no reconcile recorded', () async {
+      final result = await metadata.getLastReconcile('fam-1', 'activities');
+      expect(result, isNull);
+    });
+
+    test('returns timestamp after setLastReconcile', () async {
+      final ts = DateTime(2026, 3, 7, 9, 0);
+      await metadata.setLastReconcile('fam-1', 'activities', ts);
+
+      final result = await metadata.getLastReconcile('fam-1', 'activities');
+      expect(result, ts);
+    });
+
+    test('different family+collection combos are independent', () async {
+      final ts1 = DateTime(2026, 3, 7, 9, 0);
+      final ts2 = DateTime(2026, 3, 7, 11, 0);
+
+      await metadata.setLastReconcile('fam-1', 'activities', ts1);
+      await metadata.setLastReconcile('fam-1', 'ingredients', ts2);
+
+      expect(await metadata.getLastReconcile('fam-1', 'activities'), ts1);
+      expect(await metadata.getLastReconcile('fam-1', 'ingredients'), ts2);
+    });
+
+    test('reconcile keys do not collide with pull keys', () async {
+      final pullTs = DateTime(2026, 3, 7, 8, 0);
+      final reconcileTs = DateTime(2026, 3, 7, 10, 0);
+
+      await metadata.setLastPull('fam-1', 'activities', pullTs);
+      await metadata.setLastReconcile('fam-1', 'activities', reconcileTs);
+
+      expect(await metadata.getLastPull('fam-1', 'activities'), pullTs);
+      expect(
+          await metadata.getLastReconcile('fam-1', 'activities'), reconcileTs);
+    });
+
+    test('setLastReconcile overwrites previous value', () async {
+      final ts1 = DateTime(2026, 3, 7, 9, 0);
+      final ts2 = DateTime(2026, 3, 7, 15, 0);
+
+      await metadata.setLastReconcile('fam-1', 'activities', ts1);
+      await metadata.setLastReconcile('fam-1', 'activities', ts2);
+
+      expect(await metadata.getLastReconcile('fam-1', 'activities'), ts2);
+    });
+  });
+
   group('getLastSyncTime', () {
     test('returns null when no pulls recorded', () async {
       final result = await metadata.getLastSyncTime();

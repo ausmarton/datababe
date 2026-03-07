@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Filter;
 import 'package:flutter/widgets.dart';
 import 'package:sembast/sembast.dart';
 
@@ -42,6 +42,25 @@ class SyncEngine with WidgetsBindingObserver {
     'children',
     'carers',
   ];
+
+  /// Subcollections to reconcile (all except 'families' — single doc).
+  static const _reconcileCollections = [
+    'children',
+    'carers',
+    'ingredients',
+    'recipes',
+    'targets',
+    'activities',
+  ];
+
+  /// Small collections reconcile every sync; activities are rate-limited.
+  static const _smallCollections = {
+    'children',
+    'carers',
+    'ingredients',
+    'recipes',
+    'targets',
+  };
 
   /// Map from collection name to Sembast store.
   static final _storeMap = <String, StoreRef<String, Map<String, dynamic>>>{
@@ -240,6 +259,11 @@ class SyncEngine with WidgetsBindingObserver {
         await _pullDelta(familyId, collection);
       }
     }
+
+    // Reconcile: remove local records whose Firestore counterparts were hard-deleted.
+    for (final collection in _reconcileCollections) {
+      await _reconcileCollection(familyId, collection);
+    }
   }
 
   /// Pull a single family document.
@@ -348,6 +372,97 @@ class SyncEngine with WidgetsBindingObserver {
     final localModifiedAt = localData['modifiedAt'];
     if (localModifiedAt is! Timestamp) return true;
     return localModifiedAt.toDate().isAfter(remoteModifiedAt.toDate());
+  }
+
+  /// Whether reconciliation should run for this collection.
+  /// Small collections reconcile every sync; activities at most once per 24h.
+  Future<bool> _shouldReconcile(String familyId, String collection) async {
+    if (_smallCollections.contains(collection)) return true;
+    final lastReconcile =
+        await _metadata.getLastReconcile(familyId, collection);
+    if (lastReconcile == null) return true;
+    return DateTime.now().difference(lastReconcile) >=
+        const Duration(hours: 24);
+  }
+
+  /// Pre-check: do local and remote document counts match?
+  Future<bool> _countsMatch(String familyId, String collection) async {
+    final store = _storeMap[collection]!;
+    final localRecords = await store.find(_db,
+        finder: Finder(filter: Filter.equals('familyId', familyId)));
+    final localCount = localRecords.length;
+
+    final remoteSnapshot = await _firestore
+        .collection('families')
+        .doc(familyId)
+        .collection(collection)
+        .count()
+        .get();
+    final remoteCount = remoteSnapshot.count ?? 0;
+
+    return localCount == remoteCount;
+  }
+
+  /// Reconcile: remove local records whose Firestore counterparts were hard-deleted.
+  Future<void> _reconcileCollection(
+      String familyId, String collection) async {
+    try {
+      if (!await _shouldReconcile(familyId, collection)) return;
+
+      // For activities, use count pre-check to skip when nothing changed.
+      if (collection == 'activities') {
+        if (await _countsMatch(familyId, collection)) {
+          await _metadata.setLastReconcile(
+              familyId, collection, DateTime.now());
+          return;
+        }
+      }
+
+      // Fetch all doc IDs from Firestore.
+      final remoteSnapshot = await _firestore
+          .collection('families')
+          .doc(familyId)
+          .collection(collection)
+          .get();
+      final remoteIds = remoteSnapshot.docs.map((d) => d.id).toSet();
+
+      // Fetch all local IDs for this family.
+      final store = _storeMap[collection]!;
+      final localRecords = await store.find(_db,
+          finder: Finder(filter: Filter.equals('familyId', familyId)));
+      final localIds = localRecords.map((r) => r.key).toSet();
+
+      // Find orphans: local records not in Firestore.
+      final orphanedIds = localIds.difference(remoteIds);
+      if (orphanedIds.isEmpty) {
+        await _metadata.setLastReconcile(
+            familyId, collection, DateTime.now());
+        return;
+      }
+
+      // Skip orphans with pending sync queue entries (freshly created locally).
+      final toDelete = <String>[];
+      for (final id in orphanedIds) {
+        if (!await _hasPendingForDoc(collection, id)) {
+          toDelete.add(id);
+        }
+      }
+
+      if (toDelete.isNotEmpty) {
+        await _db.transaction((txn) async {
+          for (final id in toDelete) {
+            await store.record(id).delete(txn);
+          }
+        });
+        debugPrint(
+            '[Sync] reconcile $familyId/$collection: removed ${toDelete.length} orphaned docs');
+      }
+
+      await _metadata.setLastReconcile(
+          familyId, collection, DateTime.now());
+    } catch (e) {
+      debugPrint('[Sync] reconcile $familyId/$collection: $e');
+    }
   }
 
   /// Clear all local data (entity stores + sync queue + sync metadata).
