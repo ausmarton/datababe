@@ -8,6 +8,7 @@ import 'package:file_saver/file_saver.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../import/csv_importer.dart';
+import '../../utils/file_reader.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backup_provider.dart';
 import '../../providers/repository_provider.dart';
@@ -245,19 +246,14 @@ class SettingsScreen extends ConsumerWidget {
 
     try {
       final file = result.files.first;
-      String jsonContent;
-      if (file.bytes != null) {
-        jsonContent = utf8.decode(file.bytes!);
-      } else {
-        throw Exception('Could not read file');
-      }
+      final jsonContent = await readFileContent(file);
 
       final backupService = ref.read(backupServiceProvider);
       final backupResult = await backupService.restoreFamily(jsonContent);
 
-      // Trigger sync push for restored records.
+      // Push (conditional) + pull (corrects stale data).
       final engine = ref.read(syncEngineProvider);
-      engine.notifyWrite();
+      await engine.syncNow();
 
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -303,6 +299,29 @@ class SettingsScreen extends ConsumerWidget {
 
     if (!context.mounted) return;
 
+    // Confirm the target child before importing.
+    final childName = ref.read(selectedChildProvider)?.name ?? 'selected child';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm import'),
+        content: Text('Import activities to $childName?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    if (!context.mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -319,13 +338,7 @@ class SettingsScreen extends ConsumerWidget {
 
     try {
       final file = result.files.first;
-
-      String csvContent;
-      if (file.bytes != null) {
-        csvContent = utf8.decode(file.bytes!);
-      } else {
-        throw Exception('Could not read file');
-      }
+      final csvContent = await readFileContent(file);
 
       final importer = CsvImporter(ref.read(activityRepositoryProvider));
       final importResult = await importer.importFromString(

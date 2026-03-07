@@ -1,8 +1,6 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
@@ -383,52 +381,62 @@ class _GrowthSection extends StatelessWidget {
     final previous =
         growthEntries.length >= 2 ? growthEntries[growthEntries.length - 2] : null;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Growth', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                if (latest.weightKg != null)
-                  _GrowthStat(
-                    label: 'Weight',
-                    value: '${latest.weightKg}kg',
-                    delta: previous?.weightKg != null
-                        ? _formatDelta(
-                            latest.weightKg! - previous!.weightKg!, 'kg')
-                        : null,
+    return GestureDetector(
+      onTap: () => context.push('/insights/growth'),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Growth',
+                        style: Theme.of(context).textTheme.titleMedium),
                   ),
-                if (latest.lengthCm != null)
-                  _GrowthStat(
-                    label: 'Length',
-                    value: '${latest.lengthCm}cm',
-                    delta: previous?.lengthCm != null
-                        ? _formatDelta(
-                            latest.lengthCm! - previous!.lengthCm!, 'cm')
-                        : null,
-                  ),
-                if (latest.headCircumferenceCm != null)
-                  _GrowthStat(
-                    label: 'Head',
-                    value: '${latest.headCircumferenceCm}cm',
-                    delta: previous?.headCircumferenceCm != null
-                        ? _formatDelta(
-                            latest.headCircumferenceCm! -
-                                previous!.headCircumferenceCm!,
-                            'cm')
-                        : null,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _GrowthChart(entries: growthEntries),
-          ],
+                  Icon(Icons.chevron_right,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  if (latest.weightKg != null)
+                    _GrowthStat(
+                      label: 'Weight',
+                      value: '${latest.weightKg}kg',
+                      delta: previous?.weightKg != null
+                          ? _formatDelta(
+                              latest.weightKg! - previous!.weightKg!, 'kg')
+                          : null,
+                    ),
+                  if (latest.lengthCm != null)
+                    _GrowthStat(
+                      label: 'Length',
+                      value: '${latest.lengthCm}cm',
+                      delta: previous?.lengthCm != null
+                          ? _formatDelta(
+                              latest.lengthCm! - previous!.lengthCm!, 'cm')
+                          : null,
+                    ),
+                  if (latest.headCircumferenceCm != null)
+                    _GrowthStat(
+                      label: 'Head',
+                      value: '${latest.headCircumferenceCm}cm',
+                      delta: previous?.headCircumferenceCm != null
+                          ? _formatDelta(
+                              latest.headCircumferenceCm! -
+                                  previous!.headCircumferenceCm!,
+                              'cm')
+                          : null,
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -466,71 +474,6 @@ class _GrowthStat extends StatelessWidget {
                 ),
           ),
       ],
-    );
-  }
-}
-
-class _GrowthChart extends StatelessWidget {
-  final List<ActivityModel> entries;
-
-  const _GrowthChart({required this.entries});
-
-  @override
-  Widget build(BuildContext context) {
-    final weightEntries = entries.where((a) => a.weightKg != null).toList();
-    if (weightEntries.isEmpty) return const SizedBox.shrink();
-
-    final spots = weightEntries.asMap().entries.map((e) {
-      return FlSpot(e.key.toDouble(), e.value.weightKg!);
-    }).toList();
-
-    final dateFormat = DateFormat('d/M');
-
-    return SizedBox(
-      height: 200,
-      child: LineChart(
-        LineChartData(
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: Colors.teal,
-              barWidth: 2,
-              dotData: const FlDotData(show: true),
-            ),
-          ],
-          titlesData: FlTitlesData(
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  final idx = value.toInt();
-                  if (idx < 0 || idx >= weightEntries.length) {
-                    return const SizedBox.shrink();
-                  }
-                  return Text(
-                    dateFormat.format(weightEntries[idx].startTime),
-                    style: const TextStyle(fontSize: 9),
-                  );
-                },
-                interval: (weightEntries.length / 5)
-                    .ceilToDouble()
-                    .clamp(1, double.infinity),
-              ),
-            ),
-            leftTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: true, reservedSize: 40),
-            ),
-            topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false)),
-          ),
-          borderData: FlBorderData(show: false),
-          gridData:
-              const FlGridData(show: true, drawVerticalLine: false),
-        ),
-      ),
     );
   }
 }

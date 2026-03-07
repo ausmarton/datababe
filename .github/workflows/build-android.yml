@@ -21,20 +21,9 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Decode release keystore
-        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/datababe-release.jks
-
-      - name: Create key.properties
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          printf 'storeFile=datababe-release.jks\nstorePassword=%s\nkeyAlias=datababe\nkeyPassword=%s\n' \
-            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" > android/key.properties
-
-      - run: flutter build apk --release
+      - run: flutter build apk --debug
 
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk

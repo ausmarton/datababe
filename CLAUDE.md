@@ -39,7 +39,7 @@ UI ← Riverpod Providers ← Syncing Repos → Local Repos (Sembast)
 lib/
   main.dart              — App entry point (Firebase + Sembast init)
   app.dart               — MaterialApp with router + auth guard
-  firebase_options.dart  — Generated Firebase config (TODO placeholders for API keys)
+  firebase_options.dart  — Generated Firebase config (real values, public by design)
   models/                — Data model classes + enums (toMap/fromMap + toFirestore/fromFirestore)
     activity_model.dart, app_user.dart, carer_model.dart, child_model.dart,
     enums.dart, family_model.dart, ingredient_model.dart, invite_model.dart,
@@ -62,8 +62,8 @@ lib/
   providers/             — Riverpod providers (auth, repositories, sync, UI state)
     activity_provider, auth_provider, backup_provider, child_provider,
     family_provider, ingredient_provider, initial_sync_provider,
-    invite_provider, recipe_provider, repository_provider, sync_provider,
-    target_provider
+    insights_provider, invite_provider, recipe_provider, repository_provider,
+    sync_provider, target_provider
   screens/               — Feature screens
     auth/                — LoginScreen with Google Sign-In
     home/                — Home screen
@@ -73,20 +73,22 @@ lib/
     goals/               — goals_screen.dart, add_target_screen.dart
     ingredients/         — ingredient_list_screen.dart, add_ingredient_screen.dart
     recipes/             — recipe_list_screen.dart, add_recipe_screen.dart
+    insights/            — insights_screen, allergen_detail, metric_detail, growth_detail_screen
     settings/            — settings_screen.dart, manage_allergens_screen.dart (+ sync controls)
     family/              — Family management
   widgets/               — Shared UI components (summary_card, shell_scaffold with sync dot)
   import/                — CSV import logic (CsvParser pure + CsvImporter with dedup)
   utils/                 — Helpers
     activity_aggregator.dart, activity_helpers.dart,
-    allergen_helpers.dart, date_range_helpers.dart
+    allergen_helpers.dart, date_range_helpers.dart,
+    file_reader.dart (conditional import barrel), file_reader_io.dart, file_reader_web.dart
 ```
 
 ## Key commands
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (263 tests)
+flutter test                                                 # Run tests (351 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```

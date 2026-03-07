@@ -16,6 +16,7 @@ import 'screens/recipes/add_recipe_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/settings/manage_allergens_screen.dart';
 import 'screens/insights/allergen_detail_screen.dart';
+import 'screens/insights/growth_detail_screen.dart';
 import 'screens/insights/metric_detail_screen.dart';
 import 'screens/ingredients/ingredient_list_screen.dart';
 import 'screens/ingredients/add_ingredient_screen.dart';
@@ -95,6 +96,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           final key = state.pathParameters['key']!;
           return MetricDetailScreen(metricKey: key);
         },
+      ),
+      GoRoute(
+        path: '/insights/growth',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const GrowthDetailScreen(),
       ),
       GoRoute(
         path: '/insights/allergens',

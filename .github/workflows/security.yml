@@ -46,6 +46,19 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --fatal-warnings
 
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.1'
+      - run: flutter pub get
+      - run: flutter test
+
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
