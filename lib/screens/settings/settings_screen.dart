@@ -359,15 +359,10 @@ class SettingsScreen extends ConsumerWidget {
         // Trigger immediate sync to push imported activities to Firestore.
         if (importResult.imported > 0) {
           final engine = ref.read(syncEngineProvider);
-          final pushResult = await engine.syncNow();
+          final result = await engine.syncNow();
           if (context.mounted) {
-            final syncMsg = pushResult.failed > 0
-                ? 'Synced ${pushResult.pushed}, ${pushResult.failed} failed'
-                : pushResult.pushed > 0
-                    ? 'Synced ${pushResult.pushed} to cloud'
-                    : 'Nothing to sync';
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(syncMsg)),
+              SnackBar(content: Text(_syncResultMessage(result))),
             );
           }
         }
@@ -433,18 +428,24 @@ class _SyncStatusTile extends ConsumerWidget {
               final engine = ref.read(syncEngineProvider);
               final result = await engine.syncNow();
               if (context.mounted) {
-                final msg = result.failed > 0
-                    ? 'Pushed ${result.pushed}, ${result.failed} failed'
-                    : result.pushed > 0
-                        ? 'Pushed ${result.pushed} to cloud'
-                        : 'Sync complete';
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(msg)),
+                  SnackBar(content: Text(_syncResultMessage(result))),
                 );
               }
             },
     );
   }
+}
+
+String _syncResultMessage(SyncResult result) {
+  final parts = <String>[];
+  if (result.pushed > 0) parts.add('pushed ${result.pushed}');
+  if (result.pushFailed > 0) parts.add('${result.pushFailed} push failed');
+  if (result.reconciled > 0) parts.add('removed ${result.reconciled} stale');
+  if (result.reconcileError != null) {
+    parts.add('reconcile error: ${result.reconcileError}');
+  }
+  return parts.isEmpty ? 'Sync complete — no changes' : parts.join(', ');
 }
 
 class _SectionHeader extends StatelessWidget {

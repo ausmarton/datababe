@@ -13,14 +13,38 @@ import 'sync_queue.dart';
 /// Sync status for UI display.
 enum SyncStatus { idle, syncing, error, offline }
 
-/// Result of a push operation.
-class PushResult {
+/// Result of a full sync cycle (push + pull + reconcile).
+class SyncResult {
+  final int pushed;
+  final int pushFailed;
+  final int reconciled;
+  final String? reconcileError;
+
+  const SyncResult({
+    this.pushed = 0,
+    this.pushFailed = 0,
+    this.reconciled = 0,
+    this.reconcileError,
+  });
+
+  static const empty = SyncResult();
+}
+
+class _PushResult {
   final int pushed;
   final int failed;
+  const _PushResult({required this.pushed, required this.failed});
+  static const empty = _PushResult(pushed: 0, failed: 0);
+}
 
-  const PushResult({required this.pushed, required this.failed});
-
-  static const empty = PushResult(pushed: 0, failed: 0);
+class _ReconcileResult {
+  final int reconciled;
+  final String? error;
+  const _ReconcileResult({this.reconciled = 0, this.error});
+  _ReconcileResult operator +(_ReconcileResult other) => _ReconcileResult(
+        reconciled: reconciled + other.reconciled,
+        error: error ?? other.error,
+      );
 }
 
 /// Core sync orchestration: push local changes to Firestore,
@@ -134,7 +158,7 @@ class SyncEngine with WidgetsBindingObserver {
   Future<int> get pendingCount => _queue.pendingCount();
 
   /// Manual sync trigger (from Settings > Sync Now).
-  Future<PushResult> syncNow() => _pushThenPull();
+  Future<SyncResult> syncNow() => _pushThenPull();
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -153,34 +177,39 @@ class SyncEngine with WidgetsBindingObserver {
     _statusController.add(status);
   }
 
-  Future<PushResult> _pushThenPull() async {
-    if (_isSyncing) return PushResult.empty;
+  Future<SyncResult> _pushThenPull() async {
+    if (_isSyncing) return SyncResult.empty;
     if (!_connectivity.isOnline) {
       _setStatus(SyncStatus.offline);
-      return PushResult.empty;
+      return SyncResult.empty;
     }
     _isSyncing = true;
     _setStatus(SyncStatus.syncing);
 
     try {
-      final result = await _push();
-      await _pullAll();
+      final pushResult = await _push();
+      final reconcileResult = await _pullAll();
       _setStatus(SyncStatus.idle);
-      return result;
+      return SyncResult(
+        pushed: pushResult.pushed,
+        pushFailed: pushResult.failed,
+        reconciled: reconcileResult.reconciled,
+        reconcileError: reconcileResult.error,
+      );
     } catch (e) {
       _setStatus(SyncStatus.error);
-      return PushResult.empty;
+      return SyncResult(reconcileError: e.toString());
     } finally {
       _isSyncing = false;
     }
   }
 
   /// Push pending local changes to Firestore.
-  Future<PushResult> _push() async {
-    if (!_connectivity.isOnline) return PushResult.empty;
+  Future<_PushResult> _push() async {
+    if (!_connectivity.isOnline) return _PushResult.empty;
 
     final entries = await _queue.getPending();
-    if (entries.isEmpty) return PushResult.empty;
+    if (entries.isEmpty) return _PushResult.empty;
 
     final completedIds = <String>[];
     var failCount = 0;
@@ -220,11 +249,11 @@ class SyncEngine with WidgetsBindingObserver {
       await _queue.removeAll(completedIds);
     }
 
-    return PushResult(pushed: completedIds.length, failed: failCount);
+    return _PushResult(pushed: completedIds.length, failed: failCount);
   }
 
   /// Pull remote changes for all families the user belongs to.
-  Future<void> _pullAll() async {
+  Future<_ReconcileResult> _pullAll() async {
     // Get family IDs from local store.
     var familyIds = (await StoreRefs.families.find(_db))
         .map((r) => r.key)
@@ -235,9 +264,11 @@ class SyncEngine with WidgetsBindingObserver {
       familyIds = await _fetchFamilyIdsFromFirestore();
     }
 
+    var result = const _ReconcileResult();
     for (final familyId in familyIds) {
-      await _pullForFamily(familyId);
+      result = result + await _pullForFamily(familyId);
     }
+    return result;
   }
 
   /// Fetch family IDs by querying families where the user is a member.
@@ -259,7 +290,7 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Pull changes for a specific family.
-  Future<void> _pullForFamily(String familyId) async {
+  Future<_ReconcileResult> _pullForFamily(String familyId) async {
     for (final collection in _deltaCollections) {
       if (collection == 'families') {
         await _pullFamilyDoc(familyId);
@@ -269,9 +300,11 @@ class SyncEngine with WidgetsBindingObserver {
     }
 
     // Reconcile: remove local records whose Firestore counterparts were hard-deleted.
+    var result = const _ReconcileResult();
     for (final collection in _reconcileCollections) {
-      await _reconcileCollection(familyId, collection);
+      result = result + await _reconcileCollection(familyId, collection);
     }
+    return result;
   }
 
   /// Pull a single family document.
@@ -408,13 +441,13 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Reconcile: remove local records whose Firestore counterparts were hard-deleted.
-  Future<void> _reconcileCollection(
+  Future<_ReconcileResult> _reconcileCollection(
       String familyId, String collection) async {
     try {
       // For activities, use count pre-check to skip when nothing changed.
       if (collection == 'activities') {
         if (await _countsMatch(familyId, collection)) {
-          return;
+          return const _ReconcileResult();
         }
       }
 
@@ -434,7 +467,7 @@ class SyncEngine with WidgetsBindingObserver {
 
       // Find orphans: local records not in Firestore.
       final orphanedIds = localIds.difference(remoteIds);
-      if (orphanedIds.isEmpty) return;
+      if (orphanedIds.isEmpty) return const _ReconcileResult();
 
       // Skip orphans with pending sync queue entries (freshly created locally).
       final toDelete = <String>[];
@@ -454,8 +487,10 @@ class SyncEngine with WidgetsBindingObserver {
             '[Sync] reconcile $familyId/$collection: removed ${toDelete.length} orphaned docs');
       }
 
+      return _ReconcileResult(reconciled: toDelete.length);
     } catch (e) {
       debugPrint('[Sync] reconcile $familyId/$collection: $e');
+      return _ReconcileResult(error: '$collection: $e');
     }
   }
 
