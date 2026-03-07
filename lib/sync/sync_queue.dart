@@ -9,6 +9,7 @@ class SyncEntry {
   final String documentId;
   final String familyId;
   final DateTime createdAt;
+  final bool isNew;
 
   const SyncEntry({
     required this.id,
@@ -16,6 +17,7 @@ class SyncEntry {
     required this.documentId,
     required this.familyId,
     required this.createdAt,
+    this.isNew = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -23,6 +25,7 @@ class SyncEntry {
         'documentId': documentId,
         'familyId': familyId,
         'createdAt': createdAt.toIso8601String(),
+        'isNew': isNew,
       };
 
   factory SyncEntry.fromMap(String id, Map<String, dynamic> d) {
@@ -32,6 +35,7 @@ class SyncEntry {
       documentId: d['documentId'] as String,
       familyId: d['familyId'] as String,
       createdAt: DateTime.parse(d['createdAt'] as String),
+      isNew: d['isNew'] as bool? ?? false,
     );
   }
 }
@@ -45,19 +49,35 @@ class SyncQueue {
   StoreRef<String, Map<String, dynamic>> get _store => StoreRefs.syncQueue;
 
   /// Enqueue a document change for sync.
+  ///
+  /// Set [isNew] to true for newly created documents — these skip the remote
+  /// read during push and use batch writes instead of transactions.
   Future<void> enqueue({
     required String collection,
     required String documentId,
     required String familyId,
+    bool isNew = false,
   }) async {
     // Use a deterministic key to collapse duplicates for the same document.
     final key = '${collection}_$documentId';
+
+    // On queue collapse, preserve isNew: true from existing entry — the doc
+    // still hasn't been pushed, so it's still "new" to Firestore.
+    var effectiveIsNew = isNew;
+    if (!isNew) {
+      final existing = await _store.record(key).get(_db);
+      if (existing != null && existing['isNew'] == true) {
+        effectiveIsNew = true;
+      }
+    }
+
     await _store.record(key).put(_db, SyncEntry(
       id: key,
       collection: collection,
       documentId: documentId,
       familyId: familyId,
       createdAt: DateTime.now(),
+      isNew: effectiveIsNew,
     ).toMap());
   }
 

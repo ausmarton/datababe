@@ -40,6 +40,7 @@ class SyncingActivityRepository implements ActivityRepository {
       collection: 'activities',
       documentId: activity.id,
       familyId: familyId,
+      isNew: true,
     );
     _engine.notifyWrite();
   }
@@ -53,6 +54,7 @@ class SyncingActivityRepository implements ActivityRepository {
         collection: 'activities',
         documentId: activity.id,
         familyId: familyId,
+        isNew: true,
       );
     }
     _engine.notifyWrite();

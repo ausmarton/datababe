@@ -27,6 +27,7 @@ class SyncingIngredientRepository implements IngredientRepository {
       collection: 'ingredients',
       documentId: ingredient.id,
       familyId: familyId,
+      isNew: true,
     );
     _engine.notifyWrite();
   }

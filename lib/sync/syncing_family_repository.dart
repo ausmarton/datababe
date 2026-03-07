@@ -31,6 +31,7 @@ class SyncingFamilyRepository implements FamilyRepository {
       collection: 'families',
       documentId: family.id,
       familyId: family.id,
+      isNew: true,
     );
     _engine.notifyWrite();
     return result;
@@ -43,6 +44,7 @@ class SyncingFamilyRepository implements FamilyRepository {
       collection: 'children',
       documentId: child.id,
       familyId: familyId,
+      isNew: true,
     );
     _engine.notifyWrite();
     return result;
@@ -55,6 +57,7 @@ class SyncingFamilyRepository implements FamilyRepository {
       collection: 'carers',
       documentId: carer.id,
       familyId: familyId,
+      isNew: true,
     );
     _engine.notifyWrite();
     return result;
@@ -75,16 +78,19 @@ class SyncingFamilyRepository implements FamilyRepository {
       collection: 'families',
       documentId: family.id,
       familyId: family.id,
+      isNew: true,
     );
     await _queue.enqueue(
       collection: 'children',
       documentId: child.id,
       familyId: family.id,
+      isNew: true,
     );
     await _queue.enqueue(
       collection: 'carers',
       documentId: carer.id,
       familyId: family.id,
+      isNew: true,
     );
     _engine.notifyWrite();
   }

@@ -25,6 +25,7 @@ class SyncingRecipeRepository implements RecipeRepository {
       collection: 'recipes',
       documentId: recipe.id,
       familyId: familyId,
+      isNew: true,
     );
     _engine.notifyWrite();
   }

@@ -205,16 +205,30 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Push pending local changes to Firestore.
+  ///
+  /// New documents (isNew: true) use WriteBatch (no remote read needed).
+  /// Updates/deletes (isNew: false) use runTransaction with conditional write.
   Future<_PushResult> _push() async {
     if (!_connectivity.isOnline) return _PushResult.empty;
 
     final entries = await _queue.getPending();
     if (entries.isEmpty) return _PushResult.empty;
 
+    final newEntries = entries.where((e) => e.isNew).toList();
+    final updateEntries = entries.where((e) => !e.isNew).toList();
+
     final completedIds = <String>[];
     var failCount = 0;
 
-    for (final entry in entries) {
+    // Batch-push new documents (skip remote reads).
+    if (newEntries.isNotEmpty) {
+      final result = await _pushNewBatch(newEntries);
+      completedIds.addAll(result.completedIds);
+      failCount += result.failCount;
+    }
+
+    // Transaction-push updates/deletes (conditional write).
+    for (final entry in updateEntries) {
       try {
         final store = _storeMap[entry.collection];
         if (store == null) continue;
@@ -226,7 +240,6 @@ class SyncEngine with WidgetsBindingObserver {
         final firestoreData =
             FirestoreConverter.toFirestore(Map<String, dynamic>.from(localRecord));
 
-        // Determine Firestore path.
         final docRef = _docRef(
           entry.collection,
           entry.familyId,
@@ -250,6 +263,53 @@ class SyncEngine with WidgetsBindingObserver {
     }
 
     return _PushResult(pushed: completedIds.length, failed: failCount);
+  }
+
+  /// Batch-push new documents using WriteBatch (500-doc Firestore limit).
+  /// No remote reads — new docs don't need shouldPush() checks.
+  Future<({List<String> completedIds, int failCount})> _pushNewBatch(
+      List<SyncEntry> entries) async {
+    final completedIds = <String>[];
+    var failCount = 0;
+
+    // Process in chunks of 500 (Firestore WriteBatch limit).
+    for (var i = 0; i < entries.length; i += 500) {
+      final chunk = entries.sublist(
+          i, i + 500 > entries.length ? entries.length : i + 500);
+      try {
+        final batch = _firestore.batch();
+        final chunkIds = <String>[];
+
+        for (final entry in chunk) {
+          final store = _storeMap[entry.collection];
+          if (store == null) continue;
+
+          final localRecord =
+              await store.record(entry.documentId).get(_db);
+          if (localRecord == null) continue;
+
+          final firestoreData = FirestoreConverter.toFirestore(
+              Map<String, dynamic>.from(localRecord));
+
+          final docRef = _docRef(
+            entry.collection,
+            entry.familyId,
+            entry.documentId,
+          );
+
+          batch.set(docRef, firestoreData);
+          chunkIds.add(entry.id);
+        }
+
+        await batch.commit();
+        completedIds.addAll(chunkIds);
+      } catch (e) {
+        failCount += chunk.length;
+        debugPrint('[Sync] pushNewBatch chunk $i: $e');
+      }
+    }
+
+    return (completedIds: completedIds, failCount: failCount);
   }
 
   /// Pull remote changes for all families the user belongs to.

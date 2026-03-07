@@ -21,6 +21,7 @@ class SyncingTargetRepository implements TargetRepository {
       collection: 'targets',
       documentId: target.id,
       familyId: familyId,
+      isNew: true,
     );
     _engine.notifyWrite();
   }
