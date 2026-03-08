@@ -7,7 +7,7 @@ import '../../models/target_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/family_provider.dart';
-import '../../providers/recipe_provider.dart';
+import '../../providers/ingredient_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -230,16 +230,11 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
               optionsBuilder: (textEditingValue) {
                 final query = textEditingValue.text.trim().toLowerCase();
                 if (query.isEmpty) return const [];
-                final recipes =
-                    ref.read(recipesProvider).valueOrNull ?? [];
-                final allIngredients = <String>{};
-                for (final recipe in recipes) {
-                  for (final ingredient in recipe.ingredients) {
-                    allIngredients.add(ingredient);
-                  }
-                }
-                return allIngredients
-                    .where((i) => i.contains(query))
+                final ingredients =
+                    ref.read(ingredientsProvider).valueOrNull ?? [];
+                return ingredients
+                    .map((i) => i.name)
+                    .where((name) => name.contains(query))
                     .toList();
               },
               fieldViewBuilder:

@@ -19,6 +19,13 @@ class GoalsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Goals'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.playlist_add),
+            tooltip: 'Bulk allergen goals',
+            onPressed: () => context.push('/goals/bulk-allergens'),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.push('/goals/add'),

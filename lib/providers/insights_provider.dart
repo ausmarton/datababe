@@ -79,17 +79,31 @@ class TrendPoint {
   const TrendPoint({required this.date, required this.value});
 }
 
+class AllergenTargetProgress {
+  final double actual;
+  final double scaledTarget;
+  final double fraction;
+
+  const AllergenTargetProgress({
+    required this.actual,
+    required this.scaledTarget,
+    required this.fraction,
+  });
+}
+
 class AllergenCoverage {
   final Set<String> covered;
   final Set<String> missing;
   final Map<String, int> exposureCounts;
   final Map<String, DateTime> lastExposed;
+  final Map<String, AllergenTargetProgress> targetProgress;
 
   const AllergenCoverage({
     required this.covered,
     required this.missing,
     required this.exposureCounts,
     required this.lastExposed,
+    this.targetProgress = const {},
   });
 }
 
@@ -187,12 +201,26 @@ double? extractMetricFromSummary(
   }
 }
 
+/// Scale a target value to match a coverage period in days.
+double _scaleTarget(double targetValue, String period, int periodDays) {
+  return switch (period) {
+    'daily' => targetValue * periodDays,
+    'weekly' => targetValue * (periodDays / 7),
+    'monthly' => targetValue * (periodDays / 30),
+    _ => targetValue,
+  };
+}
+
 /// Compute allergen coverage from activities over a period.
+/// When [targets] are provided, allergens with matching allergenExposures
+/// targets use fractional progress (actual/scaled target) for coverage
+/// determination instead of the default binary (>0) check.
 AllergenCoverage computeAllergenCoverage({
   required List<ActivityModel> activities,
   required List<String> allergenCategories,
   required DateTime referenceDate,
   required int periodDays,
+  List<TargetModel> targets = const [],
 }) {
   if (allergenCategories.isEmpty) {
     return const AllergenCoverage(
@@ -227,16 +255,44 @@ AllergenCoverage computeAllergenCoverage({
     }
   }
 
+  // Build target progress map from allergenExposures targets.
+  final targetProgress = <String, AllergenTargetProgress>{};
+  for (final target in targets) {
+    if (target.metric != TargetMetric.allergenExposures.name) continue;
+    if (target.allergenName == null) continue;
+    final normalized = target.allergenName!.trim().toLowerCase();
+    final scaledTarget =
+        _scaleTarget(target.targetValue, target.period, periodDays);
+    final actual = (exposureCounts[normalized] ?? 0).toDouble();
+    final fraction = scaledTarget > 0 ? actual / scaledTarget : 0.0;
+    targetProgress[normalized] = AllergenTargetProgress(
+      actual: actual,
+      scaledTarget: scaledTarget,
+      fraction: fraction.clamp(0.0, 1.0),
+    );
+  }
+
   final categoriesLower =
       allergenCategories.map((c) => c.trim().toLowerCase()).toSet();
   final covered = <String>{};
   final missing = <String>{};
 
   for (final cat in categoriesLower) {
-    if ((exposureCounts[cat] ?? 0) > 0) {
-      covered.add(cat);
+    final tp = targetProgress[cat];
+    if (tp != null) {
+      // Target-based: covered when target met.
+      if (tp.fraction >= 1.0) {
+        covered.add(cat);
+      } else {
+        missing.add(cat);
+      }
     } else {
-      missing.add(cat);
+      // Binary: any exposure counts as covered.
+      if ((exposureCounts[cat] ?? 0) > 0) {
+        covered.add(cat);
+      } else {
+        missing.add(cat);
+      }
     }
   }
 
@@ -245,6 +301,7 @@ AllergenCoverage computeAllergenCoverage({
     missing: missing,
     exposureCounts: exposureCounts,
     lastExposed: lastExposed,
+    targetProgress: targetProgress,
   );
 }
 
@@ -655,6 +712,7 @@ final allergenCoverageProvider = Provider<AllergenCoverage?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
   final categories = ref.watch(allergenCategoriesProvider);
   final period = ref.watch(allergenCoveragePeriodProvider);
+  final targets = ref.watch(targetsProvider).valueOrNull ?? [];
   if (activities == null || categories.isEmpty) return null;
 
   return computeAllergenCoverage(
@@ -662,6 +720,7 @@ final allergenCoverageProvider = Provider<AllergenCoverage?>((ref) {
     allergenCategories: categories,
     referenceDate: DateTime.now(),
     periodDays: period,
+    targets: targets,
   );
 });
 

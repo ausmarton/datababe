@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:datababe/models/activity_model.dart';
 import 'package:datababe/models/ingredient_model.dart';
+import 'package:datababe/models/target_model.dart';
 import 'package:datababe/providers/insights_provider.dart';
 import 'package:datababe/utils/activity_aggregator.dart';
 
@@ -56,6 +57,23 @@ IngredientModel _ingredient(String name, List<String> allergens) {
     createdBy: 'uid-1',
     createdAt: now,
     modifiedAt: now,
+  );
+}
+
+TargetModel _allergenTarget(String allergenName,
+    {double targetValue = 3, String period = 'weekly'}) {
+  final now = DateTime(2026, 3, 1);
+  return TargetModel(
+    id: 'target-$allergenName',
+    childId: 'child-1',
+    activityType: 'solids',
+    metric: 'allergenExposures',
+    period: period,
+    targetValue: targetValue,
+    createdBy: 'uid-1',
+    createdAt: now,
+    modifiedAt: now,
+    allergenName: allergenName,
   );
 }
 
@@ -1063,6 +1081,160 @@ void main() {
       final egg = result.firstWhere((d) => d.ingredientName == 'egg');
       // Both ' egg ' and 'Egg' normalize to 'egg' and should count
       expect(egg.exposureCount, 2);
+    });
+  });
+
+  // ========================================================================
+  // computeAllergenCoverage with targets
+  // ========================================================================
+  group('computeAllergenCoverage with targets', () {
+    final refDate = DateTime(2026, 3, 6);
+
+    test('weekly target met → covered', () {
+      final result = computeAllergenCoverage(
+        activities: [
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 3, 8),
+              allergenNames: ['dairy']),
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 4, 8),
+              allergenNames: ['dairy']),
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 5, 8),
+              allergenNames: ['dairy']),
+        ],
+        allergenCategories: ['dairy'],
+        referenceDate: refDate,
+        periodDays: 7,
+        targets: [_allergenTarget('dairy', targetValue: 3, period: 'weekly')],
+      );
+      expect(result.covered, {'dairy'});
+      expect(result.missing, isEmpty);
+      expect(result.targetProgress['dairy']!.fraction, 1.0);
+    });
+
+    test('weekly target not met → missing', () {
+      final result = computeAllergenCoverage(
+        activities: [
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 5, 8),
+              allergenNames: ['dairy']),
+        ],
+        allergenCategories: ['dairy'],
+        referenceDate: refDate,
+        periodDays: 7,
+        targets: [_allergenTarget('dairy', targetValue: 3, period: 'weekly')],
+      );
+      expect(result.missing, {'dairy'});
+      expect(result.covered, isEmpty);
+      final tp = result.targetProgress['dairy']!;
+      expect(tp.actual, 1.0);
+      expect(tp.scaledTarget, 3.0);
+      expect(tp.fraction, closeTo(0.333, 0.01));
+    });
+
+    test('daily target scaled to period', () {
+      final result = computeAllergenCoverage(
+        activities: [
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 3, 8),
+              allergenNames: ['egg']),
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 5, 8),
+              allergenNames: ['egg']),
+        ],
+        allergenCategories: ['egg'],
+        referenceDate: refDate,
+        periodDays: 7,
+        targets: [_allergenTarget('egg', targetValue: 1, period: 'daily')],
+      );
+      // daily target 1 * 7 days = 7, actual = 2
+      final tp = result.targetProgress['egg']!;
+      expect(tp.scaledTarget, 7.0);
+      expect(tp.actual, 2.0);
+      expect(tp.fraction, closeTo(0.286, 0.01));
+    });
+
+    test('allergens without targets use binary coverage', () {
+      final result = computeAllergenCoverage(
+        activities: [
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 5, 8),
+              allergenNames: ['dairy', 'egg']),
+        ],
+        allergenCategories: ['dairy', 'egg', 'nuts'],
+        referenceDate: refDate,
+        periodDays: 7,
+        targets: [_allergenTarget('dairy', targetValue: 5, period: 'weekly')],
+      );
+      // dairy: has target (1/5 < 1.0) → missing
+      expect(result.missing, contains('dairy'));
+      // egg: no target, has exposure → covered (binary)
+      expect(result.covered, contains('egg'));
+      // nuts: no target, no exposure → missing
+      expect(result.missing, contains('nuts'));
+    });
+
+    test('non-allergenExposures targets are ignored', () {
+      final now = DateTime(2026, 3, 1);
+      final countTarget = TargetModel(
+        id: 'target-count',
+        childId: 'child-1',
+        activityType: 'solids',
+        metric: 'count',
+        period: 'weekly',
+        targetValue: 10,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+      final result = computeAllergenCoverage(
+        activities: [
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 5, 8),
+              allergenNames: ['dairy']),
+        ],
+        allergenCategories: ['dairy'],
+        referenceDate: refDate,
+        periodDays: 7,
+        targets: [countTarget],
+      );
+      // No allergen target → binary coverage
+      expect(result.targetProgress, isEmpty);
+      expect(result.covered, {'dairy'});
+    });
+
+    test('target progress fraction clamped to 1.0', () {
+      final result = computeAllergenCoverage(
+        activities: List.generate(
+          10,
+          (i) => _activity(
+            type: 'solids',
+            startTime: DateTime(2026, 3, 5, i),
+            allergenNames: ['dairy'],
+          ),
+        ),
+        allergenCategories: ['dairy'],
+        referenceDate: refDate,
+        periodDays: 7,
+        targets: [_allergenTarget('dairy', targetValue: 3, period: 'weekly')],
+      );
+      expect(result.targetProgress['dairy']!.fraction, 1.0);
+      expect(result.targetProgress['dairy']!.actual, 10.0);
+    });
+
+    test('14-day period scales weekly target', () {
+      final result = computeAllergenCoverage(
+        activities: [
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 3, 8),
+              allergenNames: ['dairy']),
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 4, 8),
+              allergenNames: ['dairy']),
+          _activity(type: 'solids', startTime: DateTime(2026, 3, 5, 8),
+              allergenNames: ['dairy']),
+        ],
+        allergenCategories: ['dairy'],
+        referenceDate: refDate,
+        periodDays: 14,
+        targets: [_allergenTarget('dairy', targetValue: 3, period: 'weekly')],
+      );
+      // weekly target 3 * (14/7) = 6, actual = 3
+      final tp = result.targetProgress['dairy']!;
+      expect(tp.scaledTarget, 6.0);
+      expect(tp.actual, 3.0);
+      expect(tp.fraction, 0.5);
     });
   });
 }

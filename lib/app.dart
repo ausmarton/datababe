@@ -11,6 +11,7 @@ import 'screens/insights/insights_screen.dart';
 import 'screens/family/family_screen.dart';
 import 'screens/goals/goals_screen.dart';
 import 'screens/goals/add_target_screen.dart';
+import 'screens/goals/bulk_allergen_targets_screen.dart';
 import 'screens/recipes/recipe_list_screen.dart';
 import 'screens/recipes/add_recipe_screen.dart';
 import 'screens/settings/settings_screen.dart';
@@ -88,6 +89,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/goals/add',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AddTargetScreen(),
+      ),
+      GoRoute(
+        path: '/goals/bulk-allergens',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const BulkAllergenTargetsScreen(),
       ),
       GoRoute(
         path: '/insights/metric/:key',

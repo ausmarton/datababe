@@ -288,16 +288,19 @@ class _AllergenTrackerSection extends ConsumerWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: coverage.covered
-                      .map((a) => Chip(
-                            avatar: const Icon(Icons.check_circle,
-                                size: 16, color: Colors.green),
-                            label: Text(a),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ))
-                      .toList(),
+                  children: coverage.covered.map((a) {
+                    final tp = coverage.targetProgress[a];
+                    return Chip(
+                      avatar: const Icon(Icons.check_circle,
+                          size: 16, color: Colors.green),
+                      label: Text(tp != null
+                          ? '$a ${tp.actual.round()}/${tp.scaledTarget.round()}'
+                          : a),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                    );
+                  }).toList(),
                 ),
               ],
               if (coverage.missing.isNotEmpty) ...[
@@ -305,18 +308,21 @@ class _AllergenTrackerSection extends ConsumerWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: coverage.missing
-                      .map((a) => Chip(
-                            label: Text(a),
-                            side: BorderSide(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ))
-                      .toList(),
+                  children: coverage.missing.map((a) {
+                    final tp = coverage.targetProgress[a];
+                    return Chip(
+                      label: Text(tp != null
+                          ? '$a ${tp.actual.round()}/${tp.scaledTarget.round()}'
+                          : a),
+                      side: BorderSide(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outlineVariant),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize:
+                          MaterialTapTargetSize.shrinkWrap,
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 8),
                 Text(

@@ -148,6 +148,7 @@ class _DetailBody extends ConsumerWidget {
             exposureCount: count,
             lastExposed: lastDate,
             maxCount: cov.exposureCounts.values.fold(0, (a, b) => a > b ? a : b),
+            targetProgress: cov.targetProgress[normalized],
           );
         }),
       ],
@@ -160,12 +161,14 @@ class _AllergenRow extends ConsumerStatefulWidget {
   final int exposureCount;
   final DateTime? lastExposed;
   final int maxCount;
+  final AllergenTargetProgress? targetProgress;
 
   const _AllergenRow({
     required this.category,
     required this.exposureCount,
     this.lastExposed,
     required this.maxCount,
+    this.targetProgress,
   });
 
   @override
@@ -188,8 +191,23 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
 
   @override
   Widget build(BuildContext context) {
-    final fraction =
-        widget.maxCount > 0 ? widget.exposureCount / widget.maxCount : 0.0;
+    final tp = widget.targetProgress;
+    final fraction = tp != null
+        ? tp.fraction
+        : widget.maxCount > 0
+            ? widget.exposureCount / widget.maxCount
+            : 0.0;
+    final progressColor = tp != null
+        ? (tp.fraction >= 1.0
+            ? Colors.green
+            : tp.fraction >= 0.5
+                ? Colors.amber
+                : Colors.red)
+        : (widget.exposureCount > 0 ? Colors.green : Colors.grey);
+
+    final subtitle = tp != null
+        ? '${tp.actual.round()} / ${tp.scaledTarget.round()}  |  Last: ${_formatLastExposed(widget.lastExposed)}'
+        : '${widget.exposureCount}x  |  Last: ${_formatLastExposed(widget.lastExposed)}';
 
     return Card(
       child: Column(
@@ -197,7 +215,7 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
           ListTile(
             title: Text(widget.category),
             subtitle: Text(
-              '${widget.exposureCount}x  |  Last: ${_formatLastExposed(widget.lastExposed)}',
+              subtitle,
               style: Theme.of(context).textTheme.bodySmall,
             ),
             trailing: Icon(
@@ -209,8 +227,8 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: LinearProgressIndicator(
               value: fraction.clamp(0.0, 1.0),
-              color: widget.exposureCount > 0 ? Colors.green : Colors.grey,
-              backgroundColor: Colors.green.withValues(alpha: 0.1),
+              color: progressColor,
+              backgroundColor: progressColor.withValues(alpha: 0.1),
             ),
           ),
           if (_expanded) _buildIngredientList(),
