@@ -59,3 +59,10 @@ android/key.properties
 
 # Generated code (reproducible via build_runner)
 *.g.dart
+
+# Node.js (used by tools/)
+node_modules/
+package-lock.json
+
+# Firebase CLI
+.firebase/
