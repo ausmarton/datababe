@@ -534,6 +534,16 @@ class SyncEngine with WidgetsBindingObserver {
       final orphanedIds = localIds.difference(remoteIds);
       if (orphanedIds.isEmpty) return const _ReconcileResult();
 
+      // Safety: if more than half of local records would be deleted,
+      // the remote query likely returned incomplete results — skip.
+      if (localIds.isNotEmpty &&
+          orphanedIds.length > localIds.length * 0.5) {
+        debugPrint(
+            '[Sync] reconcile $familyId/$collection: SKIPPED — '
+            '${orphanedIds.length}/${localIds.length} orphans exceeds 50% safety limit');
+        return const _ReconcileResult();
+      }
+
       // Skip orphans with pending sync queue entries (freshly created locally).
       final toDelete = <String>[];
       for (final id in orphanedIds) {

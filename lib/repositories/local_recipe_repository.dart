@@ -17,7 +17,7 @@ class LocalRecipeRepository implements RecipeRepository {
     final finder = Finder(
       filter: Filter.and([
         Filter.equals('familyId', familyId),
-        Filter.equals('isDeleted', false),
+        Filter.notEquals('isDeleted', true),
       ]),
       sortOrders: [SortOrder('name')],
     );
@@ -69,7 +69,7 @@ class LocalRecipeRepository implements RecipeRepository {
     final filters = [
       Filter.equals('familyId', familyId),
       Filter.equals('name', name),
-      Filter.equals('isDeleted', false),
+      Filter.notEquals('isDeleted', true),
     ];
     if (excludeId != null) {
       filters.add(Filter.not(Filter.byKey(excludeId)));

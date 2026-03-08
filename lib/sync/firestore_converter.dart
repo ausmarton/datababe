@@ -46,6 +46,9 @@ class FirestoreConverter {
       }
     }
 
+    // Ensure isDeleted has a default value (Firestore docs may lack it).
+    result.putIfAbsent('isDeleted', () => false);
+
     return result;
   }
 }

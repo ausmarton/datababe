@@ -84,7 +84,7 @@ class DedupHelper {
         finder: Finder(
           filter: Filter.and([
             Filter.equals('familyId', familyId),
-            Filter.equals('isDeleted', false),
+            Filter.notEquals('isDeleted', true),
           ]),
         ));
 

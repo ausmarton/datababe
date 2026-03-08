@@ -17,7 +17,7 @@ class LocalIngredientRepository implements IngredientRepository {
     final finder = Finder(
       filter: Filter.and([
         Filter.equals('familyId', familyId),
-        Filter.equals('isDeleted', false),
+        Filter.notEquals('isDeleted', true),
       ]),
       sortOrders: [SortOrder('name')],
     );
@@ -78,7 +78,7 @@ class LocalIngredientRepository implements IngredientRepository {
             filter: Filter.and([
               Filter.equals('familyId', familyId),
               Filter.equals('name', ingredient.name),
-              Filter.equals('isDeleted', false),
+              Filter.notEquals('isDeleted', true),
               Filter.not(Filter.byKey(ingredient.id)),
             ]),
           ));
@@ -135,7 +135,7 @@ class LocalIngredientRepository implements IngredientRepository {
           finder: Finder(
             filter: Filter.and([
               Filter.equals('familyId', familyId),
-              Filter.equals('isDeleted', false),
+              Filter.notEquals('isDeleted', true),
             ]),
           ));
       final allergenLookup = <String, List<String>>{};
@@ -185,7 +185,7 @@ class LocalIngredientRepository implements IngredientRepository {
     final filters = [
       Filter.equals('familyId', familyId),
       Filter.equals('name', name),
-      Filter.equals('isDeleted', false),
+      Filter.notEquals('isDeleted', true),
     ];
     if (excludeId != null) {
       filters.add(Filter.not(Filter.byKey(excludeId)));

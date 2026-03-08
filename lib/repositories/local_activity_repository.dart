@@ -18,7 +18,7 @@ class LocalActivityRepository implements ActivityRepository {
       filter: Filter.and([
         Filter.equals('familyId', familyId),
         Filter.equals('childId', childId),
-        Filter.equals('isDeleted', false),
+        Filter.notEquals('isDeleted', true),
       ]),
       sortOrders: [SortOrder('startTime', false)],
     );
@@ -37,7 +37,7 @@ class LocalActivityRepository implements ActivityRepository {
         Filter.equals('familyId', familyId),
         Filter.equals('childId', childId),
         Filter.equals('type', type),
-        Filter.equals('isDeleted', false),
+        Filter.notEquals('isDeleted', true),
       ]),
       sortOrders: [SortOrder('startTime', false)],
     );
@@ -55,7 +55,7 @@ class LocalActivityRepository implements ActivityRepository {
       filter: Filter.and([
         Filter.equals('familyId', familyId),
         Filter.equals('childId', childId),
-        Filter.equals('isDeleted', false),
+        Filter.notEquals('isDeleted', true),
         Filter.greaterThanOrEquals('startTime', start.toIso8601String()),
         Filter.lessThan('startTime', end.toIso8601String()),
       ]),
