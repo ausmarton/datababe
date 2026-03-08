@@ -407,7 +407,21 @@ class SyncEngine with WidgetsBindingObserver {
   /// Delta pull: only documents modified since last pull.
   Future<void> _pullDelta(String familyId, String collection) async {
     try {
-      final lastPull = await _metadata.getLastPull(familyId, collection);
+      var lastPull = await _metadata.getLastPull(familyId, collection);
+      final store = _storeMap[collection]!;
+
+      // Self-healing: if lastPull is set but no local records exist for
+      // this family, a previous pull likely skipped all docs (due to
+      // pending sync entries). Reset to force a full re-pull.
+      if (lastPull != null) {
+        final localCount = await store.count(_db,
+            filter: Filter.equals('familyId', familyId));
+        if (localCount == 0) {
+          debugPrint('[Sync] pullDelta $familyId/$collection: '
+              'lastPull set but 0 local records — full re-pull');
+          lastPull = null;
+        }
+      }
 
       Query<Map<String, dynamic>> query = _firestore
           .collection('families')
@@ -420,9 +434,10 @@ class SyncEngine with WidgetsBindingObserver {
       }
 
       final snapshot = await query.get();
-      final store = _storeMap[collection]!;
 
       debugPrint('[Sync] pullDelta $familyId/$collection: ${snapshot.docs.length} docs');
+
+      var skipped = 0;
 
       await _db.transaction((txn) async {
         for (final doc in snapshot.docs) {
@@ -434,11 +449,21 @@ class SyncEngine with WidgetsBindingObserver {
               familyId,
             );
             await store.record(doc.id).put(txn, localData);
+          } else {
+            skipped++;
           }
         }
       });
 
-      await _metadata.setLastPull(familyId, collection, DateTime.now());
+      // Only advance lastPull if no documents were skipped due to pending
+      // sync entries. Skipped docs can't be re-fetched if lastPull advances
+      // past their modifiedAt — causing permanent data loss.
+      if (skipped == 0) {
+        await _metadata.setLastPull(familyId, collection, DateTime.now());
+      } else {
+        debugPrint('[Sync] pullDelta $familyId/$collection: '
+            '$skipped skipped (pending), lastPull NOT advanced');
+      }
     } catch (e) {
       debugPrint('[Sync] pullDelta $familyId/$collection: $e');
     }
@@ -626,6 +651,10 @@ class SyncEngine with WidgetsBindingObserver {
     _setStatus(SyncStatus.syncing);
 
     try {
+      // Push pending local changes first — prevents _pullDelta from
+      // skipping documents that have pending sync queue entries.
+      await _push();
+
       for (final familyId in familyIds) {
         await _pullForFamily(familyId);
       }
