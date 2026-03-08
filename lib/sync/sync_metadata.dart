@@ -56,6 +56,16 @@ class SyncMetadata {
     });
   }
 
+  /// Clear all pull timestamps, forcing the next pull to be a full re-pull.
+  Future<void> clearAllPullTimestamps() async {
+    final records = await _store.find(_db);
+    await _db.transaction((txn) async {
+      for (final record in records) {
+        await _store.record(record.key).delete(txn);
+      }
+    });
+  }
+
   /// Get the last sync time across all collections for display.
   Future<DateTime?> getLastSyncTime() async {
     final records = await _store.find(_db,

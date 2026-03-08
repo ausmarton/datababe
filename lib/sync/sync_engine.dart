@@ -334,6 +334,8 @@ class SyncEngine with WidgetsBindingObserver {
 
   /// Fetch family IDs by querying families where the user is a member.
   /// More reliable than reading from user doc (which can have stale IDs).
+  Future<List<String>> fetchFamilyIds() => _fetchFamilyIdsFromFirestore();
+
   Future<List<String>> _fetchFamilyIdsFromFirestore() async {
     final uid = _getUid();
     if (uid == null) return [];
@@ -662,5 +664,48 @@ class SyncEngine with WidgetsBindingObserver {
     } catch (e) {
       _setStatus(SyncStatus.error);
     }
+  }
+
+  /// Force a full re-sync by clearing all pull timestamps and re-pulling.
+  Future<void> forceFullResync(List<String> familyIds) async {
+    if (!_connectivity.isOnline) return;
+    _setStatus(SyncStatus.syncing);
+
+    try {
+      // Push first to avoid losing local changes.
+      await _push();
+
+      // Clear all pull timestamps — forces full re-pull.
+      await _metadata.clearAllPullTimestamps();
+      debugPrint('[Sync] forceFullResync: cleared all pull timestamps');
+
+      for (final familyId in familyIds) {
+        await _pullForFamily(familyId);
+      }
+      _setStatus(SyncStatus.idle);
+    } catch (e) {
+      debugPrint('[Sync] forceFullResync failed: $e');
+      _setStatus(SyncStatus.error);
+    }
+  }
+
+  /// Get diagnostic info about local DB state for a family.
+  Future<Map<String, dynamic>> getDiagnostics(String familyId) async {
+    final result = <String, dynamic>{};
+    for (final entry in _storeMap.entries) {
+      final collection = entry.key;
+      final store = entry.value;
+      final count = await store.count(
+        _db,
+        filter: Filter.equals('familyId', familyId),
+      );
+      final lastPull = await _metadata.getLastPull(familyId, collection);
+      result[collection] = {
+        'localCount': count,
+        'lastPull': lastPull?.toIso8601String(),
+      };
+    }
+    result['pendingSync'] = await _queue.pendingCount();
+    return result;
   }
 }

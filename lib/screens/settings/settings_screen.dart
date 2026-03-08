@@ -86,6 +86,7 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(height: 1, indent: 16, endIndent: 16),
           const _SectionHeader(title: 'Sync'),
           _SyncStatusTile(),
+          _DiagnosticsTile(),
         ],
       ),
     );
@@ -571,6 +572,159 @@ String _syncResultMessage(SyncResult result) {
     parts.add('reconcile error: ${result.reconcileError}');
   }
   return parts.isEmpty ? 'Sync complete — no changes' : parts.join(', ');
+}
+
+class _DiagnosticsTile extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_DiagnosticsTile> createState() => _DiagnosticsTileState();
+}
+
+class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
+  Map<String, dynamic>? _diagnostics;
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.bug_report),
+          title: const Text('Diagnostics'),
+          subtitle: const Text('Check local DB state'),
+          onTap: _runDiagnostics,
+        ),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: CircularProgressIndicator(),
+          ),
+        if (_diagnostics != null) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Local DB State',
+                        style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 8),
+                    ..._diagnostics!.entries
+                        .where((e) => e.key != 'pendingSync')
+                        .map((e) {
+                      final info = e.value as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '${e.key}: ${info['localCount']} local, '
+                          'lastPull: ${info['lastPull'] ?? 'never'}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      );
+                    }),
+                    const Divider(),
+                    Text(
+                      'Pending sync: ${_diagnostics!['pendingSync']}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: FilledButton.icon(
+              onPressed: _forceResync,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Force Full Re-sync'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _runDiagnostics() async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No family selected')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      final engine = ref.read(syncEngineProvider);
+      final diag = await engine.getDiagnostics(familyId);
+      if (mounted) setState(() => _diagnostics = diag);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Diagnostics failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _forceResync() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Force full re-sync?'),
+        content: const Text(
+          'This clears all sync timestamps and re-pulls everything '
+          'from the server. Local unsynced changes will be pushed first.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Re-sync'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _loading = true;
+      _diagnostics = null;
+    });
+
+    try {
+      final engine = ref.read(syncEngineProvider);
+      final familyIds = await engine.fetchFamilyIds();
+      await engine.forceFullResync(familyIds);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Full re-sync complete')),
+        );
+        await _runDiagnostics();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Re-sync failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 }
 
 class _SectionHeader extends StatelessWidget {
