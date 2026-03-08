@@ -33,6 +33,7 @@ ActivitySummary makeSummary({
   Map<String, int> pottyBreakdown = const {},
   Map<String, int> ingredientExposures = const {},
   Map<String, int> allergenExposures = const {},
+  Map<String, int> allergenExposureDays = const {},
 }) =>
     ActivitySummary(
       totalCount: totalCount,
@@ -60,6 +61,7 @@ ActivitySummary makeSummary({
       pottyBreakdown: pottyBreakdown,
       ingredientExposures: ingredientExposures,
       allergenExposures: allergenExposures,
+      allergenExposureDays: allergenExposureDays,
     );
 
 Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));

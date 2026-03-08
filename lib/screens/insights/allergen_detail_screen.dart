@@ -136,8 +136,9 @@ class _DetailBody extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Per-allergen rows
-        ...categories.map((cat) {
+        // Per-allergen rows sorted by urgency (overdue first).
+        ..._sortCategories(categories, effectiveCoverage ?? coverage)
+            .map((cat) {
           final normalized = cat.trim().toLowerCase();
           final cov = effectiveCoverage ?? coverage;
           final count = cov.exposureCounts[normalized] ?? 0;
@@ -149,6 +150,7 @@ class _DetailBody extends ConsumerWidget {
             lastExposed: lastDate,
             maxCount: cov.exposureCounts.values.fold(0, (a, b) => a > b ? a : b),
             targetProgress: cov.targetProgress[normalized],
+            urgency: cov.urgencyInfo[normalized],
           );
         }),
       ],
@@ -162,6 +164,7 @@ class _AllergenRow extends ConsumerStatefulWidget {
   final DateTime? lastExposed;
   final int maxCount;
   final AllergenTargetProgress? targetProgress;
+  final AllergenUrgencyInfo? urgency;
 
   const _AllergenRow({
     required this.category,
@@ -169,6 +172,7 @@ class _AllergenRow extends ConsumerStatefulWidget {
     this.lastExposed,
     required this.maxCount,
     this.targetProgress,
+    this.urgency,
   });
 
   @override
@@ -213,6 +217,23 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
       child: Column(
         children: [
           ListTile(
+            leading: widget.urgency != null
+                ? Icon(
+                    widget.urgency!.urgency == AllergenUrgency.overdue
+                        ? Icons.warning_amber
+                        : widget.urgency!.urgency == AllergenUrgency.due
+                            ? Icons.timelapse
+                            : Icons.check_circle,
+                    color:
+                        widget.urgency!.urgency == AllergenUrgency.overdue
+                            ? Colors.red
+                            : widget.urgency!.urgency ==
+                                    AllergenUrgency.due
+                                ? Colors.amber
+                                : Colors.green,
+                    size: 20,
+                  )
+                : null,
             title: Text(widget.category),
             subtitle: Text(
               subtitle,
@@ -268,4 +289,36 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
       ),
     );
   }
+}
+
+/// Sort allergen categories: overdue first, then due, then on-track, then
+/// those without urgency data.
+List<String> _sortCategories(
+    List<String> categories, AllergenCoverage coverage) {
+  final list = List<String>.from(categories);
+  list.sort((a, b) {
+    final na = a.trim().toLowerCase();
+    final nb = b.trim().toLowerCase();
+    final ua = coverage.urgencyInfo[na];
+    final ub = coverage.urgencyInfo[nb];
+    final orderA = ua == null
+        ? 3
+        : ua.urgency == AllergenUrgency.overdue
+            ? 0
+            : ua.urgency == AllergenUrgency.due
+                ? 1
+                : 2;
+    final orderB = ub == null
+        ? 3
+        : ub.urgency == AllergenUrgency.overdue
+            ? 0
+            : ub.urgency == AllergenUrgency.due
+                ? 1
+                : 2;
+    if (orderA != orderB) return orderA.compareTo(orderB);
+    final daysA = ua?.daysSinceExposure ?? 999;
+    final daysB = ub?.daysSinceExposure ?? 999;
+    return daysB.compareTo(daysA);
+  });
+  return list;
 }

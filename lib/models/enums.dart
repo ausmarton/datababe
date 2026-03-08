@@ -96,4 +96,5 @@ enum TargetMetric {
   totalDurationMinutes,
   ingredientExposures,
   allergenExposures,
+  allergenExposureDays,
 }

@@ -44,6 +44,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
           TargetMetric.uniqueFoods,
           TargetMetric.ingredientExposures,
           TargetMetric.allergenExposures,
+          TargetMetric.allergenExposureDays,
         ];
       case ActivityType.meds:
         return [TargetMetric.count];
@@ -85,7 +86,8 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       return;
     }
 
-    if (_metric == TargetMetric.allergenExposures &&
+    if ((_metric == TargetMetric.allergenExposures ||
+            _metric == TargetMetric.allergenExposureDays) &&
         (_selectedAllergen == null || _selectedAllergen!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an allergen')),
@@ -114,7 +116,8 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
         t.period == _period.name &&
         t.ingredientName == (_metric == TargetMetric.ingredientExposures
             ? _selectedIngredient?.toLowerCase() : null) &&
-        t.allergenName == (_metric == TargetMetric.allergenExposures
+        t.allergenName == (_metric == TargetMetric.allergenExposures ||
+                _metric == TargetMetric.allergenExposureDays
             ? _selectedAllergen?.toLowerCase() : null));
 
     if (isDuplicate) {
@@ -141,7 +144,8 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
         ingredientName: _metric == TargetMetric.ingredientExposures
             ? _selectedIngredient!.toLowerCase()
             : null,
-        allergenName: _metric == TargetMetric.allergenExposures
+        allergenName: _metric == TargetMetric.allergenExposures ||
+                _metric == TargetMetric.allergenExposureDays
             ? _selectedAllergen!.toLowerCase()
             : null,
       );
@@ -258,8 +262,9 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
             const SizedBox(height: 16),
           ],
 
-          // Allergen name (only for allergen exposures)
-          if (_metric == TargetMetric.allergenExposures) ...[
+          // Allergen name (for allergen exposures or exposure days)
+          if (_metric == TargetMetric.allergenExposures ||
+              _metric == TargetMetric.allergenExposureDays) ...[
             Autocomplete<String>(
               optionsBuilder: (textEditingValue) {
                 final query = textEditingValue.text.trim().toLowerCase();
@@ -342,6 +347,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       TargetMetric.totalDurationMinutes => 'Total duration (min)',
       TargetMetric.ingredientExposures => 'Ingredient exposures',
       TargetMetric.allergenExposures => 'Allergen exposures',
+      TargetMetric.allergenExposureDays => 'Allergen exposure days',
     };
   }
 
@@ -353,6 +359,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       TargetMetric.totalDurationMinutes => 'min',
       TargetMetric.ingredientExposures => 'exposures',
       TargetMetric.allergenExposures => 'exposures',
+      TargetMetric.allergenExposureDays => 'days',
     };
   }
 }

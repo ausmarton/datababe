@@ -91,12 +91,28 @@ class AllergenTargetProgress {
   });
 }
 
+/// Urgency level for a single allergen relative to its maintenance target.
+enum AllergenUrgency { onTrack, due, overdue }
+
+class AllergenUrgencyInfo {
+  final int daysSinceExposure;
+  final double expectedIntervalDays;
+  final AllergenUrgency urgency;
+
+  const AllergenUrgencyInfo({
+    required this.daysSinceExposure,
+    required this.expectedIntervalDays,
+    required this.urgency,
+  });
+}
+
 class AllergenCoverage {
   final Set<String> covered;
   final Set<String> missing;
   final Map<String, int> exposureCounts;
   final Map<String, DateTime> lastExposed;
   final Map<String, AllergenTargetProgress> targetProgress;
+  final Map<String, AllergenUrgencyInfo> urgencyInfo;
 
   const AllergenCoverage({
     required this.covered,
@@ -104,6 +120,7 @@ class AllergenCoverage {
     required this.exposureCounts,
     required this.lastExposed,
     this.targetProgress = const {},
+    this.urgencyInfo = const {},
   });
 }
 
@@ -196,6 +213,14 @@ double? extractMetricFromSummary(
             0.0;
       }
       return null;
+    case 'allergenExposureDays':
+      if (allergenName != null) {
+        return summary
+                .allergenExposureDays[allergenName.trim().toLowerCase()]
+                ?.toDouble() ??
+            0.0;
+      }
+      return null;
     default:
       return null;
   }
@@ -239,14 +264,21 @@ AllergenCoverage computeAllergenCoverage({
 
   final exposureCounts = <String, int>{};
   final lastExposed = <String, DateTime>{};
+  final lastExposedAll = <String, DateTime>{}; // regardless of window
 
   for (final a in activities) {
     if (a.type != ActivityType.solids.name) continue;
-    if (a.startTime.isBefore(cutoff)) continue;
     if (a.allergenNames == null) continue;
 
     for (final allergen in a.allergenNames!) {
       final normalized = allergen.trim().toLowerCase();
+      // Track last exposure across all time.
+      final existingAll = lastExposedAll[normalized];
+      if (existingAll == null || a.startTime.isAfter(existingAll)) {
+        lastExposedAll[normalized] = a.startTime;
+      }
+      // Only count within the window for progress.
+      if (a.startTime.isBefore(cutoff)) continue;
       exposureCounts[normalized] = (exposureCounts[normalized] ?? 0) + 1;
       final existing = lastExposed[normalized];
       if (existing == null || a.startTime.isAfter(existing)) {
@@ -255,20 +287,81 @@ AllergenCoverage computeAllergenCoverage({
     }
   }
 
-  // Build target progress map from allergenExposures targets.
+  // Count distinct exposure days per allergen within the window.
+  final exposureDays = <String, Set<String>>{};
+  for (final a in activities) {
+    if (a.type != ActivityType.solids.name) continue;
+    if (a.allergenNames == null) continue;
+    if (a.startTime.isBefore(cutoff)) continue;
+    final dayKey =
+        '${a.startTime.year}-${a.startTime.month}-${a.startTime.day}';
+    for (final allergen in a.allergenNames!) {
+      final normalized = allergen.trim().toLowerCase();
+      (exposureDays[normalized] ??= {}).add(dayKey);
+    }
+  }
+
+  // Build target progress map from allergen targets.
   final targetProgress = <String, AllergenTargetProgress>{};
   for (final target in targets) {
-    if (target.metric != TargetMetric.allergenExposures.name) continue;
+    if (target.metric != TargetMetric.allergenExposures.name &&
+        target.metric != TargetMetric.allergenExposureDays.name) continue;
     if (target.allergenName == null) continue;
     final normalized = target.allergenName!.trim().toLowerCase();
+    // Don't overwrite if already set by a previous target for same allergen.
+    if (targetProgress.containsKey(normalized)) continue;
     final scaledTarget =
         _scaleTarget(target.targetValue, target.period, periodDays);
-    final actual = (exposureCounts[normalized] ?? 0).toDouble();
+    final actual = target.metric == TargetMetric.allergenExposureDays.name
+        ? (exposureDays[normalized]?.length ?? 0).toDouble()
+        : (exposureCounts[normalized] ?? 0).toDouble();
     final fraction = scaledTarget > 0 ? actual / scaledTarget : 0.0;
     targetProgress[normalized] = AllergenTargetProgress(
       actual: actual,
       scaledTarget: scaledTarget,
       fraction: fraction.clamp(0.0, 1.0),
+    );
+  }
+
+  // Build urgency info for allergens with targets.
+  final refDay = DateTime(
+    referenceDate.year,
+    referenceDate.month,
+    referenceDate.day,
+  );
+  final urgencyInfo = <String, AllergenUrgencyInfo>{};
+  for (final target in targets) {
+    if (target.metric != TargetMetric.allergenExposures.name &&
+        target.metric != TargetMetric.allergenExposureDays.name) continue;
+    if (target.allergenName == null) continue;
+    final normalized = target.allergenName!.trim().toLowerCase();
+    if (urgencyInfo.containsKey(normalized)) continue;
+    // Compute expected interval: period days / target count.
+    final periodDaysForTarget = switch (target.period) {
+      'daily' => 1.0,
+      'weekly' => 7.0,
+      'monthly' => 30.0,
+      _ => 7.0,
+    };
+    final expectedInterval = target.targetValue > 0
+        ? periodDaysForTarget / target.targetValue
+        : periodDaysForTarget;
+    final lastGiven = lastExposedAll[normalized];
+    final daysSince = lastGiven != null
+        ? refDay
+            .difference(
+                DateTime(lastGiven.year, lastGiven.month, lastGiven.day))
+            .inDays
+        : 999;
+    final urgency = daysSince > expectedInterval * 1.5
+        ? AllergenUrgency.overdue
+        : daysSince >= expectedInterval
+            ? AllergenUrgency.due
+            : AllergenUrgency.onTrack;
+    urgencyInfo[normalized] = AllergenUrgencyInfo(
+      daysSinceExposure: daysSince,
+      expectedIntervalDays: expectedInterval,
+      urgency: urgency,
     );
   }
 
@@ -302,6 +395,7 @@ AllergenCoverage computeAllergenCoverage({
     exposureCounts: exposureCounts,
     lastExposed: lastExposed,
     targetProgress: targetProgress,
+    urgencyInfo: urgencyInfo,
   );
 }
 
@@ -767,6 +861,9 @@ String _metricLabel(TargetModel target) {
     'totalDurationMinutes' => '$typeName Time',
     'ingredientExposures' => target.ingredientName ?? 'Exposures',
     'allergenExposures' => target.allergenName ?? 'Allergens',
+    'allergenExposureDays' => target.allergenName != null
+        ? '${target.allergenName} days'
+        : 'Allergen days',
     _ => target.metric,
   };
 }
@@ -775,6 +872,7 @@ String _metricUnit(String metric) {
   return switch (metric) {
     'totalVolumeMl' => 'ml',
     'totalDurationMinutes' => 'min',
+    'allergenExposureDays' => 'days',
     _ => '',
   };
 }

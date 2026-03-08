@@ -52,6 +52,9 @@ class ActivitySummary {
   // Allergen exposures
   final Map<String, int> allergenExposures;
 
+  // Allergen exposure days (distinct calendar days per allergen)
+  final Map<String, int> allergenExposureDays;
+
   const ActivitySummary({
     required this.totalCount,
     required this.bottleFeedCount,
@@ -78,6 +81,7 @@ class ActivitySummary {
     required this.pottyBreakdown,
     required this.ingredientExposures,
     required this.allergenExposures,
+    required this.allergenExposureDays,
   });
 }
 
@@ -112,6 +116,7 @@ class ActivityAggregator {
     final pottyBreakdown = <String, int>{};
     final ingredientExposures = <String, int>{};
     final allergenExposures = <String, int>{};
+    final allergenDaySets = <String, Set<String>>{};
 
     for (final a in activities) {
       final type = ActivityType.values
@@ -171,13 +176,16 @@ class ActivityAggregator {
               }
             }
           }
-          // Count allergen exposures
+          // Count allergen exposures + distinct days
           if (a.allergenNames != null) {
+            final dayKey =
+                '${a.startTime.year}-${a.startTime.month}-${a.startTime.day}';
             for (final allergen in a.allergenNames!) {
               final n = allergen.trim().toLowerCase();
               if (n.isNotEmpty) {
                 allergenExposures[n] =
                     (allergenExposures[n] ?? 0) + 1;
+                (allergenDaySets[n] ??= {}).add(dayKey);
               }
             }
           }
@@ -266,6 +274,9 @@ class ActivityAggregator {
       pottyBreakdown: pottyBreakdown,
       ingredientExposures: ingredientExposures,
       allergenExposures: allergenExposures,
+      allergenExposureDays: {
+        for (final e in allergenDaySets.entries) e.key: e.value.length,
+      },
     );
   }
 }

@@ -308,16 +308,49 @@ class _AllergenTrackerSection extends ConsumerWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: coverage.missing.map((a) {
+                  children: _sortedMissing(coverage).map((a) {
                     final tp = coverage.targetProgress[a];
-                    return Chip(
-                      label: Text(tp != null
-                          ? '$a ${tp.actual.round()}/${tp.scaledTarget.round()}'
-                          : a),
-                      side: BorderSide(
+                    final urgency = coverage.urgencyInfo[a];
+                    final hasProgress = (tp != null && tp.actual > 0) ||
+                        (tp == null &&
+                            (coverage.exposureCounts[a] ?? 0) > 0);
+
+                    // Icon/color: overdue→red warning, due/partial→amber,
+                    // zero→outline only
+                    final Widget? avatar;
+                    final BorderSide? side;
+                    if (urgency?.urgency == AllergenUrgency.overdue) {
+                      avatar = const Icon(Icons.warning_amber,
+                          size: 16, color: Colors.red);
+                      side = null;
+                    } else if (hasProgress ||
+                        urgency?.urgency == AllergenUrgency.due) {
+                      avatar = const Icon(Icons.timelapse,
+                          size: 16, color: Colors.amber);
+                      side = null;
+                    } else {
+                      avatar = null;
+                      side = BorderSide(
                           color: Theme.of(context)
                               .colorScheme
-                              .outlineVariant),
+                              .outlineVariant);
+                    }
+
+                    // Label: name + progress + last given
+                    String label = a;
+                    if (tp != null) {
+                      label =
+                          '$a ${tp.actual.round()}/${tp.scaledTarget.round()}';
+                    }
+                    if (urgency != null &&
+                        urgency.daysSinceExposure < 999) {
+                      label += ' (${urgency.daysSinceExposure}d ago)';
+                    }
+
+                    return Chip(
+                      avatar: avatar,
+                      label: Text(label),
+                      side: side,
                       visualDensity: VisualDensity.compact,
                       materialTapTargetSize:
                           MaterialTapTargetSize.shrinkWrap,
@@ -325,13 +358,20 @@ class _AllergenTrackerSection extends ConsumerWidget {
                   }).toList(),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Consider introducing ${coverage.missing.take(2).join(" or ")} to maintain rotation.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                ),
+                Builder(builder: (context) {
+                  // Suggest the most urgent missing allergens.
+                  final sorted = _sortedMissing(coverage);
+                  final suggestions = sorted.take(2).join(' or ');
+                  return Text(
+                    'Consider introducing $suggestions to maintain rotation.',
+                    style:
+                        Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                  );
+                }),
               ],
             ],
           ),
@@ -482,4 +522,33 @@ class _GrowthStat extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Sort missing allergens by urgency: overdue first, then due, then rest.
+List<String> _sortedMissing(AllergenCoverage coverage) {
+  final list = coverage.missing.toList();
+  list.sort((a, b) {
+    final ua = coverage.urgencyInfo[a];
+    final ub = coverage.urgencyInfo[b];
+    final orderA = ua == null
+        ? 3
+        : ua.urgency == AllergenUrgency.overdue
+            ? 0
+            : ua.urgency == AllergenUrgency.due
+                ? 1
+                : 2;
+    final orderB = ub == null
+        ? 3
+        : ub.urgency == AllergenUrgency.overdue
+            ? 0
+            : ub.urgency == AllergenUrgency.due
+                ? 1
+                : 2;
+    if (orderA != orderB) return orderA.compareTo(orderB);
+    // Within same urgency, sort by days since exposure (most overdue first).
+    final daysA = ua?.daysSinceExposure ?? 999;
+    final daysB = ub?.daysSinceExposure ?? 999;
+    return daysB.compareTo(daysA);
+  });
+  return list;
 }

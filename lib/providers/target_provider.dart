@@ -130,6 +130,17 @@ double? _extractMetric(
       }
       return null;
 
+    case 'allergenExposureDays':
+      if (actType == ActivityType.solids.name &&
+          target.allergenName != null) {
+        return summary
+                .allergenExposureDays[
+                    target.allergenName!.trim().toLowerCase()]
+                ?.toDouble() ??
+            0.0;
+      }
+      return null;
+
     default:
       return null;
   }

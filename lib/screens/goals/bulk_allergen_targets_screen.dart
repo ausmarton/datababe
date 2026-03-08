@@ -51,7 +51,8 @@ class _BulkAllergenTargetsScreenState
     // Determine which allergens already have targets for the selected period.
     final existingAllergenNames = existingTargets
         .where((t) =>
-            t.metric == TargetMetric.allergenExposures.name &&
+            (t.metric == TargetMetric.allergenExposures.name ||
+                t.metric == TargetMetric.allergenExposureDays.name) &&
             t.period == _period.name)
         .map((t) => t.allergenName?.toLowerCase())
         .whereType<String>()

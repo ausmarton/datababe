@@ -165,6 +165,9 @@ class GoalsScreen extends ConsumerWidget {
       'allergenExposures' => allergenName != null
           ? '$allergenName exposures'
           : 'Allergen exposures',
+      'allergenExposureDays' => allergenName != null
+          ? '$allergenName days'
+          : 'Allergen exposure days',
       _ => metric,
     };
   }
