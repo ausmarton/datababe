@@ -305,7 +305,9 @@ AllergenCoverage computeAllergenCoverage({
   final targetProgress = <String, AllergenTargetProgress>{};
   for (final target in targets) {
     if (target.metric != TargetMetric.allergenExposures.name &&
-        target.metric != TargetMetric.allergenExposureDays.name) continue;
+        target.metric != TargetMetric.allergenExposureDays.name) {
+      continue;
+    }
     if (target.allergenName == null) continue;
     final normalized = target.allergenName!.trim().toLowerCase();
     // Don't overwrite if already set by a previous target for same allergen.
@@ -332,7 +334,9 @@ AllergenCoverage computeAllergenCoverage({
   final urgencyInfo = <String, AllergenUrgencyInfo>{};
   for (final target in targets) {
     if (target.metric != TargetMetric.allergenExposures.name &&
-        target.metric != TargetMetric.allergenExposureDays.name) continue;
+        target.metric != TargetMetric.allergenExposureDays.name) {
+      continue;
+    }
     if (target.allergenName == null) continue;
     final normalized = target.allergenName!.trim().toLowerCase();
     if (urgencyInfo.containsKey(normalized)) continue;
