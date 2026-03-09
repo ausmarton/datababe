@@ -894,6 +894,13 @@ final allergenCoverageProvider = Provider<AllergenCoverage?>((ref) {
   );
 });
 
+/// Filter mode for the allergen matrix view.
+enum AllergenMatrixFilter { exposedOnly, all }
+
+/// Selected filter for the allergen matrix.
+final allergenMatrixFilterProvider =
+    StateProvider<AllergenMatrixFilter>((ref) => AllergenMatrixFilter.exposedOnly);
+
 /// Weekly allergen exposure matrix for the current week.
 final weeklyAllergenMatrixProvider = Provider<WeeklyAllergenMatrix?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;

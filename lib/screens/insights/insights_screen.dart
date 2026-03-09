@@ -440,16 +440,93 @@ class _WeeklyAllergenSection extends ConsumerWidget {
     final matrix = ref.watch(weeklyAllergenMatrixProvider);
     if (matrix == null) return const SizedBox.shrink();
 
+    final filter = ref.watch(allergenMatrixFilterProvider);
+
+    // Filter and sort allergens
+    final List<String> filteredAllergens;
+    if (filter == AllergenMatrixFilter.exposedOnly) {
+      filteredAllergens = matrix.allergens
+          .where((a) => (matrix.matrix[a] ?? {}).isNotEmpty)
+          .toList()
+        ..sort((a, b) {
+          final countA = (matrix.matrix[a] ?? {}).length;
+          final countB = (matrix.matrix[b] ?? {}).length;
+          if (countA != countB) return countB.compareTo(countA);
+          return a.compareTo(b);
+        });
+    } else {
+      filteredAllergens = matrix.allergens;
+    }
+
+    final unexposedCount = matrix.allergens.length - filteredAllergens.length;
+
+    final filteredMatrix = WeeklyAllergenMatrix(
+      days: matrix.days,
+      allergens: filteredAllergens,
+      matrix: Map.fromEntries(
+        filteredAllergens.map((a) => MapEntry(a, matrix.matrix[a] ?? {})),
+      ),
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('This Week',
-                style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('This Week',
+                      style: Theme.of(context).textTheme.titleMedium),
+                ),
+                SegmentedButton<AllergenMatrixFilter>(
+                  segments: const [
+                    ButtonSegment(
+                      value: AllergenMatrixFilter.exposedOnly,
+                      label: Text('Exposed'),
+                    ),
+                    ButtonSegment(
+                      value: AllergenMatrixFilter.all,
+                      label: Text('All'),
+                    ),
+                  ],
+                  selected: {filter},
+                  onSelectionChanged: (s) => ref
+                      .read(allergenMatrixFilterProvider.notifier)
+                      .state = s.first,
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
-            AllergenMatrix(matrix: matrix),
+            if (filteredAllergens.isEmpty)
+              Text(
+                'No allergens exposed this week',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              )
+            else
+              AllergenMatrix(matrix: filteredMatrix),
+            if (filter == AllergenMatrixFilter.exposedOnly &&
+                unexposedCount > 0) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => ref
+                    .read(allergenMatrixFilterProvider.notifier)
+                    .state = AllergenMatrixFilter.all,
+                child: Text(
+                  '$unexposedCount allergen${unexposedCount == 1 ? '' : 's'} not exposed this week',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
