@@ -1608,4 +1608,129 @@ void main() {
       expect(summary.allergenExposureDays['dairy'], 2);
     });
   });
+
+  // =========================================================================
+  // AllergenCoverage computed getters
+  // =========================================================================
+  group('AllergenCoverage computed getters', () {
+    test('coveredFraction with 22 covered and 8 missing', () {
+      final coverage = AllergenCoverage(
+        covered: Set.from(List.generate(22, (i) => 'a$i')),
+        missing: Set.from(List.generate(8, (i) => 'm$i')),
+        exposureCounts: {},
+        lastExposed: {},
+      );
+      expect(coverage.coveredFraction, closeTo(22 / 30, 0.001));
+      expect(coverage.totalCount, 30);
+    });
+
+    test('attentionAllergens filters to overdue and due only', () {
+      final coverage = AllergenCoverage(
+        covered: {'a', 'b'},
+        missing: {'c', 'd', 'e', 'f', 'g'},
+        exposureCounts: {},
+        lastExposed: {},
+        urgencyInfo: {
+          'c': const AllergenUrgencyInfo(
+              daysSinceExposure: 10,
+              expectedIntervalDays: 5,
+              urgency: AllergenUrgency.overdue),
+          'd': const AllergenUrgencyInfo(
+              daysSinceExposure: 5,
+              expectedIntervalDays: 5,
+              urgency: AllergenUrgency.due),
+          'e': const AllergenUrgencyInfo(
+              daysSinceExposure: 2,
+              expectedIntervalDays: 5,
+              urgency: AllergenUrgency.onTrack),
+          // f and g have no urgency info
+        },
+      );
+      final attention = coverage.attentionAllergens;
+      expect(attention, hasLength(2));
+      expect(attention, ['c', 'd']); // overdue first, then due
+      expect(coverage.attentionCount, 2);
+    });
+
+    test('attentionAllergens sorted by urgency then days since exposure', () {
+      final coverage = AllergenCoverage(
+        covered: {},
+        missing: {'a', 'b', 'c'},
+        exposureCounts: {},
+        lastExposed: {},
+        urgencyInfo: {
+          'a': const AllergenUrgencyInfo(
+              daysSinceExposure: 5,
+              expectedIntervalDays: 3,
+              urgency: AllergenUrgency.overdue),
+          'b': const AllergenUrgencyInfo(
+              daysSinceExposure: 10,
+              expectedIntervalDays: 3,
+              urgency: AllergenUrgency.overdue),
+          'c': const AllergenUrgencyInfo(
+              daysSinceExposure: 3,
+              expectedIntervalDays: 3,
+              urgency: AllergenUrgency.due),
+        },
+      );
+      final attention = coverage.attentionAllergens;
+      // Both a and b are overdue; b has more days → b first
+      // c is due → last
+      expect(attention, ['b', 'a', 'c']);
+    });
+
+    test('attentionAllergens empty when all on track', () {
+      final coverage = AllergenCoverage(
+        covered: {'a'},
+        missing: {'b', 'c'},
+        exposureCounts: {},
+        lastExposed: {},
+        urgencyInfo: {
+          'b': const AllergenUrgencyInfo(
+              daysSinceExposure: 1,
+              expectedIntervalDays: 5,
+              urgency: AllergenUrgency.onTrack),
+          'c': const AllergenUrgencyInfo(
+              daysSinceExposure: 2,
+              expectedIntervalDays: 5,
+              urgency: AllergenUrgency.onTrack),
+        },
+      );
+      expect(coverage.attentionAllergens, isEmpty);
+      expect(coverage.attentionCount, 0);
+    });
+
+    test('allergens without urgencyInfo not in attention list', () {
+      final coverage = AllergenCoverage(
+        covered: {},
+        missing: {'a', 'b'},
+        exposureCounts: {},
+        lastExposed: {},
+        // No urgencyInfo at all — no targets defined
+      );
+      expect(coverage.attentionAllergens, isEmpty);
+    });
+
+    test('0 covered 30 missing gives fraction 0.0', () {
+      final coverage = AllergenCoverage(
+        covered: {},
+        missing: Set.from(List.generate(30, (i) => 'm$i')),
+        exposureCounts: {},
+        lastExposed: {},
+      );
+      expect(coverage.coveredFraction, 0.0);
+      expect(coverage.totalCount, 30);
+    });
+
+    test('30 covered 0 missing gives fraction 1.0', () {
+      final coverage = AllergenCoverage(
+        covered: Set.from(List.generate(30, (i) => 'a$i')),
+        missing: {},
+        exposureCounts: {},
+        lastExposed: {},
+      );
+      expect(coverage.coveredFraction, 1.0);
+      expect(coverage.attentionCount, 0);
+    });
+  });
 }

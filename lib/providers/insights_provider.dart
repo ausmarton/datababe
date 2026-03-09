@@ -122,6 +122,35 @@ class AllergenCoverage {
     this.targetProgress = const {},
     this.urgencyInfo = const {},
   });
+
+  /// Allergens from [missing] that need attention (overdue or due).
+  List<String> get attentionAllergens {
+    final list = missing.where((a) {
+      final u = urgencyInfo[a];
+      return u != null &&
+          (u.urgency == AllergenUrgency.overdue ||
+              u.urgency == AllergenUrgency.due);
+    }).toList();
+    list.sort((a, b) {
+      final ua = urgencyInfo[a]!;
+      final ub = urgencyInfo[b]!;
+      final orderA = ua.urgency == AllergenUrgency.overdue ? 0 : 1;
+      final orderB = ub.urgency == AllergenUrgency.overdue ? 0 : 1;
+      if (orderA != orderB) return orderA.compareTo(orderB);
+      return ub.daysSinceExposure.compareTo(ua.daysSinceExposure);
+    });
+    return list;
+  }
+
+  /// Count of allergens from [missing] that need attention.
+  int get attentionCount => attentionAllergens.length;
+
+  /// Total allergen count.
+  int get totalCount => covered.length + missing.length;
+
+  /// Fraction of allergens that are covered.
+  double get coveredFraction =>
+      totalCount > 0 ? covered.length / totalCount : 0.0;
 }
 
 class WeeklyAllergenMatrix {

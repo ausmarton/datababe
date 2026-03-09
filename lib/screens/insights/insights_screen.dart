@@ -253,6 +253,16 @@ class _AllergenTrackerSection extends ConsumerWidget {
       );
     }
 
+    final attention = coverage.attentionAllergens;
+    final coveredCount = coverage.covered.length;
+    final missingCount = coverage.missing.length;
+    final nonAttentionMissing = missingCount - attention.length;
+    final progressColor = coverage.coveredFraction >= 0.8
+        ? Colors.green
+        : coverage.coveredFraction >= 0.5
+            ? Colors.amber
+            : Colors.red;
+
     return GestureDetector(
       onTap: () => context.push('/insights/allergens'),
       child: Card(
@@ -261,6 +271,7 @@ class _AllergenTrackerSection extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Title + period toggle
               Row(
                 children: [
                   Expanded(
@@ -284,95 +295,130 @@ class _AllergenTrackerSection extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              if (coverage.covered.isNotEmpty) ...[
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: coverage.covered.map((a) {
-                    final tp = coverage.targetProgress[a];
-                    return Chip(
-                      avatar: const Icon(Icons.check_circle,
-                          size: 16, color: Colors.green),
-                      label: Text(tp != null
-                          ? '$a ${tp.actual.round()}/${tp.scaledTarget.round()}'
-                          : a),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize:
-                          MaterialTapTargetSize.shrinkWrap,
-                    );
-                  }).toList(),
+
+              // Summary progress bar
+              Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: coverage.coveredFraction,
+                      color: progressColor,
+                      backgroundColor:
+                          progressColor.withValues(alpha: 0.2),
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '$coveredCount/${coverage.totalCount} covered',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+
+              // Needs attention list
+              if (attention.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Needs attention (${attention.length})',
+                  style: Theme.of(context).textTheme.labelMedium,
                 ),
-              ],
-              if (coverage.missing.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: _sortedMissing(coverage).map((a) {
-                    final tp = coverage.targetProgress[a];
-                    final urgency = coverage.urgencyInfo[a];
-                    final hasProgress = (tp != null && tp.actual > 0) ||
-                        (tp == null &&
-                            (coverage.exposureCounts[a] ?? 0) > 0);
+                const SizedBox(height: 4),
+                ...attention.map((a) {
+                  final urgency = coverage.urgencyInfo[a]!;
+                  final tp = coverage.targetProgress[a];
+                  final isOverdue =
+                      urgency.urgency == AllergenUrgency.overdue;
 
-                    // Icon/color: overdue→red warning, due/partial→amber,
-                    // zero→outline only
-                    final Widget? avatar;
-                    final BorderSide? side;
-                    if (urgency?.urgency == AllergenUrgency.overdue) {
-                      avatar = const Icon(Icons.warning_amber,
-                          size: 16, color: Colors.red);
-                      side = null;
-                    } else if (hasProgress ||
-                        urgency?.urgency == AllergenUrgency.due) {
-                      avatar = const Icon(Icons.timelapse,
-                          size: 16, color: Colors.amber);
-                      side = null;
-                    } else {
-                      avatar = null;
-                      side = BorderSide(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .outlineVariant);
-                    }
+                  String trailing = isOverdue
+                      ? '${urgency.daysSinceExposure}d overdue'
+                      : 'due';
+                  if (tp != null) {
+                    trailing +=
+                        ', ${tp.actual.round()}/${tp.scaledTarget.round()} exposures';
+                  }
 
-                    // Label: name + progress + last given
-                    String label = a;
-                    if (tp != null) {
-                      label =
-                          '$a ${tp.actual.round()}/${tp.scaledTarget.round()}';
-                    }
-                    if (urgency != null &&
-                        urgency.daysSinceExposure < 999) {
-                      label += ' (${urgency.daysSinceExposure}d ago)';
-                    }
-
-                    return Chip(
-                      avatar: avatar,
-                      label: Text(label),
-                      side: side,
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize:
-                          MaterialTapTargetSize.shrinkWrap,
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 8),
-                Builder(builder: (context) {
-                  // Suggest the most urgent missing allergens.
-                  final sorted = _sortedMissing(coverage);
-                  final suggestions = sorted.take(2).join(' or ');
-                  return Text(
-                    'Consider introducing $suggestions to maintain rotation.',
-                    style:
-                        Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isOverdue
+                              ? Icons.warning_amber
+                              : Icons.timelapse,
+                          size: 16,
+                          color: isOverdue ? Colors.red : Colors.amber,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            a,
+                            style:
+                                Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                        Text(
+                          trailing,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
                   );
                 }),
               ],
+
+              // All on track
+              if (attention.isEmpty && coverage.missing.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.check_circle,
+                        size: 16, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Text(
+                      'All on track',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Colors.green),
+                    ),
+                  ],
+                ),
+              ],
+
+              // Footer summary + "All" link
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      nonAttentionMissing > 0
+                          ? '$nonAttentionMissing more missing \u00b7 $coveredCount covered'
+                          : '$coveredCount covered',
+                      style:
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                    ),
+                  ),
+                  Text(
+                    'All \u25b8',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -524,31 +570,3 @@ class _GrowthStat extends StatelessWidget {
   }
 }
 
-/// Sort missing allergens by urgency: overdue first, then due, then rest.
-List<String> _sortedMissing(AllergenCoverage coverage) {
-  final list = coverage.missing.toList();
-  list.sort((a, b) {
-    final ua = coverage.urgencyInfo[a];
-    final ub = coverage.urgencyInfo[b];
-    final orderA = ua == null
-        ? 3
-        : ua.urgency == AllergenUrgency.overdue
-            ? 0
-            : ua.urgency == AllergenUrgency.due
-                ? 1
-                : 2;
-    final orderB = ub == null
-        ? 3
-        : ub.urgency == AllergenUrgency.overdue
-            ? 0
-            : ub.urgency == AllergenUrgency.due
-                ? 1
-                : 2;
-    if (orderA != orderB) return orderA.compareTo(orderB);
-    // Within same urgency, sort by days since exposure (most overdue first).
-    final daysA = ua?.daysSinceExposure ?? 999;
-    final daysB = ub?.daysSinceExposure ?? 999;
-    return daysB.compareTo(daysA);
-  });
-  return list;
-}
