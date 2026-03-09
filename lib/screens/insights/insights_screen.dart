@@ -118,7 +118,9 @@ class _TodaySection extends ConsumerWidget {
                       label: m.label,
                       isInferred: !m.isExplicit,
                       onTap: () => context.push(
-                          '/insights/metric/${Uri.encodeComponent(m.key)}'),
+                          m.key == 'allergens.aggregate'
+                              ? '/insights/allergens'
+                              : '/insights/metric/${Uri.encodeComponent(m.key)}'),
                     ),
                   );
                 }).toList(),

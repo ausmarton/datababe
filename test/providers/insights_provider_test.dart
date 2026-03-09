@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:datababe/models/activity_model.dart';
 import 'package:datababe/models/ingredient_model.dart';
 import 'package:datababe/models/target_model.dart';
 import 'package:datababe/providers/insights_provider.dart';
+import 'package:datababe/providers/target_provider.dart';
 import 'package:datababe/utils/activity_aggregator.dart';
 
 // ---------------------------------------------------------------------------
@@ -1731,6 +1735,174 @@ void main() {
       );
       expect(coverage.coveredFraction, 1.0);
       expect(coverage.attentionCount, 0);
+    });
+  });
+
+  // =========================================================================
+  // todayProgressProvider allergen aggregation
+  // =========================================================================
+  group('todayProgressProvider allergen aggregation', () {
+    TargetModel allergenTarget(String id, String name, {double value = 3}) {
+      final now = DateTime(2026, 3, 6);
+      return TargetModel(
+        id: id,
+        childId: 'c1',
+        activityType: 'solids',
+        metric: 'allergenExposures',
+        period: 'daily',
+        targetValue: value,
+        createdBy: 'u1',
+        createdAt: now,
+        modifiedAt: now,
+        allergenName: name,
+      );
+    }
+
+    TargetModel otherTarget(String id, String metric, String type, {double value = 5}) {
+      final now = DateTime(2026, 3, 6);
+      return TargetModel(
+        id: id,
+        childId: 'c1',
+        activityType: type,
+        metric: metric,
+        period: 'daily',
+        targetValue: value,
+        createdBy: 'u1',
+        createdAt: now,
+        modifiedAt: now,
+      );
+    }
+
+    /// Creates a container where [targetsProvider] emits immediately.
+    /// Uses a Completer to wait for the stream provider to settle.
+    Future<List<MetricProgress>> readTodayProgress(
+      List<TargetModel> targets, {
+      ActivitySummary? summary,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          todaySummaryProvider.overrideWithValue(summary),
+          targetsProvider
+              .overrideWith((ref) => Stream.value(targets)),
+          inferredBaselinesProvider.overrideWithValue(null),
+        ],
+      );
+      // Force the stream to emit by listening
+      container.listen(targetsProvider, (_, __) {});
+      // Let microtask queue drain so StreamProvider emits its value
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+      final result = container.read(todayProgressProvider);
+      container.dispose();
+      return result;
+    }
+
+    test('30 allergen targets produce 1 aggregate entry', () async {
+      final targets = List.generate(30, (i) => allergenTarget('a$i', 'a$i'));
+      final result = await readTodayProgress(targets);
+      final allergenEntries = result.where((m) => m.key == 'allergens.aggregate');
+      expect(allergenEntries.length, 1);
+      // No individual allergen entries
+      final individual = result.where((m) =>
+          m.key.contains('allergenExposures') || m.key.contains('allergenExposureDays'));
+      expect(individual, isEmpty);
+    });
+
+    test('aggregate fraction reflects met count', () async {
+      final t1 = allergenTarget('a1', 'egg', value: 1);
+      final t2 = allergenTarget('a2', 'dairy', value: 1);
+      final t3 = allergenTarget('a3', 'peanut', value: 1);
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'solids', allergenNames: ['egg', 'dairy']),
+      ]);
+      final result = await readTodayProgress([t1, t2, t3], summary: summary);
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      expect(agg.actual, 2.0); // egg and dairy met
+      expect(agg.target, 3.0);
+      expect(agg.fraction, closeTo(2 / 3, 0.01));
+    });
+
+    test('all met gives fraction 1.0', () async {
+      final t1 = allergenTarget('a1', 'egg', value: 1);
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'solids', allergenNames: ['egg']),
+      ]);
+      final result = await readTodayProgress([t1], summary: summary);
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      expect(agg.fraction, 1.0);
+    });
+
+    test('none met gives fraction 0.0', () async {
+      final t1 = allergenTarget('a1', 'egg', value: 5);
+      final result = await readTodayProgress([t1]);
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      expect(agg.fraction, 0.0);
+    });
+
+    test('no allergen targets: no aggregate entry', () async {
+      final t1 = otherTarget('o1', 'count', 'diaper');
+      final result = await readTodayProgress([t1]);
+      expect(result.where((m) => m.key == 'allergens.aggregate'), isEmpty);
+    });
+
+    test('mixed targets: individual non-allergen + 1 aggregate', () async {
+      final targets = [
+        otherTarget('o1', 'count', 'diaper'),
+        otherTarget('o2', 'totalVolumeMl', 'feedBottle'),
+        allergenTarget('a1', 'egg'),
+        allergenTarget('a2', 'dairy'),
+        allergenTarget('a3', 'peanut'),
+      ];
+      final result = await readTodayProgress(targets);
+      // 2 individual + 1 aggregate = 3
+      expect(result.length, 3);
+      expect(result.where((m) => m.key == 'allergens.aggregate').length, 1);
+    });
+
+    test('weekly allergen targets not included in daily aggregate', () async {
+      final now = DateTime(2026, 3, 6);
+      final weeklyTarget = TargetModel(
+        id: 'w1',
+        childId: 'c1',
+        activityType: 'solids',
+        metric: 'allergenExposures',
+        period: 'weekly',
+        targetValue: 3,
+        createdBy: 'u1',
+        createdAt: now,
+        modifiedAt: now,
+        allergenName: 'egg',
+      );
+      final result = await readTodayProgress([weeklyTarget]);
+      expect(result.where((m) => m.key == 'allergens.aggregate'), isEmpty);
+    });
+
+    test('ingredient targets remain as individual entries', () async {
+      final now = DateTime(2026, 3, 6);
+      final ingredientTarget = TargetModel(
+        id: 'i1',
+        childId: 'c1',
+        activityType: 'solids',
+        metric: 'ingredientExposures',
+        period: 'daily',
+        targetValue: 2,
+        createdBy: 'u1',
+        createdAt: now,
+        modifiedAt: now,
+        ingredientName: 'egg',
+      );
+      final result = await readTodayProgress([ingredientTarget]);
+      expect(result.where((m) => m.key == 'allergens.aggregate'), isEmpty);
+      expect(result.length, 1);
+      expect(result.first.key, 'solids.ingredientExposures');
+    });
+
+    test('aggregate ring uses correct icon and color', () async {
+      final result = await readTodayProgress([allergenTarget('a1', 'egg')]);
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      expect(agg.icon, Icons.science_outlined);
+      expect(agg.color, Colors.teal);
+      expect(agg.label, 'Allergens');
     });
   });
 }

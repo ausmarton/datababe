@@ -641,9 +641,18 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
   final results = <MetricProgress>[];
   final coveredKeys = <String>{};
 
-  // 1. Explicit daily targets
+  // 1. Explicit daily targets (aggregate allergen targets into one ring)
+  final allergenTargets = <TargetModel>[];
   for (final target in targets) {
     if (target.period != 'daily') continue;
+
+    // Collect allergen targets for aggregation
+    if (target.metric == 'allergenExposures' ||
+        target.metric == 'allergenExposureDays') {
+      allergenTargets.add(target);
+      continue;
+    }
+
     final key = '${target.activityType}.${target.metric}';
     final type = parseActivityType(target.activityType);
 
@@ -672,6 +681,40 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       unit: _metricUnit(target.metric),
     ));
     coveredKeys.add(key);
+  }
+
+  // 1b. Aggregate allergen targets into a single ring
+  if (allergenTargets.isNotEmpty) {
+    int metCount = 0;
+    for (final target in allergenTargets) {
+      double actual = 0;
+      if (summary != null) {
+        actual = extractMetricFromSummary(
+              target.activityType,
+              target.metric,
+              summary,
+              allergenName: target.allergenName,
+            ) ??
+            0;
+      }
+      if (target.targetValue > 0 && actual >= target.targetValue) {
+        metCount++;
+      }
+    }
+    final total = allergenTargets.length;
+    final fraction = total > 0 ? metCount / total : 0.0;
+    results.add(MetricProgress(
+      key: 'allergens.aggregate',
+      label: 'Allergens',
+      actual: metCount.toDouble(),
+      target: total.toDouble(),
+      fraction: fraction.clamp(0.0, 1.0),
+      isExplicit: true,
+      icon: Icons.science_outlined,
+      color: Colors.teal,
+      unit: '',
+    ));
+    coveredKeys.add('allergens.aggregate');
   }
 
   // 2. Inferred baselines for key types without explicit targets
