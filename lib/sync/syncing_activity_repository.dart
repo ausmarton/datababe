@@ -3,7 +3,7 @@ import 'package:sembast/sembast.dart';
 import '../models/activity_model.dart';
 import '../repositories/activity_repository.dart';
 import '../repositories/local_activity_repository.dart';
-import 'sync_engine.dart';
+import 'sync_engine_interface.dart';
 import 'sync_queue.dart';
 
 /// Wraps a local ActivityRepository: reads delegate to local,
@@ -11,7 +11,7 @@ import 'sync_queue.dart';
 class SyncingActivityRepository implements ActivityRepository {
   final LocalActivityRepository _local;
   final SyncQueue _queue;
-  final SyncEngine _engine;
+  final SyncEngineInterface _engine;
   final Database _db;
 
   SyncingActivityRepository(this._local, this._queue, this._engine, this._db);

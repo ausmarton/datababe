@@ -22,7 +22,7 @@ final connectivityMonitorProvider = Provider<ConnectivityMonitor>((ref) {
   return monitor;
 });
 
-final syncEngineProvider = Provider<SyncEngine>((ref) {
+final syncEngineProvider = Provider<SyncEngineInterface>((ref) {
   final engine = SyncEngine(
     db: ref.watch(localDatabaseProvider),
     firestore: FirebaseFirestore.instance,

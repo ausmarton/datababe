@@ -8,28 +8,11 @@ import '../local/store_refs.dart';
 import '../utils/dedup_helper.dart';
 import 'connectivity_monitor.dart';
 import 'firestore_converter.dart';
+import 'sync_engine_interface.dart';
 import 'sync_metadata.dart';
 import 'sync_queue.dart';
 
-/// Sync status for UI display.
-enum SyncStatus { idle, syncing, error, offline }
-
-/// Result of a full sync cycle (push + pull + reconcile).
-class SyncResult {
-  final int pushed;
-  final int pushFailed;
-  final int reconciled;
-  final String? reconcileError;
-
-  const SyncResult({
-    this.pushed = 0,
-    this.pushFailed = 0,
-    this.reconciled = 0,
-    this.reconcileError,
-  });
-
-  static const empty = SyncResult();
-}
+export 'sync_engine_interface.dart';
 
 class _PushResult {
   final int pushed;
@@ -50,7 +33,7 @@ class _ReconcileResult {
 
 /// Core sync orchestration: push local changes to Firestore,
 /// pull remote changes to local Sembast.
-class SyncEngine with WidgetsBindingObserver {
+class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
   final Database _db;
   final FirebaseFirestore _firestore;
   final SyncQueue _queue;
@@ -115,6 +98,7 @@ class SyncEngine with WidgetsBindingObserver {
         _getUid = getUid;
 
   /// Start listening for sync triggers.
+  @override
   void start() {
     WidgetsBinding.instance.addObserver(this);
 
@@ -131,6 +115,7 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Stop all listeners and timers.
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _debounceTimer?.cancel();
@@ -141,6 +126,7 @@ class SyncEngine with WidgetsBindingObserver {
 
   /// Called by syncing wrappers after a local write.
   /// Starts/resets the 30-second debounce timer.
+  @override
   void notifyWrite() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(seconds: 30), () {
@@ -149,16 +135,21 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Current sync status stream.
+  @override
   Stream<SyncStatus> get statusStream => _statusController.stream;
+  @override
   SyncStatus get currentStatus => _currentStatus;
 
   /// Last sync time.
+  @override
   Future<DateTime?> get lastSyncTime => _metadata.getLastSyncTime();
 
   /// Pending change count.
+  @override
   Future<int> get pendingCount => _queue.pendingCount();
 
   /// Manual sync trigger (from Settings > Sync Now).
+  @override
   Future<SyncResult> syncNow() => _pushThenPull();
 
   @override
@@ -334,6 +325,7 @@ class SyncEngine with WidgetsBindingObserver {
 
   /// Fetch family IDs by querying families where the user is a member.
   /// More reliable than reading from user doc (which can have stale IDs).
+  @override
   Future<List<String>> fetchFamilyIds() => _fetchFamilyIdsFromFirestore();
 
   Future<List<String>> _fetchFamilyIdsFromFirestore() async {
@@ -636,6 +628,7 @@ class SyncEngine with WidgetsBindingObserver {
 
   /// Clear all local data (entity stores + sync queue + sync metadata).
   /// Called on logout to prevent data leaking to the next user.
+  @override
   Future<void> clearLocalData() async {
     _debounceTimer?.cancel();
     await _db.transaction((txn) async {
@@ -648,6 +641,7 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Initial sync: full pull of all data for given family IDs.
+  @override
   Future<void> initialSync(List<String> familyIds) async {
     if (!_connectivity.isOnline) return;
     _setStatus(SyncStatus.syncing);
@@ -667,6 +661,7 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Force a full re-sync by clearing all pull timestamps and re-pulling.
+  @override
   Future<void> forceFullResync(List<String> familyIds) async {
     if (!_connectivity.isOnline) return;
     _setStatus(SyncStatus.syncing);
@@ -690,6 +685,7 @@ class SyncEngine with WidgetsBindingObserver {
   }
 
   /// Get diagnostic info about local DB state for a family.
+  @override
   Future<Map<String, dynamic>> getDiagnostics(String familyId) async {
     final result = <String, dynamic>{};
     for (final entry in _storeMap.entries) {

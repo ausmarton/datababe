@@ -79,7 +79,7 @@ class _SetupPromptState extends ConsumerState<SetupPrompt> {
       final carer = CarerModel(
         id: carerId,
         uid: user.uid,
-        displayName: user.displayName ?? 'Parent',
+        displayName: user.displayName.isNotEmpty ? user.displayName : 'Parent',
         role: 'parent',
         createdAt: now,
         modifiedAt: now,

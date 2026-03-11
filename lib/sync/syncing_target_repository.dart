@@ -3,13 +3,13 @@ import 'package:sembast/sembast.dart';
 import '../models/target_model.dart';
 import '../repositories/local_target_repository.dart';
 import '../repositories/target_repository.dart';
-import 'sync_engine.dart';
+import 'sync_engine_interface.dart';
 import 'sync_queue.dart';
 
 class SyncingTargetRepository implements TargetRepository {
   final LocalTargetRepository _local;
   final SyncQueue _queue;
-  final SyncEngine _engine;
+  final SyncEngineInterface _engine;
   final Database _db;
 
   SyncingTargetRepository(this._local, this._queue, this._engine, this._db);

@@ -394,7 +394,7 @@ class FamilyScreen extends ConsumerWidget {
                   familyId: familyId,
                   familyName: familyName,
                   invitedByUid: user.uid,
-                  invitedByName: user.displayName ?? 'Unknown',
+                  invitedByName: user.displayName.isNotEmpty ? user.displayName : 'Unknown',
                   inviteeEmail: email,
                   role: selectedRole,
                   status: InviteStatus.pending,

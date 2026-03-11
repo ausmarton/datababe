@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 
 class AppUser {
   final String uid;
@@ -14,6 +15,16 @@ class AppUser {
     required this.familyIds,
     required this.createdAt,
   });
+
+  /// Create from Firebase Auth user. Only uid/email/displayName are available;
+  /// familyIds are populated later via initial sync.
+  factory AppUser.fromFirebaseUser(auth.User user) => AppUser(
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName ?? '',
+        familyIds: const [],
+        createdAt: user.metadata.creationTime ?? DateTime.now(),
+      );
 
   Map<String, dynamic> toFirestore() => {
         'email': email,

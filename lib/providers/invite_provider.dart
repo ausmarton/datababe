@@ -8,9 +8,9 @@ import 'repository_provider.dart';
 /// Pending invites for the currently signed-in user's email.
 final pendingInvitesProvider = StreamProvider<List<InviteModel>>((ref) {
   final user = ref.watch(currentUserProvider);
-  if (user == null || user.email == null) return Stream.value([]);
+  if (user == null || user.email.isEmpty) return Stream.value([]);
   final repo = ref.watch(inviteRepositoryProvider);
-  return repo.watchPendingInvites(user.email!);
+  return repo.watchPendingInvites(user.email);
 });
 
 /// All invites (any status) for the currently selected family.

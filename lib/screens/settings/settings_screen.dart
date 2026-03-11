@@ -14,7 +14,7 @@ import '../../providers/backup_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/sync_provider.dart';
-import '../../sync/sync_engine.dart';
+import '../../sync/sync_engine_interface.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});

@@ -36,7 +36,7 @@ class _InvitePendingPromptState extends ConsumerState<InvitePendingPrompt> {
       await repo.acceptInvite(
         invite: invite,
         uid: user.uid,
-        displayName: user.displayName ?? 'Carer',
+        displayName: user.displayName.isNotEmpty ? user.displayName : 'Carer',
       );
       // Re-trigger initial sync — user is now a member of the family.
       // This pulls all family data into Sembast; auto-selection handles the rest.

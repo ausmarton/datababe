@@ -4,13 +4,13 @@ import '../models/ingredient_model.dart';
 import '../repositories/ingredient_repository.dart'
     show IngredientRepository, CascadedChange;
 import '../repositories/local_ingredient_repository.dart';
-import 'sync_engine.dart';
+import 'sync_engine_interface.dart';
 import 'sync_queue.dart';
 
 class SyncingIngredientRepository implements IngredientRepository {
   final LocalIngredientRepository _local;
   final SyncQueue _queue;
-  final SyncEngine _engine;
+  final SyncEngineInterface _engine;
   final Database _db;
 
   SyncingIngredientRepository(

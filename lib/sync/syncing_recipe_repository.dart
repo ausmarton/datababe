@@ -3,13 +3,13 @@ import 'package:sembast/sembast.dart';
 import '../models/recipe_model.dart';
 import '../repositories/local_recipe_repository.dart';
 import '../repositories/recipe_repository.dart';
-import 'sync_engine.dart';
+import 'sync_engine_interface.dart';
 import 'sync_queue.dart';
 
 class SyncingRecipeRepository implements RecipeRepository {
   final LocalRecipeRepository _local;
   final SyncQueue _queue;
-  final SyncEngine _engine;
+  final SyncEngineInterface _engine;
   final Database _db;
 
   SyncingRecipeRepository(this._local, this._queue, this._engine, this._db);
