@@ -1,16 +1,20 @@
+import 'package:sembast/sembast.dart';
+
 import '../models/activity_model.dart';
 import '../repositories/activity_repository.dart';
+import '../repositories/local_activity_repository.dart';
 import 'sync_engine.dart';
 import 'sync_queue.dart';
 
 /// Wraps a local ActivityRepository: reads delegate to local,
-/// writes go to local then enqueue for sync.
+/// writes go to local then enqueue for sync — atomically in one transaction.
 class SyncingActivityRepository implements ActivityRepository {
-  final ActivityRepository _local;
+  final LocalActivityRepository _local;
   final SyncQueue _queue;
   final SyncEngine _engine;
+  final Database _db;
 
-  SyncingActivityRepository(this._local, this._queue, this._engine);
+  SyncingActivityRepository(this._local, this._queue, this._engine, this._db);
 
   @override
   Stream<List<ActivityModel>> watchActivities(
@@ -35,40 +39,46 @@ class SyncingActivityRepository implements ActivityRepository {
   @override
   Future<void> insertActivity(
       String familyId, ActivityModel activity) async {
-    await _local.insertActivity(familyId, activity);
-    await _queue.enqueue(
-      collection: 'activities',
-      documentId: activity.id,
-      familyId: familyId,
-      isNew: true,
-    );
+    await _db.transaction((txn) async {
+      await _local.insertActivity(familyId, activity, txn: txn);
+      await _queue.enqueueTxn(txn,
+        collection: 'activities',
+        documentId: activity.id,
+        familyId: familyId,
+        isNew: true,
+      );
+    });
     _engine.notifyWrite();
   }
 
   @override
   Future<void> insertActivities(
       String familyId, List<ActivityModel> activities) async {
-    await _local.insertActivities(familyId, activities);
-    for (final activity in activities) {
-      await _queue.enqueue(
-        collection: 'activities',
-        documentId: activity.id,
-        familyId: familyId,
-        isNew: true,
-      );
-    }
+    await _db.transaction((txn) async {
+      await _local.insertActivities(familyId, activities, txn: txn);
+      for (final activity in activities) {
+        await _queue.enqueueTxn(txn,
+          collection: 'activities',
+          documentId: activity.id,
+          familyId: familyId,
+          isNew: true,
+        );
+      }
+    });
     _engine.notifyWrite();
   }
 
   @override
   Future<void> updateActivity(
       String familyId, ActivityModel activity) async {
-    await _local.updateActivity(familyId, activity);
-    await _queue.enqueue(
-      collection: 'activities',
-      documentId: activity.id,
-      familyId: familyId,
-    );
+    await _db.transaction((txn) async {
+      await _local.updateActivity(familyId, activity, txn: txn);
+      await _queue.enqueueTxn(txn,
+        collection: 'activities',
+        documentId: activity.id,
+        familyId: familyId,
+      );
+    });
     _engine.notifyWrite();
   }
 
@@ -80,12 +90,14 @@ class SyncingActivityRepository implements ActivityRepository {
   @override
   Future<void> softDeleteActivity(
       String familyId, String activityId) async {
-    await _local.softDeleteActivity(familyId, activityId);
-    await _queue.enqueue(
-      collection: 'activities',
-      documentId: activityId,
-      familyId: familyId,
-    );
+    await _db.transaction((txn) async {
+      await _local.softDeleteActivity(familyId, activityId, txn: txn);
+      await _queue.enqueueTxn(txn,
+        collection: 'activities',
+        documentId: activityId,
+        familyId: familyId,
+      );
+    });
     _engine.notifyWrite();
   }
 }

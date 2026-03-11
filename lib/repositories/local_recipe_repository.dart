@@ -36,36 +36,44 @@ class LocalRecipeRepository implements RecipeRepository {
   }
 
   @override
-  Future<void> createRecipe(String familyId, RecipeModel recipe) async {
-    await _checkNameUnique(familyId, recipe.name);
+  Future<void> createRecipe(String familyId, RecipeModel recipe,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    await _checkNameUnique(familyId, recipe.name, client: client);
     final map = recipe.toMap();
     map['familyId'] = familyId;
-    await _store.record(recipe.id).put(_db, map);
+    await _store.record(recipe.id).put(client, map);
   }
 
   @override
-  Future<void> updateRecipe(String familyId, RecipeModel recipe) async {
-    await _checkNameUnique(familyId, recipe.name, excludeId: recipe.id);
+  Future<void> updateRecipe(String familyId, RecipeModel recipe,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    await _checkNameUnique(familyId, recipe.name,
+        excludeId: recipe.id, client: client);
     final map = recipe.toMap();
     map['familyId'] = familyId;
-    await _store.record(recipe.id).put(_db, map);
+    await _store.record(recipe.id).put(client, map);
   }
 
   @override
-  Future<void> softDeleteRecipe(String familyId, String recipeId) async {
-    final record = await _store.record(recipeId).get(_db);
+  Future<void> softDeleteRecipe(String familyId, String recipeId,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    final record = await _store.record(recipeId).get(client);
     if (record != null) {
       final updated = Map<String, dynamic>.from(record);
       updated['isDeleted'] = true;
       updated['modifiedAt'] = DateTime.now().toIso8601String();
-      await _store.record(recipeId).put(_db, updated);
+      await _store.record(recipeId).put(client, updated);
     }
   }
 
   /// Throws [DuplicateNameException] if a non-deleted recipe with the
   /// same name already exists in the family.
   Future<void> _checkNameUnique(String familyId, String name,
-      {String? excludeId}) async {
+      {String? excludeId, DatabaseClient? client}) async {
+    final db = client ?? _db;
     final filters = [
       Filter.equals('familyId', familyId),
       Filter.equals('name', name),
@@ -74,7 +82,7 @@ class LocalRecipeRepository implements RecipeRepository {
     if (excludeId != null) {
       filters.add(Filter.not(Filter.byKey(excludeId)));
     }
-    final existing = await _store.findFirst(_db,
+    final existing = await _store.findFirst(db,
         finder: Finder(filter: Filter.and(filters)));
     if (existing != null) {
       throw DuplicateNameException(entityType: 'Recipe', name: name);

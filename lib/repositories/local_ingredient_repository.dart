@@ -38,42 +38,50 @@ class LocalIngredientRepository implements IngredientRepository {
 
   @override
   Future<void> createIngredient(
-      String familyId, IngredientModel ingredient) async {
-    await _checkNameUnique(familyId, ingredient.name);
+      String familyId, IngredientModel ingredient,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    await _checkNameUnique(familyId, ingredient.name, client: client);
     final map = ingredient.toMap();
     map['familyId'] = familyId;
-    await _store.record(ingredient.id).put(_db, map);
+    await _store.record(ingredient.id).put(client, map);
   }
 
   @override
   Future<void> updateIngredient(
-      String familyId, IngredientModel ingredient) async {
-    await _checkNameUnique(familyId, ingredient.name, excludeId: ingredient.id);
+      String familyId, IngredientModel ingredient,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    await _checkNameUnique(familyId, ingredient.name,
+        excludeId: ingredient.id, client: client);
     final map = ingredient.toMap();
     map['familyId'] = familyId;
-    await _store.record(ingredient.id).put(_db, map);
+    await _store.record(ingredient.id).put(client, map);
   }
 
   @override
   Future<void> softDeleteIngredient(
-      String familyId, String ingredientId) async {
-    final record = await _store.record(ingredientId).get(_db);
+      String familyId, String ingredientId,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    final record = await _store.record(ingredientId).get(client);
     if (record != null) {
       final updated = Map<String, dynamic>.from(record);
       updated['isDeleted'] = true;
       updated['modifiedAt'] = DateTime.now().toIso8601String();
-      await _store.record(ingredientId).put(_db, updated);
+      await _store.record(ingredientId).put(client, updated);
     }
   }
 
   @override
   Future<List<CascadedChange>> renameIngredient(
-      String familyId, IngredientModel ingredient, String oldName) async {
+      String familyId, IngredientModel ingredient, String oldName,
+      {DatabaseClient? txn}) async {
     final changes = <CascadedChange>[];
 
-    await _db.transaction((txn) async {
+    Future<void> doWork(DatabaseClient client) async {
       // 1. Check name collision (excluding self).
-      final existing = await _store.findFirst(txn,
+      final existing = await _store.findFirst(client,
           finder: Finder(
             filter: Filter.and([
               Filter.equals('familyId', familyId),
@@ -90,12 +98,12 @@ class LocalIngredientRepository implements IngredientRepository {
       // 2. Update the ingredient record.
       final map = ingredient.toMap();
       map['familyId'] = familyId;
-      await _store.record(ingredient.id).put(txn, map);
+      await _store.record(ingredient.id).put(client, map);
 
       final now = DateTime.now().toIso8601String();
 
       // 3. Cascade to recipes containing oldName.
-      final recipes = await StoreRefs.recipes.find(txn,
+      final recipes = await StoreRefs.recipes.find(client,
           finder: Finder(
             filter: Filter.equals('familyId', familyId),
           ));
@@ -108,13 +116,13 @@ class LocalIngredientRepository implements IngredientRepository {
               .map((n) => n == oldName ? ingredient.name : n)
               .toList();
           updated['modifiedAt'] = now;
-          await StoreRefs.recipes.record(recipe.key).put(txn, updated);
+          await StoreRefs.recipes.record(recipe.key).put(client, updated);
           changes.add((collection: 'recipes', documentId: recipe.key));
         }
       }
 
       // 4. Cascade to targets with matching ingredientName.
-      final targets = await StoreRefs.targets.find(txn,
+      final targets = await StoreRefs.targets.find(client,
           finder: Finder(
             filter: Filter.and([
               Filter.equals('familyId', familyId),
@@ -125,13 +133,13 @@ class LocalIngredientRepository implements IngredientRepository {
         final updated = Map<String, dynamic>.from(target.value);
         updated['ingredientName'] = ingredient.name;
         updated['modifiedAt'] = now;
-        await StoreRefs.targets.record(target.key).put(txn, updated);
+        await StoreRefs.targets.record(target.key).put(client, updated);
         changes.add((collection: 'targets', documentId: target.key));
       }
 
       // 5. Cascade to activities containing oldName in ingredientNames.
       // Build name→allergens lookup from all non-deleted ingredients.
-      final allIngredients = await _store.find(txn,
+      final allIngredients = await _store.find(client,
           finder: Finder(
             filter: Filter.and([
               Filter.equals('familyId', familyId),
@@ -146,7 +154,7 @@ class LocalIngredientRepository implements IngredientRepository {
         allergenLookup[name] = allergens;
       }
 
-      final activities = await StoreRefs.activities.find(txn,
+      final activities = await StoreRefs.activities.find(client,
           finder: Finder(
             filter: Filter.equals('familyId', familyId),
           ));
@@ -170,10 +178,18 @@ class LocalIngredientRepository implements IngredientRepository {
         }
         updated['allergenNames'] = newAllergenNames.toList()..sort();
         updated['modifiedAt'] = now;
-        await StoreRefs.activities.record(activity.key).put(txn, updated);
+        await StoreRefs.activities.record(activity.key).put(client, updated);
         changes.add((collection: 'activities', documentId: activity.key));
       }
-    });
+    }
+
+    if (txn != null) {
+      await doWork(txn);
+    } else {
+      await _db.transaction((t) async {
+        await doWork(t);
+      });
+    }
 
     return changes;
   }
@@ -181,7 +197,8 @@ class LocalIngredientRepository implements IngredientRepository {
   /// Throws [DuplicateNameException] if a non-deleted ingredient with the
   /// same name already exists in the family.
   Future<void> _checkNameUnique(String familyId, String name,
-      {String? excludeId}) async {
+      {String? excludeId, DatabaseClient? client}) async {
+    final db = client ?? _db;
     final filters = [
       Filter.equals('familyId', familyId),
       Filter.equals('name', name),
@@ -190,7 +207,7 @@ class LocalIngredientRepository implements IngredientRepository {
     if (excludeId != null) {
       filters.add(Filter.not(Filter.byKey(excludeId)));
     }
-    final existing = await _store.findFirst(_db,
+    final existing = await _store.findFirst(db,
         finder: Finder(filter: Filter.and(filters)));
     if (existing != null) {
       throw DuplicateNameException(entityType: 'Ingredient', name: name);

@@ -78,30 +78,43 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<void> insertActivity(
-      String familyId, ActivityModel activity) async {
+      String familyId, ActivityModel activity,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = activity.toMap();
     map['familyId'] = familyId;
-    await _store.record(activity.id).put(_db, map);
+    await _store.record(activity.id).put(client, map);
   }
 
   @override
   Future<void> insertActivities(
-      String familyId, List<ActivityModel> activities) async {
-    await _db.transaction((txn) async {
+      String familyId, List<ActivityModel> activities,
+      {DatabaseClient? txn}) async {
+    if (txn != null) {
       for (final activity in activities) {
         final map = activity.toMap();
         map['familyId'] = familyId;
         await _store.record(activity.id).put(txn, map);
       }
-    });
+    } else {
+      await _db.transaction((t) async {
+        for (final activity in activities) {
+          final map = activity.toMap();
+          map['familyId'] = familyId;
+          await _store.record(activity.id).put(t, map);
+        }
+      });
+    }
   }
 
   @override
   Future<void> updateActivity(
-      String familyId, ActivityModel activity) async {
+      String familyId, ActivityModel activity,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = activity.toMap();
     map['familyId'] = familyId;
-    await _store.record(activity.id).put(_db, map);
+    await _store.record(activity.id).put(client, map);
   }
 
   @override
@@ -123,13 +136,15 @@ class LocalActivityRepository implements ActivityRepository {
 
   @override
   Future<void> softDeleteActivity(
-      String familyId, String activityId) async {
-    final record = await _store.record(activityId).get(_db);
+      String familyId, String activityId,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    final record = await _store.record(activityId).get(client);
     if (record != null) {
       final updated = Map<String, dynamic>.from(record);
       updated['isDeleted'] = true;
       updated['modifiedAt'] = DateTime.now().toIso8601String();
-      await _store.record(activityId).put(_db, updated);
+      await _store.record(activityId).put(client, updated);
     }
   }
 }

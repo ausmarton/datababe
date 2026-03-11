@@ -91,7 +91,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (505 tests)
+flutter test                                                 # Run tests (519 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -145,6 +145,7 @@ invites/{id}                             — Email-based family invites
 - **Initial sync**: on login, fetches `familyIds` from user doc, pulls all data
 - **Logout**: best-effort push → `clearLocalData()` (drops all stores) → sign out
 - **Error logging**: `debugPrint('[Sync] ...')` in all catch blocks (stripped in release)
+- **Atomic write+queue**: All syncing wrappers use `_db.transaction()` to atomically write data AND enqueue the sync entry — prevents orphaned local data if the app crashes between the two operations
 
 ## Features implemented
 - **Core tracking**: feeds (bottle/breast), diapers, potty, meds, solids, pump, growth, temperature, tummy time, indoor/outdoor play, bath, skin-to-skin

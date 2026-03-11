@@ -29,14 +29,16 @@ final activityRepositoryProvider = Provider<ActivityRepository>((ref) {
   final db = ref.watch(localDatabaseProvider);
   final queue = ref.watch(syncQueueProvider);
   final engine = ref.watch(syncEngineProvider);
-  return SyncingActivityRepository(LocalActivityRepository(db), queue, engine);
+  return SyncingActivityRepository(
+      LocalActivityRepository(db), queue, engine, db);
 });
 
 final familyRepositoryProvider = Provider<FamilyRepository>((ref) {
   final db = ref.watch(localDatabaseProvider);
   final queue = ref.watch(syncQueueProvider);
   final engine = ref.watch(syncEngineProvider);
-  return SyncingFamilyRepository(LocalFamilyRepository(db), queue, engine);
+  return SyncingFamilyRepository(
+      LocalFamilyRepository(db), queue, engine, db);
 });
 
 /// Invites remain online-only (Firebase direct).
@@ -48,14 +50,16 @@ final targetRepositoryProvider = Provider<TargetRepository>((ref) {
   final db = ref.watch(localDatabaseProvider);
   final queue = ref.watch(syncQueueProvider);
   final engine = ref.watch(syncEngineProvider);
-  return SyncingTargetRepository(LocalTargetRepository(db), queue, engine);
+  return SyncingTargetRepository(
+      LocalTargetRepository(db), queue, engine, db);
 });
 
 final recipeRepositoryProvider = Provider<RecipeRepository>((ref) {
   final db = ref.watch(localDatabaseProvider);
   final queue = ref.watch(syncQueueProvider);
   final engine = ref.watch(syncEngineProvider);
-  return SyncingRecipeRepository(LocalRecipeRepository(db), queue, engine);
+  return SyncingRecipeRepository(
+      LocalRecipeRepository(db), queue, engine, db);
 });
 
 final ingredientRepositoryProvider = Provider<IngredientRepository>((ref) {
@@ -63,5 +67,5 @@ final ingredientRepositoryProvider = Provider<IngredientRepository>((ref) {
   final queue = ref.watch(syncQueueProvider);
   final engine = ref.watch(syncEngineProvider);
   return SyncingIngredientRepository(
-      LocalIngredientRepository(db), queue, engine);
+      LocalIngredientRepository(db), queue, engine, db);
 });

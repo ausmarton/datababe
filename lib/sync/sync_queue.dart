@@ -58,6 +58,24 @@ class SyncQueue {
     required String familyId,
     bool isNew = false,
   }) async {
+    await enqueueTxn(
+      _db,
+      collection: collection,
+      documentId: documentId,
+      familyId: familyId,
+      isNew: isNew,
+    );
+  }
+
+  /// Transaction-aware enqueue. Use this to atomically write data and
+  /// enqueue the sync entry in the same Sembast transaction.
+  Future<void> enqueueTxn(
+    DatabaseClient client, {
+    required String collection,
+    required String documentId,
+    required String familyId,
+    bool isNew = false,
+  }) async {
     // Use a deterministic key to collapse duplicates for the same document.
     final key = '${collection}_$documentId';
 
@@ -65,13 +83,13 @@ class SyncQueue {
     // still hasn't been pushed, so it's still "new" to Firestore.
     var effectiveIsNew = isNew;
     if (!isNew) {
-      final existing = await _store.record(key).get(_db);
+      final existing = await _store.record(key).get(client);
       if (existing != null && existing['isNew'] == true) {
         effectiveIsNew = true;
       }
     }
 
-    await _store.record(key).put(_db, SyncEntry(
+    await _store.record(key).put(client, SyncEntry(
       id: key,
       collection: collection,
       documentId: documentId,

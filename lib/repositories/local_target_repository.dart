@@ -29,27 +29,33 @@ class LocalTargetRepository implements TargetRepository {
   }
 
   @override
-  Future<void> createTarget(String familyId, TargetModel target) async {
+  Future<void> createTarget(String familyId, TargetModel target,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = target.toMap();
     map['familyId'] = familyId;
-    await _store.record(target.id).put(_db, map);
+    await _store.record(target.id).put(client, map);
   }
 
   @override
-  Future<void> updateTarget(String familyId, TargetModel target) async {
+  Future<void> updateTarget(String familyId, TargetModel target,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = target.toMap();
     map['familyId'] = familyId;
-    await _store.record(target.id).put(_db, map);
+    await _store.record(target.id).put(client, map);
   }
 
   @override
-  Future<void> deactivateTarget(String familyId, String targetId) async {
-    final record = await _store.record(targetId).get(_db);
+  Future<void> deactivateTarget(String familyId, String targetId,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    final record = await _store.record(targetId).get(client);
     if (record != null) {
       final updated = Map<String, dynamic>.from(record);
       updated['isActive'] = false;
       updated['modifiedAt'] = DateTime.now().toIso8601String();
-      await _store.record(targetId).put(_db, updated);
+      await _store.record(targetId).put(client, updated);
     }
   }
 }

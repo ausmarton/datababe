@@ -46,25 +46,31 @@ class LocalFamilyRepository implements FamilyRepository {
   }
 
   @override
-  Future<FamilyModel> createFamily(FamilyModel family) async {
+  Future<FamilyModel> createFamily(FamilyModel family,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = family.toMap();
-    await _familyStore.record(family.id).put(_db, map);
+    await _familyStore.record(family.id).put(client, map);
     return family;
   }
 
   @override
-  Future<ChildModel> createChild(String familyId, ChildModel child) async {
+  Future<ChildModel> createChild(String familyId, ChildModel child,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = child.toMap();
     map['familyId'] = familyId;
-    await _childStore.record(child.id).put(_db, map);
+    await _childStore.record(child.id).put(client, map);
     return child;
   }
 
   @override
-  Future<CarerModel> createCarer(String familyId, CarerModel carer) async {
+  Future<CarerModel> createCarer(String familyId, CarerModel carer,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
     final map = carer.toMap();
     map['familyId'] = familyId;
-    await _carerStore.record(carer.id).put(_db, map);
+    await _carerStore.record(carer.id).put(client, map);
     return carer;
   }
 
@@ -73,18 +79,27 @@ class LocalFamilyRepository implements FamilyRepository {
     required FamilyModel family,
     required ChildModel child,
     required CarerModel carer,
+    DatabaseClient? txn,
   }) async {
-    await _db.transaction((txn) async {
-      await _familyStore.record(family.id).put(txn, family.toMap());
+    Future<void> doWork(DatabaseClient client) async {
+      await _familyStore.record(family.id).put(client, family.toMap());
 
       final childMap = child.toMap();
       childMap['familyId'] = family.id;
-      await _childStore.record(child.id).put(txn, childMap);
+      await _childStore.record(child.id).put(client, childMap);
 
       final carerMap = carer.toMap();
       carerMap['familyId'] = family.id;
-      await _carerStore.record(carer.id).put(txn, carerMap);
-    });
+      await _carerStore.record(carer.id).put(client, carerMap);
+    }
+
+    if (txn != null) {
+      await doWork(txn);
+    } else {
+      await _db.transaction((t) async {
+        await doWork(t);
+      });
+    }
   }
 
   @override
@@ -102,12 +117,14 @@ class LocalFamilyRepository implements FamilyRepository {
 
   @override
   Future<void> updateCarerRole(
-      String familyId, String carerId, String newRole) async {
-    final record = await _carerStore.record(carerId).get(_db);
+      String familyId, String carerId, String newRole,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    final record = await _carerStore.record(carerId).get(client);
     if (record != null) {
       final updated = Map<String, dynamic>.from(record);
       updated['role'] = newRole;
-      await _carerStore.record(carerId).put(_db, updated);
+      await _carerStore.record(carerId).put(client, updated);
     }
   }
 
@@ -116,10 +133,11 @@ class LocalFamilyRepository implements FamilyRepository {
     required String familyId,
     required String memberUid,
     required String carerId,
+    DatabaseClient? txn,
   }) async {
-    await _db.transaction((txn) async {
+    Future<void> doWork(DatabaseClient client) async {
       // Remove uid from family memberUids
-      final familyRecord = await _familyStore.record(familyId).get(txn);
+      final familyRecord = await _familyStore.record(familyId).get(client);
       if (familyRecord != null) {
         final updated = Map<String, dynamic>.from(familyRecord);
         final memberUids =
@@ -127,36 +145,47 @@ class LocalFamilyRepository implements FamilyRepository {
         memberUids.remove(memberUid);
         updated['memberUids'] = memberUids;
         updated['modifiedAt'] = DateTime.now().toIso8601String();
-        await _familyStore.record(familyId).put(txn, updated);
+        await _familyStore.record(familyId).put(client, updated);
       }
 
       // Delete carer record
-      await _carerStore.record(carerId).delete(txn);
-    });
+      await _carerStore.record(carerId).delete(client);
+    }
+
+    if (txn != null) {
+      await doWork(txn);
+    } else {
+      await _db.transaction((t) async {
+        await doWork(t);
+      });
+    }
   }
 
   @override
   Future<void> updateAllergenCategories(
-      String familyId, List<String> categories) async {
-    final record = await _familyStore.record(familyId).get(_db);
+      String familyId, List<String> categories,
+      {DatabaseClient? txn}) async {
+    final client = txn ?? _db;
+    final record = await _familyStore.record(familyId).get(client);
     if (record != null) {
       final updated = Map<String, dynamic>.from(record);
       updated['allergenCategories'] = categories;
       updated['modifiedAt'] = DateTime.now().toIso8601String();
-      await _familyStore.record(familyId).put(_db, updated);
+      await _familyStore.record(familyId).put(client, updated);
     }
   }
 
   @override
   Future<List<CascadedChange>> renameAllergenCategory(
-      String familyId, String oldName, String newName) async {
+      String familyId, String oldName, String newName,
+      {DatabaseClient? txn}) async {
     final changes = <CascadedChange>[];
 
-    await _db.transaction((txn) async {
+    Future<void> doWork(DatabaseClient client) async {
       final now = DateTime.now().toIso8601String();
 
       // 1. Update family doc: replace oldName→newName in allergenCategories.
-      final familyRecord = await _familyStore.record(familyId).get(txn);
+      final familyRecord = await _familyStore.record(familyId).get(client);
       if (familyRecord != null) {
         final updated = Map<String, dynamic>.from(familyRecord);
         final categories = List<String>.from(
@@ -165,11 +194,11 @@ class LocalFamilyRepository implements FamilyRepository {
         if (idx >= 0) categories[idx] = newName;
         updated['allergenCategories'] = categories;
         updated['modifiedAt'] = now;
-        await _familyStore.record(familyId).put(txn, updated);
+        await _familyStore.record(familyId).put(client, updated);
       }
 
       // 2. Ingredients: replace in allergens lists.
-      final ingredients = await StoreRefs.ingredients.find(txn,
+      final ingredients = await StoreRefs.ingredients.find(client,
           finder: Finder(
             filter: Filter.equals('familyId', familyId),
           ));
@@ -183,14 +212,14 @@ class LocalFamilyRepository implements FamilyRepository {
           updated['modifiedAt'] = now;
           await StoreRefs.ingredients
               .record(ingredient.key)
-              .put(txn, updated);
+              .put(client, updated);
           changes
               .add((collection: 'ingredients', documentId: ingredient.key));
         }
       }
 
       // 3. Targets: update allergenName where matches.
-      final targets = await StoreRefs.targets.find(txn,
+      final targets = await StoreRefs.targets.find(client,
           finder: Finder(
             filter: Filter.and([
               Filter.equals('familyId', familyId),
@@ -201,12 +230,12 @@ class LocalFamilyRepository implements FamilyRepository {
         final updated = Map<String, dynamic>.from(target.value);
         updated['allergenName'] = newName;
         updated['modifiedAt'] = now;
-        await StoreRefs.targets.record(target.key).put(txn, updated);
+        await StoreRefs.targets.record(target.key).put(client, updated);
         changes.add((collection: 'targets', documentId: target.key));
       }
 
       // 4. Activities: replace in allergenNames lists.
-      final activities = await StoreRefs.activities.find(txn,
+      final activities = await StoreRefs.activities.find(client,
           finder: Finder(
             filter: Filter.equals('familyId', familyId),
           ));
@@ -221,26 +250,35 @@ class LocalFamilyRepository implements FamilyRepository {
           updated['modifiedAt'] = now;
           await StoreRefs.activities
               .record(activity.key)
-              .put(txn, updated);
+              .put(client, updated);
           changes
               .add((collection: 'activities', documentId: activity.key));
         }
       }
-    });
+    }
+
+    if (txn != null) {
+      await doWork(txn);
+    } else {
+      await _db.transaction((t) async {
+        await doWork(t);
+      });
+    }
 
     return changes;
   }
 
   @override
   Future<List<CascadedChange>> removeAllergenCategory(
-      String familyId, String name) async {
+      String familyId, String name,
+      {DatabaseClient? txn}) async {
     final changes = <CascadedChange>[];
 
-    await _db.transaction((txn) async {
+    Future<void> doWork(DatabaseClient client) async {
       final now = DateTime.now().toIso8601String();
 
       // 1. Update family doc: remove from allergenCategories.
-      final familyRecord = await _familyStore.record(familyId).get(txn);
+      final familyRecord = await _familyStore.record(familyId).get(client);
       if (familyRecord != null) {
         final updated = Map<String, dynamic>.from(familyRecord);
         final categories = List<String>.from(
@@ -248,11 +286,11 @@ class LocalFamilyRepository implements FamilyRepository {
         categories.remove(name);
         updated['allergenCategories'] = categories;
         updated['modifiedAt'] = now;
-        await _familyStore.record(familyId).put(txn, updated);
+        await _familyStore.record(familyId).put(client, updated);
       }
 
       // 2. Ingredients: remove from allergens lists.
-      final ingredients = await StoreRefs.ingredients.find(txn,
+      final ingredients = await StoreRefs.ingredients.find(client,
           finder: Finder(
             filter: Filter.equals('familyId', familyId),
           ));
@@ -266,14 +304,14 @@ class LocalFamilyRepository implements FamilyRepository {
           updated['modifiedAt'] = now;
           await StoreRefs.ingredients
               .record(ingredient.key)
-              .put(txn, updated);
+              .put(client, updated);
           changes
               .add((collection: 'ingredients', documentId: ingredient.key));
         }
       }
 
       // 3. Targets: deactivate where allergenName matches.
-      final targets = await StoreRefs.targets.find(txn,
+      final targets = await StoreRefs.targets.find(client,
           finder: Finder(
             filter: Filter.and([
               Filter.equals('familyId', familyId),
@@ -284,12 +322,12 @@ class LocalFamilyRepository implements FamilyRepository {
         final updated = Map<String, dynamic>.from(target.value);
         updated['isActive'] = false;
         updated['modifiedAt'] = now;
-        await StoreRefs.targets.record(target.key).put(txn, updated);
+        await StoreRefs.targets.record(target.key).put(client, updated);
         changes.add((collection: 'targets', documentId: target.key));
       }
 
       // 4. Activities: remove from allergenNames lists.
-      final activities = await StoreRefs.activities.find(txn,
+      final activities = await StoreRefs.activities.find(client,
           finder: Finder(
             filter: Filter.equals('familyId', familyId),
           ));
@@ -304,12 +342,20 @@ class LocalFamilyRepository implements FamilyRepository {
           updated['modifiedAt'] = now;
           await StoreRefs.activities
               .record(activity.key)
-              .put(txn, updated);
+              .put(client, updated);
           changes
               .add((collection: 'activities', documentId: activity.key));
         }
       }
-    });
+    }
+
+    if (txn != null) {
+      await doWork(txn);
+    } else {
+      await _db.transaction((t) async {
+        await doWork(t);
+      });
+    }
 
     return changes;
   }
