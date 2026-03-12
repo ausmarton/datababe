@@ -77,10 +77,11 @@ lib/
     ingredients/         — ingredient_list_screen.dart, add_ingredient_screen.dart
     recipes/             — recipe_list_screen.dart, add_recipe_screen.dart
     insights/            — insights_screen, allergen_detail, metric_detail, growth_detail_screen
+    import/              — import_preview_screen.dart, import_result_dialog.dart
     settings/            — settings_screen.dart, manage_allergens_screen.dart (+ sync controls)
     family/              — Family management
   widgets/               — Shared UI components (summary_card, shell_scaffold with sync dot)
-  import/                — CSV import logic (CsvParser pure + CsvImporter with dedup)
+  import/                — CSV import logic (CsvParser pure + CsvImporter with dedup + CsvAnalyzer + ImportPreview models)
   utils/                 — Helpers
     activity_aggregator.dart, activity_helpers.dart,
     allergen_helpers.dart, date_range_helpers.dart, dedup_helper.dart,
@@ -91,7 +92,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (637 tests)
+flutter test                                                 # Run tests (721 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -151,7 +152,7 @@ invites/{id}                             — Email-based family invites
 - **Core tracking**: feeds (bottle/breast), diapers, potty, meds, solids, pump, growth, temperature, tummy time, indoor/outdoor play, bath, skin-to-skin
 - **Timeline**: calendar day/week/month and rolling 24h/7d/30d views with summary cards
 - **Charts**: fl_chart visualisations
-- **CSV import**: parse exported CSV from another baby tracker app
+- **CSV import**: parse exported CSV with preview, filtering (date range, activity type), and row selection before import
 - **Multi-parent collaboration**: email invites, family groups, carer roles
 - **Recipes**: create/edit/delete recipes with ingredient lists; allergen warnings derived from ingredients
 - **Ingredients**: create/edit/delete with allergen category tags; duplicate name prevention
