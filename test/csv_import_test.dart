@@ -289,4 +289,224 @@ void main() {
       expect(result.activities.first.rawCsvRow[0], 'Feed');
     });
   });
+
+  group('edge cases — untrusted input', () {
+    test('empty CSV returns empty result', () {
+      final result = parser.parse('');
+      expect(result.activities, isEmpty);
+      expect(result.errors, isEmpty);
+    });
+
+    test('header-only CSV returns empty result', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n';
+      final result = parser.parse(csv);
+      expect(result.activities, isEmpty);
+      expect(result.errors, isEmpty);
+    });
+
+    test('Windows line endings (\\r\\n) parsed correctly', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\r\n'
+          '"Feed","2026-02-25 10:30",,,"Formula","Bottle","200ml",\r\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.feedBottle);
+    });
+
+    test('Mac line endings (\\r) parsed correctly', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\r'
+          '"Feed","2026-02-25 10:30",,,"Formula","Bottle","200ml",\r';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.feedBottle);
+    });
+
+    test('unquoted cells parsed correctly', () {
+      const csv =
+          'Type,Start,End,Duration,Start Condition,Start Location,End Condition,Notes\n'
+          'Feed,2026-02-25 10:30,,,Formula,Bottle,200ml,\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.feedBottle);
+      expect(result.activities.first.volumeMl, 200.0);
+    });
+
+    test('mixed quoted and unquoted cells', () {
+      const csv =
+          'Type,"Start",End,Duration,"Start Condition",Start Location,"End Condition",Notes\n'
+          '"Feed",2026-02-25 10:30,,,Formula,"Bottle","200ml",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.feedType, 'formula');
+    });
+
+    test('notes field preserved on parsed activities', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Feed","2026-02-25 10:30",,,"Formula","Bottle","200ml","was hungry"\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      // Notes are in col7 but feed parsing doesn't extract notes explicitly —
+      // rawCsvRow still has the data.
+      expect(result.activities.first.rawCsvRow[7], 'was hungry');
+    });
+
+    test('growth with partial fields (only weight)', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Growth","2026-02-09 12:01",,,"6.66kg","","",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.weightKg, 6.66);
+      expect(result.activities.first.lengthCm, isNull);
+      expect(result.activities.first.headCircumferenceCm, isNull);
+    });
+
+    test('bottle feed with breast milk type', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Feed","2026-02-25 10:30",,,"Breast Milk","Bottle","150ml",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.feedBottle);
+      expect(result.activities.first.feedType, 'breastMilk');
+      expect(result.activities.first.volumeMl, 150.0);
+    });
+
+    test('diaper with empty optional columns', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Diaper","2026-02-22 14:07",,"","","","Poo:small",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.diaper);
+      expect(result.activities.first.contents, 'poo');
+      expect(result.activities.first.contentSize, 'small');
+      expect(result.activities.first.pooColour, isNull);
+      expect(result.activities.first.pooConsistency, isNull);
+    });
+
+    test('pump with duration and volume', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Pump","2025-10-03 04:30","2025-10-03 04:50","00:20","25ml",,,\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.pump);
+      expect(result.activities.first.volumeMl, 25.0);
+      expect(result.activities.first.durationMinutes, 20);
+    });
+
+    test('temperature without degree symbol', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Temp","2025-12-29 23:40",,,"37.6",,,\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.tempCelsius, 37.6);
+    });
+
+    test('temperature with unparseable value returns null tempCelsius', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Temp","2025-12-29 23:40",,,"not-a-number",,,\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.tempCelsius, isNull);
+    });
+
+    test('breast feed with zero-minute side', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Feed","2026-01-14 22:20","2026-01-14 22:31","00:11","00:00R","Breast","00:11L",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.feedBreast);
+      expect(result.activities.first.rightBreastMinutes, 0);
+      expect(result.activities.first.leftBreastMinutes, 11);
+    });
+
+    test('many rows parsed correctly', () {
+      final buffer = StringBuffer(
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n');
+      for (int i = 0; i < 100; i++) {
+        final hour = (i % 24).toString().padLeft(2, '0');
+        buffer.write('"Diaper","2026-02-${(i % 28 + 1).toString().padLeft(2, '0')} $hour:00",,"","","","Pee:small",\n');
+      }
+      final result = parser.parse(buffer.toString());
+      expect(result.activities, hasLength(100));
+    });
+
+    test('multiple errors report correct row numbers', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Feed","2026-02-25 10:30",,,"Formula","Bottle","200ml",\n'
+          '"BadType1","2026-02-25 11:00",,,,,,\n'
+          '"Solids","2026-02-25 12:00",,,"banana",,"Loved",\n'
+          '"BadType2","2026-02-25 13:00",,,,,,\n'
+          '"Feed","not-a-date",,,"Formula","Bottle","200ml",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(2));
+      expect(result.errors, hasLength(3));
+      expect(result.errors[0].rowNumber, 2);
+      expect(result.errors[0].reason, contains('unknown type'));
+      expect(result.errors[1].rowNumber, 4);
+      expect(result.errors[1].reason, contains('unknown type'));
+      expect(result.errors[2].rowNumber, 5);
+      expect(result.errors[2].reason, contains('invalid date'));
+    });
+
+    test('solids with empty reaction defaults to null reaction', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Solids","2026-02-25 11:15",,,"banana","","",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.solids);
+      expect(result.activities.first.foodDescription, 'banana');
+      expect(result.activities.first.reaction, isNull);
+    });
+
+    test('meds with empty dose and name', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Meds","2026-02-25 09:47",,,"","","",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.meds);
+      expect(result.activities.first.dose, isNull);
+      expect(result.activities.first.medicationName, isNull);
+    });
+
+    test('duration-only activity with end time computes duration', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Tummy time","2025-11-15 12:00","2025-11-15 12:30","00:30",,,,\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.durationMinutes, 30);
+      expect(result.activities.first.endTime, isNotNull);
+    });
+
+    test('bottle feed with zero volume', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Feed","2026-02-25 10:30",,,"Formula","Bottle","0ml",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.volumeMl, 0.0);
+    });
+
+    test('potty with both contents', () {
+      const csv =
+          '"Type","Start","End","Duration","Start Condition","Start Location","End Condition","Notes"\n'
+          '"Potty","2026-01-01 20:25",,,,,"Both, pee:small poo:medium",\n';
+      final result = parser.parse(csv);
+      expect(result.activities, hasLength(1));
+      expect(result.activities.first.type, ActivityType.potty);
+      expect(result.activities.first.contents, 'both');
+    });
+  });
 }
