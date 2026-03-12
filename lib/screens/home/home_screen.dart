@@ -124,6 +124,9 @@ class HomeScreen extends ConsumerWidget {
                   return ActivityTile(
                     activity: activity,
                     onDelete: () => _deleteActivity(context, ref, activity),
+                    onCopy: () => context.push(
+                      '/log/${activity.type}?copyFrom=${activity.id}',
+                    ),
                   );
                 },
                 childCount: activities.length,
@@ -267,13 +270,20 @@ class _QuickLogGrid extends StatelessWidget {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _quickLogTypes.map((type) {
-        return ActionChip(
-          avatar: Icon(activityIcon(type), size: 18),
-          label: Text(activityDisplayName(type)),
-          onPressed: () => context.push('/log/${type.name}'),
-        );
-      }).toList(),
+      children: [
+        ..._quickLogTypes.map((type) {
+          return ActionChip(
+            avatar: Icon(activityIcon(type), size: 18),
+            label: Text(activityDisplayName(type)),
+            onPressed: () => context.push('/log/${type.name}'),
+          );
+        }),
+        ActionChip(
+          avatar: const Icon(Icons.playlist_add, size: 18),
+          label: const Text('Bulk Add'),
+          onPressed: () => context.push('/bulk-add'),
+        ),
+      ],
     );
   }
 }

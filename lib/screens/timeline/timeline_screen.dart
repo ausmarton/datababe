@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/enums.dart';
@@ -34,6 +35,11 @@ class TimelineScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Timeline'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.playlist_add),
+            tooltip: 'Bulk Add',
+            onPressed: () => context.push('/bulk-add'),
+          ),
           PopupMenuButton<ActivityType?>(
             icon: Badge(
               isLabelVisible: filter != null,
@@ -123,6 +129,9 @@ class TimelineScreen extends ConsumerWidget {
                               activity: a,
                               onDelete: () =>
                                   _deleteActivity(context, ref, a),
+                              onCopy: () => context.push(
+                                '/log/${a.type}?copyFrom=${a.id}',
+                              ),
                             )),
                         const Divider(height: 1),
                       ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 
@@ -15,11 +16,13 @@ import '../../utils/allergen_helpers.dart';
 class LogEntryScreen extends ConsumerStatefulWidget {
   final String activityType;
   final String? activityId;
+  final String? copyFromId;
 
   const LogEntryScreen({
     super.key,
     required this.activityType,
     this.activityId,
+    this.copyFromId,
   });
 
   @override
@@ -84,6 +87,8 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
 
     if (widget.activityId != null) {
       _loadExisting();
+    } else if (widget.copyFromId != null) {
+      _loadCopySource();
     }
   }
 
@@ -115,61 +120,99 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       _startTime = activity.startTime;
       _endTime = activity.endTime;
       _originalCreatedAt = activity.createdAt;
-
-      // Feed (Bottle)
-      if (activity.feedType != null) {
-        _feedType = FeedType.values.where((e) => e.name == activity.feedType).firstOrNull ?? _feedType;
-      }
-      if (activity.volumeMl != null) _volumeController.text = activity.volumeMl.toString();
-
-      // Feed (Breast)
-      if (activity.rightBreastMinutes != null) _rightBreastController.text = activity.rightBreastMinutes.toString();
-      if (activity.leftBreastMinutes != null) _leftBreastController.text = activity.leftBreastMinutes.toString();
-
-      // Diaper / Potty
-      if (activity.contents != null) {
-        _contents = DiaperContents.values.where((e) => e.name == activity.contents).firstOrNull ?? _contents;
-      }
-      if (activity.contentSize != null) {
-        _contentSize = ContentSize.values.where((e) => e.name == activity.contentSize).firstOrNull ?? _contentSize;
-      }
-      if (activity.peeSize != null) {
-        _peeSize = ContentSize.values.where((e) => e.name == activity.peeSize).firstOrNull;
-      }
-      if (activity.pooColour != null) {
-        _pooColour = PooColour.values.where((e) => e.name == activity.pooColour).firstOrNull;
-      }
-      if (activity.pooConsistency != null) {
-        _pooConsistency = PooConsistency.values.where((e) => e.name == activity.pooConsistency).firstOrNull;
-      }
-
-      // Meds
-      if (activity.medicationName != null) _medNameController.text = activity.medicationName!;
-      if (activity.dose != null) _doseController.text = activity.dose!;
-      if (activity.doseUnit != null) _doseUnitController.text = activity.doseUnit!;
-
-      // Solids
-      if (activity.foodDescription != null) _foodDescController.text = activity.foodDescription!;
-      if (activity.reaction != null) {
-        _reaction = FoodReaction.values.where((e) => e.name == activity.reaction).firstOrNull ?? _reaction;
-      }
-      _recipeId = activity.recipeId;
-      _ingredientNames = activity.ingredientNames;
-      _allergenNames = activity.allergenNames;
-
-      // Growth
-      if (activity.weightKg != null) _weightController.text = activity.weightKg.toString();
-      if (activity.lengthCm != null) _lengthController.text = activity.lengthCm.toString();
-      if (activity.headCircumferenceCm != null) _headController.text = activity.headCircumferenceCm.toString();
-
-      // Temperature
-      if (activity.tempCelsius != null) _tempController.text = activity.tempCelsius.toString();
-
-      // Notes
-      if (activity.notes != null) _notesController.text = activity.notes!;
-
+      _populateFields(activity);
       _loading = false;
     });
+  }
+
+  Future<void> _loadCopySource() async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    setState(() => _loading = true);
+
+    final repo = ref.read(activityRepositoryProvider);
+    final activity = await repo.getActivity(familyId, widget.copyFromId!);
+
+    if (activity == null || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Source entry not found')),
+        );
+        setState(() => _loading = false);
+      }
+      return;
+    }
+
+    if (activity.isDeleted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Source entry no longer exists')),
+        );
+        setState(() => _loading = false);
+      }
+      return;
+    }
+
+    setState(() {
+      // Keep _startTime as DateTime.now(), _endTime as null
+      _populateFields(activity);
+      _loading = false;
+    });
+  }
+
+  void _populateFields(ActivityModel activity) {
+    // Feed (Bottle)
+    if (activity.feedType != null) {
+      _feedType = FeedType.values.where((e) => e.name == activity.feedType).firstOrNull ?? _feedType;
+    }
+    if (activity.volumeMl != null) _volumeController.text = activity.volumeMl.toString();
+
+    // Feed (Breast)
+    if (activity.rightBreastMinutes != null) _rightBreastController.text = activity.rightBreastMinutes.toString();
+    if (activity.leftBreastMinutes != null) _leftBreastController.text = activity.leftBreastMinutes.toString();
+
+    // Diaper / Potty
+    if (activity.contents != null) {
+      _contents = DiaperContents.values.where((e) => e.name == activity.contents).firstOrNull ?? _contents;
+    }
+    if (activity.contentSize != null) {
+      _contentSize = ContentSize.values.where((e) => e.name == activity.contentSize).firstOrNull ?? _contentSize;
+    }
+    if (activity.peeSize != null) {
+      _peeSize = ContentSize.values.where((e) => e.name == activity.peeSize).firstOrNull;
+    }
+    if (activity.pooColour != null) {
+      _pooColour = PooColour.values.where((e) => e.name == activity.pooColour).firstOrNull;
+    }
+    if (activity.pooConsistency != null) {
+      _pooConsistency = PooConsistency.values.where((e) => e.name == activity.pooConsistency).firstOrNull;
+    }
+
+    // Meds
+    if (activity.medicationName != null) _medNameController.text = activity.medicationName!;
+    if (activity.dose != null) _doseController.text = activity.dose!;
+    if (activity.doseUnit != null) _doseUnitController.text = activity.doseUnit!;
+
+    // Solids
+    if (activity.foodDescription != null) _foodDescController.text = activity.foodDescription!;
+    if (activity.reaction != null) {
+      _reaction = FoodReaction.values.where((e) => e.name == activity.reaction).firstOrNull ?? _reaction;
+    }
+    _recipeId = activity.recipeId;
+    _ingredientNames = activity.ingredientNames;
+    _allergenNames = activity.allergenNames;
+
+    // Growth
+    if (activity.weightKg != null) _weightController.text = activity.weightKg.toString();
+    if (activity.lengthCm != null) _lengthController.text = activity.lengthCm.toString();
+    if (activity.headCircumferenceCm != null) _headController.text = activity.headCircumferenceCm.toString();
+
+    // Temperature
+    if (activity.tempCelsius != null) _tempController.text = activity.tempCelsius.toString();
+
+    // Notes
+    if (activity.notes != null) _notesController.text = activity.notes!;
   }
 
   @override
@@ -376,6 +419,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
     final isEdit = widget.activityId != null;
+    final isCopy = widget.copyFromId != null;
 
     if (_loading) {
       return Scaffold(
@@ -386,14 +430,24 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${isEdit ? 'Edit' : 'Log'} ${activityDisplayName(_type)}'),
+        title: Text(
+          '${isEdit ? 'Edit' : isCopy ? 'Copy' : 'Log'} ${activityDisplayName(_type)}',
+        ),
         actions: [
-          if (isEdit)
+          if (isEdit) ...[
+            IconButton(
+              icon: const Icon(Icons.copy),
+              tooltip: 'Copy as new',
+              onPressed: () => context.pushReplacement(
+                '/log/${widget.activityType}?copyFrom=${widget.activityId}',
+              ),
+            ),
             IconButton(
               icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
               tooltip: 'Delete',
               onPressed: _confirmDelete,
             ),
+          ],
         ],
       ),
       body: Form(

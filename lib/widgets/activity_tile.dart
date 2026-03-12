@@ -10,8 +10,14 @@ import '../utils/activity_helpers.dart';
 class ActivityTile extends StatelessWidget {
   final ActivityModel activity;
   final VoidCallback? onDelete;
+  final VoidCallback? onCopy;
 
-  const ActivityTile({super.key, required this.activity, this.onDelete});
+  const ActivityTile({
+    super.key,
+    required this.activity,
+    this.onDelete,
+    this.onCopy,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +26,9 @@ class ActivityTile extends StatelessWidget {
 
     final tile = ListTile(
       onTap: () => context.push('/log/${activity.type}?id=${activity.id}'),
+      onLongPress: onCopy != null
+          ? () => _showContextMenu(context)
+          : null,
       leading: CircleAvatar(
         backgroundColor: type != null
             ? activityColor(type).withValues(alpha: 0.2)
@@ -53,6 +62,27 @@ class ActivityTile extends StatelessWidget {
         return false; // Don't remove the widget — the delete + undo is handled by the caller
       },
       child: tile,
+    );
+  }
+
+  void _showContextMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy as new'),
+              onTap: () {
+                Navigator.pop(ctx);
+                onCopy!();
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 

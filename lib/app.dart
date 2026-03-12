@@ -21,6 +21,7 @@ import 'screens/insights/growth_detail_screen.dart';
 import 'screens/insights/metric_detail_screen.dart';
 import 'screens/ingredients/ingredient_list_screen.dart';
 import 'screens/ingredients/add_ingredient_screen.dart';
+import 'screens/bulk_add/bulk_add_screen.dart';
 import 'screens/import/import_preview_screen.dart';
 import 'import/import_preview.dart';
 import 'widgets/shell_scaffold.dart';
@@ -79,8 +80,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final type = state.pathParameters['type']!;
           final activityId = state.uri.queryParameters['id'];
-          return LogEntryScreen(activityType: type, activityId: activityId);
+          final copyFromId = state.uri.queryParameters['copyFrom'];
+          return LogEntryScreen(
+            activityType: type,
+            activityId: activityId,
+            copyFromId: copyFromId,
+          );
         },
+      ),
+      GoRoute(
+        path: '/bulk-add',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const BulkAddScreen(),
       ),
       GoRoute(
         path: '/goals',

@@ -41,9 +41,9 @@ lib/
   app.dart               — MaterialApp with router + auth guard
   firebase_options.dart  — Generated Firebase config (real values, public by design)
   models/                — Data model classes + enums (toMap/fromMap + toFirestore/fromFirestore)
-    activity_model.dart, app_user.dart, carer_model.dart, child_model.dart,
-    enums.dart, family_model.dart, ingredient_model.dart, invite_model.dart,
-    recipe_model.dart, target_model.dart
+    activity_model.dart, app_user.dart, bulk_entry.dart, carer_model.dart,
+    child_model.dart, enums.dart, family_model.dart, ingredient_model.dart,
+    invite_model.dart, recipe_model.dart, target_model.dart
   local/                 — Sembast database setup
     database_provider.dart, store_refs.dart
   repositories/          — Abstract interfaces + Firebase + Local implementations
@@ -69,6 +69,7 @@ lib/
     sync_provider, target_provider
   screens/               — Feature screens
     auth/                — LoginScreen with Google Sign-In
+    bulk_add/            — Bulk add activities screen
     home/                — Home screen
     timeline/            — Timeline view with time window modes
     log_entry/           — Activity logging
@@ -92,7 +93,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (769 tests)
+flutter test                                                 # Run tests (793 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -159,6 +160,8 @@ invites/{id}                             — Email-based family invites
 - **Allergen tracking**: family-level allergen categories; exposure counting in goals
 - **Goals/targets**: per-child targets (count, volume, duration, unique foods, ingredient/allergen exposures) with daily/weekly/monthly periods and progress bars
 - **Activity editing**: tap timeline entries to edit
+- **Copy/duplicate entry**: one-tap copy from edit AppBar or long-press context menu, pre-fills form with source data and time set to "now"
+- **Bulk add activities**: stage multiple activities from templates (copy from day) or quick-add chips, adjust times, save all at once
 - **Activity deletion**: soft delete with confirmation
 - **Offline support**: local-first with Sembast, background sync to Firestore
 - **Sync indicators**: status dot in nav bar, Sync Now button in Settings
