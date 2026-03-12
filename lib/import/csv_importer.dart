@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/activity_model.dart';
 import '../repositories/activity_repository.dart';
 import 'csv_parser.dart';
+import 'import_preview.dart';
 
 /// Result of a CSV import with dedup.
 class ImportResult {
@@ -110,17 +111,17 @@ class CsvImporter {
     // Build fingerprint set from candidates.
     final existingFingerprints = <String>{};
     for (final a in candidates) {
-      existingFingerprints.add(_fingerprint(a));
+      existingFingerprints.add(fingerprint(a));
     }
 
     // Filter out duplicates, capturing skipped CSV lines.
     final toInsert = <ActivityModel>[];
     final skippedRows = <String>[];
     for (final (model, parsed) in entries) {
-      if (!existingFingerprints.contains(_fingerprint(model))) {
+      if (!existingFingerprints.contains(fingerprint(model))) {
         toInsert.add(model);
       } else {
-        skippedRows.add(_toCsvLine(parsed.rawCsvRow));
+        skippedRows.add(toCsvLine(parsed.rawCsvRow));
       }
     }
 
@@ -136,8 +137,33 @@ class CsvImporter {
     );
   }
 
+  /// Import only selected candidates (from preview screen).
+  ///
+  /// Only candidates with [CandidateStatus.newActivity] and non-null models
+  /// are inserted. Returns an [ImportResult] with counts.
+  Future<ImportResult> importSelected(
+    String familyId,
+    List<ImportCandidate> candidates,
+  ) async {
+    final toInsert = <ActivityModel>[];
+    for (final c in candidates) {
+      if (c.status == CandidateStatus.newActivity && c.model != null) {
+        toInsert.add(c.model!);
+      }
+    }
+
+    if (toInsert.isNotEmpty) {
+      await _repo.insertActivities(familyId, toInsert);
+    }
+
+    return ImportResult(
+      imported: toInsert.length,
+      skipped: candidates.length - toInsert.length,
+    );
+  }
+
   /// Compute a fingerprint for dedup: type + childId + startTime + distinguishing fields.
-  static String _fingerprint(ActivityModel a) {
+  static String fingerprint(ActivityModel a) {
     final base = '${a.type}|${a.childId}|${a.startTime.toIso8601String()}';
     final extra = switch (a.type) {
       'feedBottle' => '|${a.volumeMl}|${a.feedType}',
@@ -154,7 +180,7 @@ class CsvImporter {
   }
 
   /// Convert a raw CSV row back to a CSV line string.
-  static String _toCsvLine(List<dynamic> row) {
+  static String toCsvLine(List<dynamic> row) {
     return const ListToCsvConverter().convert([row]);
   }
 }

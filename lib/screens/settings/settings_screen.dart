@@ -7,7 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../import/csv_importer.dart';
+import '../../import/csv_analyzer.dart';
 import '../../utils/file_reader.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backup_provider.dart';
@@ -349,7 +349,7 @@ class SettingsScreen extends ConsumerWidget {
           children: [
             CircularProgressIndicator(),
             SizedBox(width: 16),
-            Text('Importing...'),
+            Text('Analyzing...'),
           ],
         ),
       ),
@@ -359,8 +359,8 @@ class SettingsScreen extends ConsumerWidget {
       final file = result.files.first;
       final csvContent = await readFileContent(file);
 
-      final importer = CsvImporter(ref.read(activityRepositoryProvider));
-      final importResult = await importer.importFromString(
+      final analyzer = CsvAnalyzer(ref.read(activityRepositoryProvider));
+      final preview = await analyzer.analyze(
         csvContent,
         childId,
         familyId,
@@ -370,134 +370,20 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
 
-        final hasIssues = importResult.skipped > 0 ||
-            importResult.parseErrors.isNotEmpty;
-
-        if (hasIssues) {
-          await _showImportResultDialog(context, importResult);
-        } else {
+        if (preview.totalRows == 0) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Imported ${importResult.imported} activities')),
+            const SnackBar(content: Text('No parseable activities in CSV')),
           );
+          return;
         }
 
-        // Trigger immediate sync to push imported activities to Firestore.
-        if (importResult.imported > 0 && context.mounted) {
-          final engine = ref.read(syncEngineProvider);
-          final result = await engine.syncNow();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_syncResultMessage(result))),
-            );
-          }
-        }
+        context.push('/import/preview', extra: preview);
       }
     } catch (e) {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _showImportResultDialog(
-      BuildContext context, ImportResult result) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _ImportResultDialog(result: result),
-    );
-  }
-}
-
-class _ImportResultDialog extends StatelessWidget {
-  final ImportResult result;
-  const _ImportResultDialog({required this.result});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Import complete'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Imported: ${result.imported}'),
-            if (result.skipped > 0)
-              Text('Skipped (duplicates): ${result.skipped}'),
-            if (result.parseErrors.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Parse errors: ${result.parseErrors.length}',
-                style: TextStyle(
-                    color: Theme.of(context).colorScheme.error),
-              ),
-              const SizedBox(height: 4),
-              ...result.parseErrors.map((e) => Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 2),
-                    child: Text(
-                      'Row ${e.rowNumber}: ${e.reason}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  )),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        if (result.skippedRows.isNotEmpty ||
-            result.parseErrors.isNotEmpty)
-          TextButton(
-            onPressed: () => _downloadRejects(context),
-            child: const Text('Download rejects CSV'),
-          ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('OK'),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _downloadRejects(BuildContext context) async {
-    final lines = <String>[];
-    // Add header.
-    lines.add(
-        'Type,Start,End,Duration,Start Condition,Start Location,End Condition,Notes');
-    // Add skipped duplicate rows.
-    for (final row in result.skippedRows) {
-      lines.add(row);
-    }
-    // Add error rows as comments.
-    for (final e in result.parseErrors) {
-      lines.add('# Row ${e.rowNumber}: ${e.reason} (type: ${e.rawType})');
-    }
-
-    final content = lines.join('\n');
-    final bytes = Uint8List.fromList(utf8.encode(content));
-    final now = DateTime.now();
-    final datePart =
-        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-
-    try {
-      await FileSaver.instance.saveFile(
-        name: 'datababe-rejects-$datePart',
-        bytes: bytes,
-        ext: 'csv',
-        mimeType: MimeType.csv,
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rejects file saved')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
+          SnackBar(content: Text('Analysis failed: $e')),
         );
       }
     }

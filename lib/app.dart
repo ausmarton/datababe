@@ -21,6 +21,8 @@ import 'screens/insights/growth_detail_screen.dart';
 import 'screens/insights/metric_detail_screen.dart';
 import 'screens/ingredients/ingredient_list_screen.dart';
 import 'screens/ingredients/add_ingredient_screen.dart';
+import 'screens/import/import_preview_screen.dart';
+import 'import/import_preview.dart';
 import 'widgets/shell_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -142,6 +144,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final recipeId = state.uri.queryParameters['id'];
           return AddRecipeScreen(recipeId: recipeId);
+        },
+      ),
+      GoRoute(
+        path: '/import/preview',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final preview = state.extra as ImportPreview;
+          return ImportPreviewScreen(preview: preview);
         },
       ),
     ],
