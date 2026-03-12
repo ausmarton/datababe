@@ -26,6 +26,7 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
   final _ingredients = <String>[];
   bool _saving = false;
   bool _loading = false;
+  TextEditingController? _ingredientController;
 
   DateTime _originalCreatedAt = DateTime.now();
   String _originalCreatedBy = '';
@@ -78,6 +79,14 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Auto-add any text left in the ingredient field.
+    final pendingText = _ingredientController?.text.trim() ?? '';
+    if (pendingText.isNotEmpty) {
+      _addIngredientByName(pendingText);
+      _ingredientController?.clear();
+    }
+
     if (_ingredients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Add at least one ingredient')),
@@ -87,7 +96,14 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
 
     final familyId = ref.read(selectedFamilyIdProvider);
     final user = ref.read(currentUserProvider);
-    if (familyId == null || user == null) return;
+    if (familyId == null || user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No family selected')),
+        );
+      }
+      return;
+    }
 
     final normalizedName = _nameController.text.trim().toLowerCase();
 
@@ -167,11 +183,12 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
                 final query = textEditingValue.text.trim().toLowerCase();
                 if (query.isEmpty) return allIngredients;
                 return allIngredients.where(
-                    (i) => i.name.contains(query));
+                    (i) => i.name.toLowerCase().contains(query));
               },
               displayStringForOption: (i) => i.name,
               fieldViewBuilder:
                   (context, controller, focusNode, onSubmitted) {
+                _ingredientController = controller;
                 return TextFormField(
                   controller: controller,
                   focusNode: focusNode,
@@ -188,6 +205,9 @@ class _AddRecipeScreenState extends ConsumerState<AddRecipeScreen> {
               },
               onSelected: (ingredient) {
                 _addIngredientByName(ingredient.name);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _ingredientController?.clear();
+                });
               },
             ),
             const SizedBox(height: 12),

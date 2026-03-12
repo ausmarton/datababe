@@ -76,7 +76,14 @@ class _AddIngredientScreenState extends ConsumerState<AddIngredientScreen> {
 
     final familyId = ref.read(selectedFamilyIdProvider);
     final user = ref.read(currentUserProvider);
-    if (familyId == null || user == null) return;
+    if (familyId == null || user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No family selected')),
+        );
+      }
+      return;
+    }
 
     setState(() => _saving = true);
 

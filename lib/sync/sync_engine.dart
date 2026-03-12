@@ -435,15 +435,21 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
 
       await _db.transaction((txn) async {
         for (final doc in snapshot.docs) {
-          final hasPending =
-              await _hasPendingForDoc(collection, doc.id);
-          if (!hasPending) {
-            final localData = FirestoreConverter.fromFirestore(
-              doc.data(),
-              familyId,
-            );
-            await store.record(doc.id).put(txn, localData);
-          } else {
+          try {
+            final hasPending =
+                await _hasPendingForDoc(collection, doc.id);
+            if (!hasPending) {
+              final localData = FirestoreConverter.fromFirestore(
+                doc.data(),
+                familyId,
+              );
+              await store.record(doc.id).put(txn, localData);
+            } else {
+              skipped++;
+            }
+          } catch (e) {
+            debugPrint('[Sync] pullDelta $familyId/$collection '
+                'doc ${doc.id}: $e');
             skipped++;
           }
         }

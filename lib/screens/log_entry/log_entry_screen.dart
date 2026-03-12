@@ -653,12 +653,6 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
 
   void _showRecipePicker() {
     final recipes = ref.read(recipesProvider).valueOrNull ?? [];
-    if (recipes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No recipes yet. Create one in Recipes.')),
-      );
-      return;
-    }
 
     showModalBottomSheet(
       context: context,
@@ -730,6 +724,9 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   List<Widget> _buildSolidsFields() {
     final allIngredients =
         ref.watch(ingredientsProvider).valueOrNull ?? [];
+    // Watch recipes so the provider is warm when user taps "Pick a Recipe".
+    final recipesAsync = ref.watch(recipesProvider);
+    final recipes = recipesAsync.valueOrNull ?? [];
     return [
       if (_recipeId != null) ...[
         Row(
@@ -753,9 +750,11 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
           ),
       ] else ...[
         OutlinedButton.icon(
-          onPressed: _showRecipePicker,
+          onPressed: recipes.isEmpty ? null : _showRecipePicker,
           icon: const Icon(Icons.menu_book),
-          label: const Text('Pick a Recipe'),
+          label: Text(recipes.isEmpty
+              ? 'No recipes available'
+              : 'Pick a Recipe'),
         ),
         const SizedBox(height: 12),
         // Standalone ingredient picker
@@ -765,7 +764,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
               final query = textEditingValue.text.trim().toLowerCase();
               final names = allIngredients.map((i) => i.name).toList();
               if (query.isEmpty) return names;
-              return names.where((n) => n.contains(query));
+              return names.where((n) => n.toLowerCase().contains(query));
             },
             fieldViewBuilder:
                 (context, controller, focusNode, onSubmitted) {
