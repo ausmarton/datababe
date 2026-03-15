@@ -9,12 +9,16 @@ import 'package:datababe/sync/sync_queue.dart';
 ///
 /// Root cause (the race condition):
 /// 1. Parent A creates activity at T1 (modifiedAt=T1), push debounced 30s
-/// 2. Parent B pulls at T2 (T2>T1), gets 0 docs, lastPull → T2
-/// 3. Parent A pushes at T3, Firestore gets modifiedAt=T1
-/// 4. Parent B pulls: modifiedAt > T2 misses activity (T1 < T2) — permanently invisible
+/// 2. Parent B pulls at T2, gets OTHER docs with modifiedAt up to T5 (T5 > T1)
+/// 3. lastPull → T5 (from maxModifiedAt of pulled docs)
+/// 4. Parent A finally pushes at T3, Firestore gets modifiedAt=T1
+/// 5. Parent B pulls: modifiedAt >= T5 misses activity (T1 < T5)
 ///
-/// Fix: advance lastPull to max(modifiedAt) from fetched docs, not DateTime.now().
-/// When 0 docs fetched, don't advance lastPull.
+/// Fix:
+/// - Use isGreaterThanOrEqualTo (not isGreaterThan) in the Firestore query
+/// - Subtract a 2-minute safety margin from maxModifiedAt before setting
+///   lastPull, so late-pushed activities within that window are re-fetched.
+/// - When 0 docs fetched, don't advance lastPull.
 void main() {
   group('pullDelta lastPull advancement', () {
     late Database db;
@@ -49,7 +53,7 @@ void main() {
           reason: 'lastPull should remain at T0 after empty pull');
     });
 
-    test('lastPull advanced to max modifiedAt, not DateTime.now()', () async {
+    test('lastPull advanced to maxModifiedAt minus safety margin', () async {
       final t0 = DateTime(2026, 3, 10, 8, 0);
       await metadata.setLastPull(familyId, collection, t0);
 
@@ -76,16 +80,43 @@ void main() {
         'isDeleted': false,
       });
 
-      // Advance lastPull to max modifiedAt (T2), not DateTime.now().
-      await metadata.setLastPull(familyId, collection, t2);
+      // Advance lastPull: maxModifiedAt(T2) - 2min safety margin.
+      final safeLastPull = t2.subtract(const Duration(minutes: 2));
+      await metadata.setLastPull(familyId, collection, safeLastPull);
 
       final lastPull = await metadata.getLastPull(familyId, collection);
-      expect(lastPull, equals(t2),
-          reason: 'lastPull should be max modifiedAt, not DateTime.now()');
+      expect(lastPull, equals(safeLastPull),
+          reason: 'lastPull should be maxModifiedAt minus 2-min safety margin');
 
-      // Verify it didn't jump to a future time.
-      expect(lastPull!.isBefore(DateTime.now().add(const Duration(seconds: 1))),
-          isTrue);
+      // The safety margin means lastPull is BEFORE t2, not equal to it.
+      expect(lastPull!.isBefore(t2), isTrue,
+          reason: 'safety margin keeps lastPull before maxModifiedAt');
+    });
+
+    test('safety margin catches late-pushed activities', () async {
+      // Scenario: Parent A creates at T1, other docs have modifiedAt=T5.
+      // Without safety margin: lastPull=T5, query misses T1.
+      // With 2-min safety margin: lastPull=T5-2min, query catches T1 if
+      // T1 >= T5-2min.
+      final t5 = DateTime(2026, 3, 10, 10, 0, 0);
+      final t1 = DateTime(2026, 3, 10, 9, 59, 0); // 1 min before T5
+
+      final safeLastPull = t5.subtract(const Duration(minutes: 2));
+      // safeLastPull = T5 - 2min = 09:58:00
+      // T1 = 09:59:00
+      // Query: modifiedAt >= 09:58:00 → catches T1 (09:59:00 >= 09:58:00)
+
+      expect(t1.isAfter(safeLastPull) || t1.isAtSameMomentAs(safeLastPull),
+          isTrue,
+          reason: 'late-pushed activity (1min before maxModifiedAt) should be '
+              'within the 2-min safety window');
+
+      // But an activity created 3 minutes before maxModifiedAt would NOT
+      // be caught — reconciliation handles that as a fallback.
+      final tOld = DateTime(2026, 3, 10, 9, 57, 0); // 3 min before T5
+      expect(tOld.isBefore(safeLastPull), isTrue,
+          reason: 'activity 3min before maxModifiedAt falls outside '
+              'the 2-min safety window');
     });
 
     test('lastPull not advanced when all docs are skipped (pending)',

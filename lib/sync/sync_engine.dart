@@ -424,7 +424,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
 
       if (lastPull != null) {
         query = query.where('modifiedAt',
-            isGreaterThan: Timestamp.fromDate(lastPull));
+            isGreaterThanOrEqualTo: Timestamp.fromDate(lastPull));
       }
 
       final snapshot = await query.get();
@@ -464,11 +464,20 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         }
       });
 
-      // Only advance lastPull to the latest modifiedAt we actually processed.
-      // Using DateTime.now() would skip docs pushed between now and the pull
-      // query — causing permanent data loss (the sync race condition).
+      // Advance lastPull with a 2-minute safety overlap.
+      //
+      // Why the overlap: another device may create an activity at T1 but not
+      // push it for 30+ seconds (debounce). Meanwhile, THIS device pulls and
+      // sees other docs with modifiedAt up to T5 (T5 > T1). Without the
+      // overlap, lastPull = T5 and the next query (modifiedAt >= T5) would
+      // permanently miss the T1 activity once it's finally pushed.
+      //
+      // By subtracting 2 minutes, we re-fetch recent docs on every pull.
+      // This is safe because Sembast put() is an idempotent upsert.
       if (skipped == 0 && maxModifiedAt != null) {
-        await _metadata.setLastPull(familyId, collection, maxModifiedAt!);
+        final safeLastPull =
+            maxModifiedAt!.subtract(const Duration(minutes: 2));
+        await _metadata.setLastPull(familyId, collection, safeLastPull);
       } else if (skipped > 0) {
         debugPrint('[Sync] pullDelta $familyId/$collection: '
             '$skipped skipped (pending), lastPull NOT advanced');
