@@ -6,10 +6,14 @@ import 'package:intl/intl.dart';
 
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
+import '../../models/ingredient_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/family_provider.dart';
 import '../../providers/ingredient_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../repositories/duplicate_name_exception.dart';
 import '../../utils/activity_helpers.dart';
 import '../../utils/allergen_helpers.dart';
 
@@ -78,6 +82,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
 
   bool _loading = false;
   DateTime _originalCreatedAt = DateTime.now();
+  String? _originalCreatedBy;
 
   @override
   void initState() {
@@ -120,6 +125,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       _startTime = activity.startTime;
       _endTime = activity.endTime;
       _originalCreatedAt = activity.createdAt;
+      _originalCreatedBy = activity.createdBy;
       _populateFields(activity);
       _loading = false;
     });
@@ -232,7 +238,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     super.dispose();
   }
 
-  Future<void> _pickDateTime({required bool isStart}) async {
+  Future<void> _pickDate({required bool isStart}) async {
     final current = isStart ? _startTime : (_endTime ?? _startTime);
     final date = await showDatePicker(
       context: context,
@@ -242,14 +248,26 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     );
     if (date == null || !mounted) return;
 
+    setState(() {
+      final dt = DateTime(date.year, date.month, date.day, current.hour, current.minute);
+      if (isStart) {
+        _startTime = dt;
+      } else {
+        _endTime = dt;
+      }
+    });
+  }
+
+  Future<void> _pickTime({required bool isStart}) async {
+    final current = isStart ? _startTime : (_endTime ?? _startTime);
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(current),
     );
     if (time == null || !mounted) return;
 
-    final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     setState(() {
+      final dt = DateTime(current.year, current.month, current.day, time.hour, time.minute);
       if (isStart) {
         _startTime = dt;
       } else {
@@ -316,6 +334,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     final isEdit = widget.activityId != null;
     final id = widget.activityId ?? const Uuid().v4();
     final duration = _computeDuration();
+    final user = ref.read(currentUserProvider);
 
     final entry = ActivityModel(
       id: id,
@@ -324,6 +343,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       startTime: _startTime,
       endTime: _endTime,
       durationMinutes: duration,
+      createdBy: isEdit ? _originalCreatedBy : user?.uid,
       createdAt: isEdit ? _originalCreatedAt : now,
       modifiedAt: now,
 
@@ -416,8 +436,6 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-
     final isEdit = widget.activityId != null;
     final isCopy = widget.copyFromId != null;
 
@@ -455,23 +473,38 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Start date
+            ListTile(
+              title: const Text('Date'),
+              subtitle: Text(DateFormat.yMMMd().format(_startTime)),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: () => _pickDate(isStart: true),
+            ),
             // Start time
             ListTile(
               title: const Text('Time'),
-              subtitle: Text(dateFormat.format(_startTime)),
+              subtitle: Text(DateFormat.Hm().format(_startTime)),
               trailing: const Icon(Icons.access_time),
-              onTap: () => _pickDateTime(isStart: true),
+              onTap: () => _pickTime(isStart: true),
             ),
 
             // End time (for duration-based activities)
             if (_hasDuration) ...[
               ListTile(
+                title: const Text('End date'),
+                subtitle: Text(
+                  _endTime != null ? DateFormat.yMMMd().format(_endTime!) : 'Not set',
+                ),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () => _pickDate(isStart: false),
+              ),
+              ListTile(
                 title: const Text('End time'),
                 subtitle: Text(
-                  _endTime != null ? dateFormat.format(_endTime!) : 'Not set',
+                  _endTime != null ? DateFormat.Hm().format(_endTime!) : 'Not set',
                 ),
                 trailing: const Icon(Icons.access_time),
-                onTap: () => _pickDateTime(isStart: false),
+                onTap: () => _pickTime(isStart: false),
               ),
               if (_computeDuration() != null)
                 Padding(
@@ -748,7 +781,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     });
   }
 
-  void _addStandaloneIngredient(String name) {
+  void _addStandaloneIngredient(String name, {List<String>? knownAllergens}) {
     final normalized = name.trim().toLowerCase();
     if (normalized.isEmpty) return;
     final current = _ingredientNames ?? [];
@@ -757,6 +790,13 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
         ref.read(ingredientsProvider).valueOrNull ?? [];
     final updated = [...current, normalized];
     final allergens = computeAllergensByName(updated, allIngredients);
+    // Merge any known allergens not yet in the computed set (e.g., newly
+    // created ingredient whose stream hasn't propagated yet).
+    if (knownAllergens != null) {
+      for (final a in knownAllergens) {
+        allergens.add(a.trim().toLowerCase());
+      }
+    }
     setState(() {
       _ingredientNames = updated;
       _allergenNames = allergens.isNotEmpty ? allergens.toList() : null;
@@ -773,6 +813,95 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       _ingredientNames = updated.isEmpty ? null : updated;
       _allergenNames = allergens.isNotEmpty ? allergens.toList() : null;
     });
+  }
+
+  void _showCreateIngredientDialog(String name) {
+    final allergenCategories = ref.read(allergenCategoriesProvider);
+    var selectedAllergens = <String>{};
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text('Create "$name"'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Allergen categories:'),
+              const SizedBox(height: 8),
+              if (allergenCategories.isEmpty)
+                const Text('No allergen categories defined',
+                    style: TextStyle(color: Colors.grey))
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: allergenCategories.map((cat) {
+                    final selected = selectedAllergens.contains(cat);
+                    return FilterChip(
+                      label: Text(cat),
+                      selected: selected,
+                      onSelected: (v) {
+                        setDialogState(() {
+                          if (v) {
+                            selectedAllergens.add(cat);
+                          } else {
+                            selectedAllergens.remove(cat);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final familyId = ref.read(selectedFamilyIdProvider);
+                if (familyId == null) return;
+
+                final now = DateTime.now();
+                final user = ref.read(currentUserProvider);
+                final ingredient = IngredientModel(
+                  id: const Uuid().v4(),
+                  name: name.toLowerCase(),
+                  allergens: selectedAllergens.toList(),
+                  createdBy: user?.uid ?? '',
+                  createdAt: now,
+                  modifiedAt: now,
+                );
+
+                try {
+                  final repo = ref.read(ingredientRepositoryProvider);
+                  await repo.createIngredient(familyId, ingredient);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  _addStandaloneIngredient(name,
+                      knownAllergens: selectedAllergens.toList());
+                } on DuplicateNameException {
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                    _addStandaloneIngredient(name);
+                  }
+                } catch (e) {
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(content: Text('Failed to create: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   List<Widget> _buildSolidsFields() {
@@ -811,51 +940,65 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
               : 'Pick a Recipe'),
         ),
         const SizedBox(height: 12),
-        // Standalone ingredient picker
-        if (allIngredients.isNotEmpty) ...[
-          Autocomplete<String>(
-            optionsBuilder: (textEditingValue) {
-              final query = textEditingValue.text.trim().toLowerCase();
-              final names = allIngredients.map((i) => i.name).toList();
-              if (query.isEmpty) return names;
-              return names.where((n) => n.toLowerCase().contains(query));
-            },
-            fieldViewBuilder:
-                (context, controller, focusNode, onSubmitted) {
-              return TextFormField(
-                controller: controller,
-                focusNode: focusNode,
-                decoration: const InputDecoration(
-                  labelText: 'Add ingredient',
-                  border: OutlineInputBorder(),
-                  hintText: 'Type to search ingredients',
-                ),
-                onFieldSubmitted: (_) {
-                  _addStandaloneIngredient(controller.text);
-                  controller.clear();
-                },
-              );
-            },
-            onSelected: (name) {
+        // Standalone ingredient picker (always shown)
+        Autocomplete<String>(
+          optionsBuilder: (textEditingValue) {
+            final query = textEditingValue.text.trim().toLowerCase();
+            final names = allIngredients.map((i) => i.name).toList();
+            if (query.isEmpty) return names;
+            final matches = names.where((n) => n.toLowerCase().contains(query)).toList();
+            if (query.isNotEmpty && !names.contains(query)) {
+              matches.add('+ Create "$query"');
+            }
+            return matches;
+          },
+          fieldViewBuilder:
+              (context, controller, focusNode, onSubmitted) {
+            return TextFormField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: const InputDecoration(
+                labelText: 'Add ingredient',
+                border: OutlineInputBorder(),
+                hintText: 'Type to search or create ingredients',
+              ),
+              onFieldSubmitted: (_) {
+                final text = controller.text.trim().toLowerCase();
+                if (text.isEmpty) return;
+                final known = allIngredients.any((i) => i.name == text);
+                if (known) {
+                  _addStandaloneIngredient(text);
+                } else {
+                  _showCreateIngredientDialog(text);
+                }
+                controller.clear();
+              },
+            );
+          },
+          onSelected: (name) {
+            if (name.startsWith('+ Create "')) {
+              final newName = name.substring(10, name.length - 1);
+              _showCreateIngredientDialog(newName);
+            } else {
               _addStandaloneIngredient(name);
-            },
+            }
+          },
+        ),
+        if (_ingredientNames != null && _ingredientNames!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: _ingredientNames!
+                .map((name) => Chip(
+                      label: Text(name),
+                      onDeleted: () =>
+                          _removeStandaloneIngredient(name),
+                    ))
+                .toList(),
           ),
-          if (_ingredientNames != null && _ingredientNames!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: _ingredientNames!
-                  .map((name) => Chip(
-                        label: Text(name),
-                        onDeleted: () =>
-                            _removeStandaloneIngredient(name),
-                      ))
-                  .toList(),
-            ),
-          ],
-          const SizedBox(height: 12),
         ],
+        const SizedBox(height: 12),
       ],
       if (_allergenNames != null && _allergenNames!.isNotEmpty) ...[
         Wrap(

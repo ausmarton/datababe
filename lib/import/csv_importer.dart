@@ -37,6 +37,7 @@ class CsvImporter {
     String childId,
     String familyId, {
     bool includeSoftDeleted = false,
+    String? createdBy,
   }) async {
     final parser = CsvParser();
     final parseResult = parser.parse(csvContent);
@@ -62,6 +63,7 @@ class CsvImporter {
           startTime: a.startTime,
           endTime: a.endTime,
           durationMinutes: a.durationMinutes,
+          createdBy: createdBy,
           createdAt: now,
           modifiedAt: now,
           feedType: a.feedType,

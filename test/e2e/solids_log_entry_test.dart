@@ -85,7 +85,7 @@ void main() {
 
       // Solids form shows 'Add ingredient' field
       expect(find.text('Add ingredient'), findsOneWidget);
-      expect(find.text('Type to search ingredients'), findsOneWidget);
+      expect(find.text('Type to search or create ingredients'), findsOneWidget);
     });
 
     testWidgets('clear recipe button removes selection', (tester) async {

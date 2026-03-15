@@ -21,6 +21,7 @@ class BulkEntry {
   ActivityModel toActivityModel({
     required String childId,
     required DateTime now,
+    String? createdBy,
   }) {
     return ActivityModel(
       id: const Uuid().v4(),
@@ -31,6 +32,7 @@ class BulkEntry {
       durationMinutes: endTime != null
           ? endTime!.difference(startTime).inMinutes
           : template.durationMinutes,
+      createdBy: createdBy,
       createdAt: now,
       modifiedAt: now,
       notes: template.notes,

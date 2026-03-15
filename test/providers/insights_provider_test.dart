@@ -1782,6 +1782,8 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           todaySummaryProvider.overrideWithValue(summary),
+          rollingWeekSummaryProvider.overrideWithValue(null),
+          rollingMonthSummaryProvider.overrideWithValue(null),
           targetsProvider
               .overrideWith((ref) => Stream.value(targets)),
           inferredBaselinesProvider.overrideWithValue(null),
@@ -1800,7 +1802,7 @@ void main() {
     test('30 allergen targets produce 1 aggregate entry', () async {
       final targets = List.generate(30, (i) => allergenTarget('a$i', 'a$i'));
       final result = await readTodayProgress(targets);
-      final allergenEntries = result.where((m) => m.key == 'allergens.aggregate');
+      final allergenEntries = result.where((m) => m.key == 'allergens.aggregate.daily');
       expect(allergenEntries.length, 1);
       // No individual allergen entries
       final individual = result.where((m) =>
@@ -1816,7 +1818,7 @@ void main() {
         _activity(type: 'solids', allergenNames: ['egg', 'dairy']),
       ]);
       final result = await readTodayProgress([t1, t2, t3], summary: summary);
-      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate.daily');
       expect(agg.actual, 2.0); // egg and dairy met
       expect(agg.target, 3.0);
       expect(agg.fraction, closeTo(2 / 3, 0.01));
@@ -1828,21 +1830,21 @@ void main() {
         _activity(type: 'solids', allergenNames: ['egg']),
       ]);
       final result = await readTodayProgress([t1], summary: summary);
-      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate.daily');
       expect(agg.fraction, 1.0);
     });
 
     test('none met gives fraction 0.0', () async {
       final t1 = allergenTarget('a1', 'egg', value: 5);
       final result = await readTodayProgress([t1]);
-      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate.daily');
       expect(agg.fraction, 0.0);
     });
 
     test('no allergen targets: no aggregate entry', () async {
       final t1 = otherTarget('o1', 'count', 'diaper');
       final result = await readTodayProgress([t1]);
-      expect(result.where((m) => m.key == 'allergens.aggregate'), isEmpty);
+      expect(result.where((m) => m.key == 'allergens.aggregate.daily'), isEmpty);
     });
 
     test('mixed targets: individual non-allergen + 1 aggregate', () async {
@@ -1856,7 +1858,7 @@ void main() {
       final result = await readTodayProgress(targets);
       // 2 individual + 1 aggregate = 3
       expect(result.length, 3);
-      expect(result.where((m) => m.key == 'allergens.aggregate').length, 1);
+      expect(result.where((m) => m.key == 'allergens.aggregate.daily').length, 1);
     });
 
     test('weekly allergen targets not included in daily aggregate', () async {
@@ -1874,7 +1876,7 @@ void main() {
         allergenName: 'egg',
       );
       final result = await readTodayProgress([weeklyTarget]);
-      expect(result.where((m) => m.key == 'allergens.aggregate'), isEmpty);
+      expect(result.where((m) => m.key == 'allergens.aggregate.daily'), isEmpty);
     });
 
     test('ingredient targets remain as individual entries', () async {
@@ -1892,17 +1894,220 @@ void main() {
         ingredientName: 'egg',
       );
       final result = await readTodayProgress([ingredientTarget]);
-      expect(result.where((m) => m.key == 'allergens.aggregate'), isEmpty);
+      expect(result.where((m) => m.key == 'allergens.aggregate.daily'), isEmpty);
       expect(result.length, 1);
-      expect(result.first.key, 'solids.ingredientExposures');
+      expect(result.first.key, 'solids.ingredientExposures.daily');
     });
 
     test('aggregate ring uses correct icon and color', () async {
       final result = await readTodayProgress([allergenTarget('a1', 'egg')]);
-      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate');
+      final agg = result.firstWhere((m) => m.key == 'allergens.aggregate.daily');
       expect(agg.icon, Icons.science_outlined);
       expect(agg.color, Colors.teal);
       expect(agg.label, 'Allergens');
+    });
+  });
+
+  // =========================================================================
+  // todayProgressProvider smart summary
+  // =========================================================================
+  group('todayProgressProvider smart summary', () {
+    TargetModel makeTarget({
+      required String id,
+      required String activityType,
+      required String metric,
+      required String period,
+      required double targetValue,
+      String? allergenName,
+      String? ingredientName,
+    }) {
+      final now = DateTime(2026, 3, 6);
+      return TargetModel(
+        id: id,
+        childId: 'c1',
+        activityType: activityType,
+        metric: metric,
+        period: period,
+        targetValue: targetValue,
+        createdBy: 'u1',
+        createdAt: now,
+        modifiedAt: now,
+        allergenName: allergenName,
+        ingredientName: ingredientName,
+      );
+    }
+
+    /// Creates a container with explicit control over all three summary
+    /// providers (daily, weekly, monthly).
+    Future<List<MetricProgress>> readProgress({
+      required List<TargetModel> targets,
+      ActivitySummary? dailySummary,
+      ActivitySummary? weeklySummary,
+      ActivitySummary? monthlySummary,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          todaySummaryProvider.overrideWithValue(dailySummary),
+          rollingWeekSummaryProvider.overrideWithValue(weeklySummary),
+          rollingMonthSummaryProvider.overrideWithValue(monthlySummary),
+          targetsProvider.overrideWith((ref) => Stream.value(targets)),
+          inferredBaselinesProvider.overrideWithValue(null),
+        ],
+      );
+      container.listen(targetsProvider, (_, __) {});
+      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero);
+      final result = container.read(todayProgressProvider);
+      container.dispose();
+      return result;
+    }
+
+    test('rollingWeekSummaryProvider computes from 7-day window', () async {
+      // Weekly target: 10 diapers per week.
+      // Daily summary has 2 diapers, weekly summary has 8 diapers.
+      // The provider should use the weekly summary (8), not the daily one (2).
+      final weeklyTarget = makeTarget(
+        id: 'w1',
+        activityType: 'diaper',
+        metric: 'count',
+        period: 'weekly',
+        targetValue: 10,
+      );
+
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'diaper', contents: 'pee'),
+        _activity(type: 'diaper', contents: 'poo'),
+      ]);
+
+      final weeklySummary = ActivityAggregator.compute(
+        List.generate(
+          8,
+          (i) => _activity(
+            type: 'diaper',
+            startTime: DateTime(2026, 3, 6 - i, 10),
+            contents: 'pee',
+          ),
+        ),
+      );
+
+      final result = await readProgress(
+        targets: [weeklyTarget],
+        dailySummary: dailySummary,
+        weeklySummary: weeklySummary,
+      );
+
+      expect(result, hasLength(1));
+      final progress = result.first;
+      expect(progress.actual, 8.0); // from weekly summary, not daily's 2
+      expect(progress.target, 10.0);
+      expect(progress.fraction, closeTo(0.8, 0.01));
+    });
+
+    test('weekly targets include periodLabel "7d"', () async {
+      final weeklyTarget = makeTarget(
+        id: 'w1',
+        activityType: 'diaper',
+        metric: 'count',
+        period: 'weekly',
+        targetValue: 10,
+      );
+
+      final result = await readProgress(targets: [weeklyTarget]);
+
+      expect(result, hasLength(1));
+      expect(result.first.periodLabel, '7d');
+    });
+
+    test('monthly targets include periodLabel "30d"', () async {
+      final monthlyTarget = makeTarget(
+        id: 'm1',
+        activityType: 'diaper',
+        metric: 'count',
+        period: 'monthly',
+        targetValue: 50,
+      );
+
+      final result = await readProgress(targets: [monthlyTarget]);
+
+      expect(result, hasLength(1));
+      expect(result.first.periodLabel, '30d');
+    });
+
+    test('daily targets have null periodLabel', () async {
+      final dailyTarget = makeTarget(
+        id: 'd1',
+        activityType: 'diaper',
+        metric: 'count',
+        period: 'daily',
+        targetValue: 5,
+      );
+
+      final result = await readProgress(targets: [dailyTarget]);
+
+      expect(result, hasLength(1));
+      expect(result.first.periodLabel, isNull);
+    });
+
+    test('results sorted by fraction ascending', () async {
+      // Three daily targets with known fractions:
+      //   diaper count: actual 4 / target 5  = 0.8
+      //   solids count: actual 1 / target 5  = 0.2
+      //   feedBottle volume: actual 125 / target 250 = 0.5
+      final targets = [
+        makeTarget(
+          id: 'd1',
+          activityType: 'diaper',
+          metric: 'count',
+          period: 'daily',
+          targetValue: 5,
+        ),
+        makeTarget(
+          id: 'd2',
+          activityType: 'solids',
+          metric: 'count',
+          period: 'daily',
+          targetValue: 5,
+        ),
+        makeTarget(
+          id: 'd3',
+          activityType: 'feedBottle',
+          metric: 'totalVolumeMl',
+          period: 'daily',
+          targetValue: 250,
+        ),
+      ];
+
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'diaper', contents: 'pee'),
+        _activity(type: 'diaper', contents: 'poo'),
+        _activity(
+            type: 'diaper',
+            startTime: DateTime(2026, 3, 6, 11),
+            contents: 'pee'),
+        _activity(
+            type: 'diaper',
+            startTime: DateTime(2026, 3, 6, 14),
+            contents: 'pee'),
+        _activity(type: 'solids', foodDescription: 'banana'),
+        _activity(type: 'feedBottle', volumeMl: 125),
+      ]);
+
+      final result = await readProgress(
+        targets: targets,
+        dailySummary: dailySummary,
+      );
+
+      expect(result, hasLength(3));
+
+      // Fractions should be in ascending order: 0.2, 0.5, 0.8
+      expect(result[0].fraction, closeTo(0.2, 0.01));
+      expect(result[1].fraction, closeTo(0.5, 0.01));
+      expect(result[2].fraction, closeTo(0.8, 0.01));
+
+      // Verify the keys match expected ordering
+      expect(result[0].key, contains('solids'));
+      expect(result[1].key, contains('feedBottle'));
+      expect(result[2].key, contains('diaper'));
     });
   });
 }

@@ -93,7 +93,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (793 tests)
+flutter test                                                 # Run tests (812 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -169,6 +169,9 @@ invites/{id}                             — Email-based family invites
 - **Logout cleanup**: best-effort push, local data wipe, offline warning if unsynced changes
 - **CSV import dedup**: fingerprint-based dedup prevents duplicate entries on re-import
 - **Backup/restore**: JSON export/import of family data with last-write-wins merge
+- **Separate date/time pickers**: date and time can be edited independently on log entry screen
+- **Inline ingredient creation**: create new ingredients with allergen tags directly from solids log entry
+- **Smart home summary**: status banner shows actual/target format, weekly/monthly targets with period labels, sorted by urgency
 - **GitHub Releases**: tag-triggered CI builds signed APK + AAB
 
 ## Releasing

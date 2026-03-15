@@ -146,6 +146,38 @@ void main() {
     });
   });
 
+  group('CsvImporter.importFromString — createdBy', () {
+    test('sets createdBy on imported activities when provided', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final importer = CsvImporter(repo);
+      final result = await importer.importFromString(
+        csv,
+        childId,
+        familyId,
+        createdBy: 'user-uid-xyz',
+      );
+
+      expect(result.imported, 1);
+
+      final activities = await repo.findByTimeRange(
+        familyId, childId, DateTime(2026, 3, 1), DateTime(2026, 3, 2));
+      expect(activities, hasLength(1));
+      expect(activities.first.createdBy, 'user-uid-xyz');
+    });
+
+    test('createdBy is null when not provided', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final importer = CsvImporter(repo);
+      await importer.importFromString(csv, childId, familyId);
+
+      final activities = await repo.findByTimeRange(
+        familyId, childId, DateTime(2026, 3, 1), DateTime(2026, 3, 2));
+      expect(activities.first.createdBy, isNull);
+    });
+  });
+
   group('Round-trip: analyze → filter → importSelected', () {
     test('full round-trip: analyze then import all new', () async {
       final csv = csvHeader +

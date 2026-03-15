@@ -432,6 +432,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
       debugPrint('[Sync] pullDelta $familyId/$collection: ${snapshot.docs.length} docs');
 
       var skipped = 0;
+      DateTime? maxModifiedAt;
 
       await _db.transaction((txn) async {
         for (final doc in snapshot.docs) {
@@ -444,6 +445,14 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
                 familyId,
               );
               await store.record(doc.id).put(txn, localData);
+              // Track the latest modifiedAt we actually stored.
+              final docModifiedAt =
+                  (doc.data()['modifiedAt'] as Timestamp?)?.toDate();
+              if (docModifiedAt != null &&
+                  (maxModifiedAt == null ||
+                      docModifiedAt.isAfter(maxModifiedAt!))) {
+                maxModifiedAt = docModifiedAt;
+              }
             } else {
               skipped++;
             }
@@ -455,12 +464,12 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         }
       });
 
-      // Only advance lastPull if no documents were skipped due to pending
-      // sync entries. Skipped docs can't be re-fetched if lastPull advances
-      // past their modifiedAt — causing permanent data loss.
-      if (skipped == 0) {
-        await _metadata.setLastPull(familyId, collection, DateTime.now());
-      } else {
+      // Only advance lastPull to the latest modifiedAt we actually processed.
+      // Using DateTime.now() would skip docs pushed between now and the pull
+      // query — causing permanent data loss (the sync race condition).
+      if (skipped == 0 && maxModifiedAt != null) {
+        await _metadata.setLastPull(familyId, collection, maxModifiedAt!);
+      } else if (skipped > 0) {
         debugPrint('[Sync] pullDelta $familyId/$collection: '
             '$skipped skipped (pending), lastPull NOT advanced');
       }

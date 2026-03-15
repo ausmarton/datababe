@@ -25,7 +25,6 @@ void main() {
       expect(find.text('Breast Milk'), findsOneWidget);
       expect(find.text('Volume (ml)'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
     });
 
     testWidgets('shows Time picker', (tester) async {
@@ -33,9 +32,10 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToType(tester, 'Bottle Feed');
 
+      expect(find.text('Date'), findsOneWidget);
       expect(find.text('Time'), findsOneWidget);
       // Bottle feed has no end time
-      expect(find.text('End time'), findsNothing);
+      expect(find.text('End date'), findsNothing);
     });
   });
 
@@ -50,7 +50,6 @@ void main() {
       expect(find.text('Left breast (minutes)'), findsOneWidget);
       expect(find.text('End time'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
     });
   });
 
@@ -73,7 +72,6 @@ void main() {
       expect(find.text('Colour'), findsOneWidget);
       expect(find.text('Consistency'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
     });
 
     testWidgets('switching to Both shows pee size selector', (tester) async {

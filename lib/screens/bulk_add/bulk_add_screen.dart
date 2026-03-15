@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../models/activity_model.dart';
 import '../../models/bulk_entry.dart';
 import '../../models/enums.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -197,8 +198,13 @@ class _BulkAddScreenState extends ConsumerState<BulkAddScreen> {
     setState(() => _saving = true);
 
     final now = DateTime.now();
+    final user = ref.read(currentUserProvider);
     final models = _staged
-        .map((e) => e.toActivityModel(childId: childId, now: now))
+        .map((e) => e.toActivityModel(
+              childId: childId,
+              now: now,
+              createdBy: user?.uid,
+            ))
         .toList();
 
     final repo = ref.read(activityRepositoryProvider);

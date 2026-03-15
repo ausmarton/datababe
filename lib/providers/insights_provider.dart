@@ -48,6 +48,7 @@ class MetricProgress {
   final IconData icon;
   final Color color;
   final String unit;
+  final String? periodLabel; // null for daily, "7d" for weekly, "30d" for monthly
 
   const MetricProgress({
     required this.key,
@@ -59,6 +60,7 @@ class MetricProgress {
     required this.icon,
     required this.color,
     this.unit = '',
+    this.periodLabel,
   });
 }
 
@@ -583,6 +585,32 @@ final todaySummaryProvider = Provider<ActivitySummary?>((ref) {
   return ActivityAggregator.compute(todayActivities);
 });
 
+/// Rolling 7-day activity summary (for weekly targets).
+final rollingWeekSummaryProvider = Provider<ActivitySummary?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final now = DateTime.now();
+  final weekStart = now.subtract(const Duration(days: 7));
+  final weekActivities = activities
+      .where((a) => !a.startTime.isBefore(weekStart) && !a.isDeleted)
+      .toList();
+  if (weekActivities.isEmpty) return null;
+  return ActivityAggregator.compute(weekActivities);
+});
+
+/// Rolling 30-day activity summary (for monthly targets).
+final rollingMonthSummaryProvider = Provider<ActivitySummary?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final now = DateTime.now();
+  final monthStart = now.subtract(const Duration(days: 30));
+  final monthActivities = activities
+      .where((a) => !a.startTime.isBefore(monthStart) && !a.isDeleted)
+      .toList();
+  if (monthActivities.isEmpty) return null;
+  return ActivityAggregator.compute(monthActivities);
+});
+
 /// 7-day trailing averages for key metrics (excluding today).
 final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
@@ -633,35 +661,61 @@ final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
   );
 });
 
-/// Merges explicit daily goals + inferred baselines into progress metrics.
+/// Merges explicit goals (daily/weekly/monthly) + inferred baselines into
+/// progress metrics, sorted by urgency (behind-target first).
 final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
   final summary = ref.watch(todaySummaryProvider);
+  final weekSummary = ref.watch(rollingWeekSummaryProvider);
+  final monthSummary = ref.watch(rollingMonthSummaryProvider);
   final targets = ref.watch(targetsProvider).valueOrNull ?? [];
   final baselines = ref.watch(inferredBaselinesProvider);
   final results = <MetricProgress>[];
   final coveredKeys = <String>{};
 
-  // 1. Explicit daily targets (aggregate allergen targets into one ring)
-  final allergenTargets = <TargetModel>[];
-  for (final target in targets) {
-    if (target.period != 'daily') continue;
+  // Helper to get the right summary for a period.
+  ActivitySummary? summaryForPeriod(String period) => switch (period) {
+        'daily' => summary,
+        'weekly' => weekSummary,
+        'monthly' => monthSummary,
+        _ => summary,
+      };
 
+  String? periodLabel(String period) => switch (period) {
+        'weekly' => '7d',
+        'monthly' => '30d',
+        _ => null,
+      };
+
+  // 1. Explicit targets (aggregate allergen targets into one ring per period)
+  final allergenTargetsDaily = <TargetModel>[];
+  final allergenTargetsWeekly = <TargetModel>[];
+  final allergenTargetsMonthly = <TargetModel>[];
+
+  for (final target in targets) {
     // Collect allergen targets for aggregation
     if (target.metric == 'allergenExposures' ||
         target.metric == 'allergenExposureDays') {
-      allergenTargets.add(target);
+      switch (target.period) {
+        case 'daily':
+          allergenTargetsDaily.add(target);
+        case 'weekly':
+          allergenTargetsWeekly.add(target);
+        case 'monthly':
+          allergenTargetsMonthly.add(target);
+      }
       continue;
     }
 
-    final key = '${target.activityType}.${target.metric}';
+    final key = '${target.activityType}.${target.metric}.${target.period}';
     final type = parseActivityType(target.activityType);
+    final s = summaryForPeriod(target.period);
 
     double actual = 0;
-    if (summary != null) {
+    if (s != null) {
       actual = extractMetricFromSummary(
             target.activityType,
             target.metric,
-            summary,
+            s,
             ingredientName: target.ingredientName,
             allergenName: target.allergenName,
           ) ??
@@ -679,20 +733,23 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       icon: type != null ? activityIcon(type) : Icons.track_changes,
       color: type != null ? activityColor(type) : Colors.grey,
       unit: _metricUnit(target.metric),
+      periodLabel: periodLabel(target.period),
     ));
     coveredKeys.add(key);
   }
 
-  // 1b. Aggregate allergen targets into a single ring
-  if (allergenTargets.isNotEmpty) {
+  // 1b. Aggregate allergen targets into rings (one per period that has them)
+  void addAllergenRing(List<TargetModel> allergenTargets, String period) {
+    if (allergenTargets.isEmpty) return;
+    final s = summaryForPeriod(period);
     int metCount = 0;
     for (final target in allergenTargets) {
       double actual = 0;
-      if (summary != null) {
+      if (s != null) {
         actual = extractMetricFromSummary(
               target.activityType,
               target.metric,
-              summary,
+              s,
               allergenName: target.allergenName,
             ) ??
             0;
@@ -704,7 +761,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
     final total = allergenTargets.length;
     final fraction = total > 0 ? metCount / total : 0.0;
     results.add(MetricProgress(
-      key: 'allergens.aggregate',
+      key: 'allergens.aggregate.$period',
       label: 'Allergens',
       actual: metCount.toDouble(),
       target: total.toDouble(),
@@ -713,16 +770,21 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       icon: Icons.science_outlined,
       color: Colors.teal,
       unit: '',
+      periodLabel: periodLabel(period),
     ));
-    coveredKeys.add('allergens.aggregate');
+    coveredKeys.add('allergens.aggregate.$period');
   }
+
+  addAllergenRing(allergenTargetsDaily, 'daily');
+  addAllergenRing(allergenTargetsWeekly, 'weekly');
+  addAllergenRing(allergenTargetsMonthly, 'monthly');
 
   // 2. Inferred baselines for key types without explicit targets
   if (baselines != null && baselines.daysWithData >= 3) {
     final inferredMetrics = [
       (
-        key: 'feedBottle.totalVolumeMl',
-        label: 'Feed Volume',
+        key: 'feedBottle.totalVolumeMl.daily',
+        label: 'Feed Vol.',
         actual: summary?.bottleFeedTotalMl ?? 0.0,
         target: baselines.avgBottleMl,
         icon: activityIcon(ActivityType.feedBottle),
@@ -730,7 +792,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
         unit: 'ml',
       ),
       (
-        key: 'diaper.count',
+        key: 'diaper.count.daily',
         label: 'Diapers',
         actual: (summary?.diaperCount ?? 0).toDouble(),
         target: baselines.avgDiaperCount,
@@ -739,7 +801,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
         unit: '',
       ),
       (
-        key: 'solids.count',
+        key: 'solids.count.daily',
         label: 'Solids',
         actual: (summary?.solidsCount ?? 0).toDouble(),
         target: baselines.avgSolidsCount,
@@ -748,7 +810,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
         unit: '',
       ),
       (
-        key: 'tummyTime.totalDurationMinutes',
+        key: 'tummyTime.totalDurationMinutes.daily',
         label: 'Tummy Time',
         actual: (summary?.durationTotals[ActivityType.tummyTime.name] ?? 0)
             .toDouble(),
@@ -775,6 +837,9 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       ));
     }
   }
+
+  // Sort by fraction ascending (behind-target first).
+  results.sort((a, b) => a.fraction.compareTo(b.fraction));
 
   return results;
 });

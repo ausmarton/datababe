@@ -231,12 +231,16 @@ class _StatusMetric extends StatelessWidget {
             ? Colors.amber
             : Colors.red;
 
-    final valueStr = metric.unit.isNotEmpty
-        ? '${metric.actual.round()}${metric.unit}'
-        : '${metric.actual.round()}';
+    final actualStr = metric.unit.isNotEmpty
+        ? '${metric.actual.round()}/${metric.target.round()}${metric.unit}'
+        : '${metric.actual.round()}/${metric.target.round()}';
+
+    final label = metric.periodLabel != null
+        ? '${metric.label} (${metric.periodLabel})'
+        : metric.label;
 
     return Text(
-      '${metric.label}: $valueStr',
+      '$label: $actualStr',
       style: Theme.of(context)
           .textTheme
           .labelMedium

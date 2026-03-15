@@ -417,6 +417,32 @@ void main() {
     });
   });
 
+  group('CsvAnalyzer.analyze() — createdBy', () {
+    test('sets createdBy on analyzed candidates when provided', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final analyzer = CsvAnalyzer(repo);
+      final preview = await analyzer.analyze(
+        csv,
+        childId,
+        familyId,
+        createdBy: 'user-uid-abc',
+      );
+
+      expect(preview.newCount, 1);
+      expect(preview.candidates.first.model!.createdBy, 'user-uid-abc');
+    });
+
+    test('createdBy is null on candidates when not provided', () async {
+      final csv = csvHeader + bottleFeedRow('2026-03-01 08:00');
+
+      final analyzer = CsvAnalyzer(repo);
+      final preview = await analyzer.analyze(csv, childId, familyId);
+
+      expect(preview.candidates.first.model!.createdBy, isNull);
+    });
+  });
+
   group('ImportFilter.copyWith', () {
     test('updates dateFrom only', () {
       const original = ImportFilter();

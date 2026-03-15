@@ -144,5 +144,33 @@ void main() {
       expect(model.durationMinutes, equals(15));
       expect(model.endTime, isNull);
     });
+
+    test('sets createdBy when provided', () {
+      final template = makeTemplate();
+      final entry = BulkEntry(
+        template: template,
+        startTime: DateTime(2026, 3, 11, 8, 0),
+      );
+
+      final model = entry.toActivityModel(
+        childId: 'c1',
+        now: now,
+        createdBy: 'user-uid-123',
+      );
+
+      expect(model.createdBy, equals('user-uid-123'));
+    });
+
+    test('createdBy is null when not provided', () {
+      final template = makeTemplate();
+      final entry = BulkEntry(
+        template: template,
+        startTime: DateTime(2026, 3, 11, 8, 0),
+      );
+
+      final model = entry.toActivityModel(childId: 'c1', now: now);
+
+      expect(model.createdBy, isNull);
+    });
   });
 }

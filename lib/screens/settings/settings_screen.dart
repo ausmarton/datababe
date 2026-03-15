@@ -359,12 +359,14 @@ class SettingsScreen extends ConsumerWidget {
       final file = result.files.first;
       final csvContent = await readFileContent(file);
 
+      final user = ref.read(currentUserProvider);
       final analyzer = CsvAnalyzer(ref.read(activityRepositoryProvider));
       final preview = await analyzer.analyze(
         csvContent,
         childId,
         familyId,
         includeSoftDeleted: !includeDeleted,
+        createdBy: user?.uid,
       );
 
       if (context.mounted) {
