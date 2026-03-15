@@ -11,6 +11,7 @@ import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../widgets/activity_tile.dart';
+import '../../widgets/progress_ring.dart';
 import '../home/setup_prompt.dart';
 import '../home/invite_pending_prompt.dart';
 
@@ -93,7 +94,7 @@ class HomeScreen extends ConsumerWidget {
           title: Text(selectedChild.name),
         ),
         SliverToBoxAdapter(
-          child: _StatusBanner(),
+          child: _StatusRings(),
         ),
         SliverPadding(
           padding: const EdgeInsets.all(16),
@@ -177,14 +178,14 @@ void _deleteActivity(BuildContext context, WidgetRef ref, dynamic activity) {
   });
 }
 
-class _StatusBanner extends ConsumerWidget {
+class _StatusRings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progress = ref.watch(todayProgressProvider);
     if (progress.isEmpty) return const SizedBox.shrink();
 
-    // Show up to 4 key metrics
-    final metrics = progress.take(4).toList();
+    final metrics = progress.take(3).toList();
+    final remaining = progress.length - metrics.length;
 
     return GestureDetector(
       onTap: () => GoRouter.of(context).go('/insights'),
@@ -192,61 +193,47 @@ class _StatusBanner extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Card(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.all(12),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                for (var i = 0; i < metrics.length; i++) ...[
-                  if (i > 0)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('|',
-                          style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .outlineVariant)),
-                    ),
-                  Flexible(
-                    child: _StatusMetric(metric: metrics[i]),
+                for (final m in metrics)
+                  ProgressRing(
+                    fraction: m.fraction,
+                    icon: m.icon,
+                    color: m.color,
+                    actual: m.unit.isNotEmpty
+                        ? '${m.actual.round()}${m.unit}'
+                        : '${m.actual.round()}',
+                    target: m.unit.isNotEmpty
+                        ? '${m.target.round()}${m.unit}'
+                        : '${m.target.round()}',
+                    label: m.periodLabel != null
+                        ? '${m.label} (${m.periodLabel})'
+                        : m.label,
+                    isInferred: !m.isExplicit,
                   ),
-                ],
+                if (remaining > 0)
+                  SizedBox(
+                    width: 40,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          child: Text('+$remaining'),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('more',
+                            style: Theme.of(context).textTheme.labelSmall),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _StatusMetric extends StatelessWidget {
-  final MetricProgress metric;
-
-  const _StatusMetric({required this.metric});
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = metric.fraction >= 0.8
-        ? Colors.green
-        : metric.fraction >= 0.4
-            ? Colors.amber
-            : Colors.red;
-
-    final actualStr = metric.unit.isNotEmpty
-        ? '${metric.actual.round()}/${metric.target.round()}${metric.unit}'
-        : '${metric.actual.round()}/${metric.target.round()}';
-
-    final label = metric.periodLabel != null
-        ? '${metric.label} (${metric.periodLabel})'
-        : metric.label;
-
-    return Text(
-      '$label: $actualStr',
-      style: Theme.of(context)
-          .textTheme
-          .labelMedium
-          ?.copyWith(color: statusColor),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
     );
   }
 }

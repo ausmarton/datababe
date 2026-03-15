@@ -1,3 +1,4 @@
+import 'package:datababe/widgets/progress_ring.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -74,6 +75,12 @@ void main() {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());
 
+      final scrollable = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(
+        find.text('Today'),
+        200,
+        scrollable: scrollable,
+      );
       expect(find.text('Today'), findsOneWidget);
     });
 
@@ -136,6 +143,21 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsWidgets);
       expect(find.text('Syncing your data...'), findsOneWidget);
+    });
+
+    testWidgets('status rings: shows progress rings when targets exist',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+
+      expect(find.byType(ProgressRing), findsWidgets);
+    });
+
+    testWidgets('status rings: hidden when no targets', (tester) async {
+      await tester.runAsync(() => harness.seedMinimal());
+      await pumpApp(tester, harness.buildApp());
+
+      expect(find.byType(ProgressRing), findsNothing);
     });
   });
 }
