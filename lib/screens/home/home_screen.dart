@@ -11,7 +11,6 @@ import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../widgets/activity_tile.dart';
-import '../../widgets/progress_ring.dart';
 import '../home/setup_prompt.dart';
 import '../home/invite_pending_prompt.dart';
 
@@ -184,51 +183,89 @@ class _StatusRings extends ConsumerWidget {
     final progress = ref.watch(homeProgressProvider);
     if (progress.isEmpty) return const SizedBox.shrink();
 
-    Widget buildRing(MetricProgress m) => ProgressRing(
-          fraction: m.fraction,
-          icon: m.icon,
-          color: m.color,
-          actual: m.unit.isNotEmpty
-              ? '${m.actual.round()}${m.unit}'
-              : '${m.actual.round()}',
-          target: m.unit.isNotEmpty
-              ? '${m.target.round()}${m.unit}'
-              : '${m.target.round()}',
-          label: m.periodLabel != null
-              ? '${m.label} (${m.periodLabel})'
-              : m.label,
-          isInferred: !m.isExplicit,
-        );
-
-    // Two rows of up to 2 rings each — fits all screen widths.
-    final topRow = progress.take(2).toList();
-    final bottomRow = progress.skip(2).toList();
-
     return GestureDetector(
       onTap: () => GoRouter.of(context).go('/insights'),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Card(
+          key: const Key('status-rings'),
           child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [for (final m in topRow) buildRing(m)],
-                ),
-                if (bottomRow.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [for (final m in bottomRow) buildRing(m)],
-                  ),
-                ],
-              ],
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [for (final m in progress) _MiniMetric(m: m)],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final MetricProgress m;
+  const _MiniMetric({required this.m});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = m.fraction >= 0.8
+        ? Colors.green
+        : m.fraction >= 0.4
+            ? Colors.amber
+            : Colors.red;
+    final actualText = m.unit.isNotEmpty
+        ? '${m.actual.round()}${m.unit}'
+        : '${m.actual.round()}';
+    final targetText = m.unit.isNotEmpty
+        ? '${m.target.round()}${m.unit}'
+        : '${m.target.round()}';
+    final label = m.periodLabel != null
+        ? '${m.label} (${m.periodLabel})'
+        : m.label;
+
+    return SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: CircularProgressIndicator(
+                    value: m.fraction.clamp(0.0, 1.0),
+                    strokeWidth: 3,
+                    backgroundColor: statusColor.withValues(alpha: 0.15),
+                    valueColor: AlwaysStoppedAnimation(statusColor),
+                  ),
+                ),
+                Icon(m.icon, size: 14, color: m.color),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$actualText / $targetText',
+            style: Theme.of(context).textTheme.labelSmall,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            m.isExplicit ? label : '$label (avg)',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

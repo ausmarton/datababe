@@ -93,7 +93,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (826 tests)
+flutter test                                                 # Run tests (875 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```

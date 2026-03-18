@@ -1,4 +1,3 @@
-import 'package:datababe/widgets/progress_ring.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -146,19 +145,19 @@ void main() {
       expect(find.text('Syncing your data...'), findsOneWidget);
     });
 
-    testWidgets('status rings: shows progress rings when targets exist',
+    testWidgets('status rings: shows compact indicators when targets exist',
         (tester) async {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());
 
-      expect(find.byType(ProgressRing), findsWidgets);
+      expect(find.byKey(const Key('status-rings')), findsOneWidget);
     });
 
     testWidgets('status rings: hidden when no targets', (tester) async {
       await tester.runAsync(() => harness.seedMinimal());
       await pumpApp(tester, harness.buildApp());
 
-      expect(find.byType(ProgressRing), findsNothing);
+      expect(find.byKey(const Key('status-rings')), findsNothing);
     });
   });
 }
