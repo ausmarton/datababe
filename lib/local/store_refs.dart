@@ -15,4 +15,7 @@ class StoreRefs {
   // Sync infrastructure
   static final syncQueue = stringMapStoreFactory.store('sync_queue');
   static final syncMeta = stringMapStoreFactory.store('sync_meta');
+
+  // User preferences (local-only, per device)
+  static final settings = stringMapStoreFactory.store('settings');
 }

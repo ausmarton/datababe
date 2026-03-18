@@ -559,6 +559,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
         ActivityType.pump,
         ActivityType.bath,
         ActivityType.skinToSkin,
+        ActivityType.sleep,
       ].contains(_type);
 
   List<Widget> _buildTypeFields() {
@@ -586,6 +587,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       case ActivityType.outdoorPlay:
       case ActivityType.bath:
       case ActivityType.skinToSkin:
+      case ActivityType.sleep:
         return []; // Duration-only, handled above
     }
   }

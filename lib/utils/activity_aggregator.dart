@@ -239,6 +239,7 @@ class ActivityAggregator {
         case ActivityType.outdoorPlay:
         case ActivityType.bath:
         case ActivityType.skinToSkin:
+        case ActivityType.sleep:
           if (a.durationMinutes != null) {
             durationTotals[type.name] =
                 (durationTotals[type.name] ?? 0) + a.durationMinutes!;

@@ -26,6 +26,7 @@ import 'package:datababe/providers/initial_sync_provider.dart';
 import 'package:datababe/providers/invite_provider.dart';
 import 'package:datababe/providers/recipe_provider.dart';
 import 'package:datababe/providers/repository_provider.dart';
+import 'package:datababe/providers/settings_provider.dart';
 import 'package:datababe/providers/sync_provider.dart';
 import 'package:datababe/providers/target_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' show User;
@@ -212,6 +213,7 @@ class TestHarness {
         // --- Data stream overrides (bypass Sembast onSnapshots) ---
         // Sembast streams cause infinite microtask loops in FakeAsync.
         // Override all Sembast-backed StreamProviders with direct data.
+        startOfDayHourProvider.overrideWith((_) => Stream.value(0)),
         userFamiliesProvider.overrideWith((_) => Stream.value(families)),
         allChildrenProvider.overrideWith((_) => Stream.value(children)),
         activitiesProvider.overrideWith((_) => Stream.value(activities)),

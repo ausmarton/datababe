@@ -163,6 +163,7 @@ class ActivityTile extends StatelessWidget {
       case ActivityType.outdoorPlay:
       case ActivityType.bath:
       case ActivityType.skinToSkin:
+      case ActivityType.sleep:
         return formatDuration(activity.durationMinutes);
 
       case ActivityType.potty:

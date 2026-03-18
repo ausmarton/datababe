@@ -1,12 +1,26 @@
 import 'package:intl/intl.dart';
 import '../models/enums.dart';
 
+/// Returns the start of the "logical day" containing [now], given a
+/// [startOfDayHour] (0-23). For example, with startOfDayHour=6:
+///   - 2026-03-18 08:00 → 2026-03-18 06:00 (same day)
+///   - 2026-03-18 03:00 → 2026-03-17 06:00 (previous day)
+DateTime startOfDay(DateTime now, int startOfDayHour) {
+  final candidate = DateTime(now.year, now.month, now.day, startOfDayHour);
+  if (!now.isBefore(candidate)) return candidate;
+  return candidate.subtract(const Duration(days: 1));
+}
+
 /// Computes the [start, end) interval for a given time window mode and anchor.
+///
+/// [startOfDayHour] shifts the day boundary for calendarDay mode (0-23).
 (DateTime start, DateTime end) computeRange(
-    TimeWindowMode mode, DateTime anchor) {
+    TimeWindowMode mode, DateTime anchor,
+    {int startOfDayHour = 0}) {
   switch (mode) {
     case TimeWindowMode.calendarDay:
-      final start = DateTime(anchor.year, anchor.month, anchor.day);
+      final start =
+          DateTime(anchor.year, anchor.month, anchor.day, startOfDayHour);
       return (start, start.add(const Duration(days: 1)));
 
     case TimeWindowMode.calendarWeek:
@@ -66,12 +80,13 @@ DateTime nextAnchor(TimeWindowMode mode, DateTime anchor) {
 }
 
 /// Human-readable label for the current range.
-String rangeLabel(TimeWindowMode mode, DateTime anchor) {
+String rangeLabel(TimeWindowMode mode, DateTime anchor,
+    {int startOfDayHour = 0}) {
   switch (mode) {
     case TimeWindowMode.calendarDay:
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final anchorDay = DateTime(anchor.year, anchor.month, anchor.day);
+      final today = startOfDay(DateTime.now(), startOfDayHour);
+      final anchorDay =
+          DateTime(anchor.year, anchor.month, anchor.day, startOfDayHour);
       if (anchorDay == today) return 'Today';
       if (anchorDay == today.subtract(const Duration(days: 1))) {
         return 'Yesterday';

@@ -8,11 +8,13 @@ import 'package:file_saver/file_saver.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../import/csv_analyzer.dart';
+import '../../local/database_provider.dart';
 import '../../utils/file_reader.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/backup_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/sync_provider.dart';
 import '../../sync/sync_engine_interface.dart';
 
@@ -38,6 +40,9 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Sign Out'),
             onTap: () => _signOut(context, ref),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          const _SectionHeader(title: 'Preferences'),
+          _StartOfDayTile(),
           const Divider(height: 1, indent: 16, endIndent: 16),
           const _SectionHeader(title: 'Data'),
           ListTile(
@@ -389,6 +394,89 @@ class SettingsScreen extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class _StartOfDayTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+    final label =
+        '${sodHour.toString().padLeft(2, '0')}:00';
+
+    return ListTile(
+      leading: const Icon(Icons.schedule),
+      title: const Text('Start of day'),
+      subtitle: Text('Day starts at $label'),
+      trailing: Text(label, style: Theme.of(context).textTheme.titleMedium),
+      onTap: () async {
+        final picked = await showDialog<int>(
+          context: context,
+          builder: (context) => _StartOfDayDialog(current: sodHour),
+        );
+        if (picked != null) {
+          final db = ref.read(localDatabaseProvider);
+          await setStartOfDayHour(db, picked);
+        }
+      },
+    );
+  }
+}
+
+class _StartOfDayDialog extends StatefulWidget {
+  final int current;
+  const _StartOfDayDialog({required this.current});
+
+  @override
+  State<_StartOfDayDialog> createState() => _StartOfDayDialogState();
+}
+
+class _StartOfDayDialogState extends State<_StartOfDayDialog> {
+  late int _hour;
+
+  @override
+  void initState() {
+    super.initState();
+    _hour = widget.current;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = '${_hour.toString().padLeft(2, '0')}:00';
+    return AlertDialog(
+      title: const Text('Start of day'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Activities before this time count as the previous day.'),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: () => setState(() => _hour = (_hour - 1) % 24),
+                icon: const Icon(Icons.remove),
+              ),
+              Text(label, style: Theme.of(context).textTheme.headlineMedium),
+              IconButton(
+                onPressed: () => setState(() => _hour = (_hour + 1) % 24),
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _hour),
+          child: const Text('Save'),
+        ),
+      ],
+    );
   }
 }
 

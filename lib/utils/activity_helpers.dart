@@ -32,6 +32,8 @@ String activityDisplayName(ActivityType type) {
       return 'Skin to Skin';
     case ActivityType.potty:
       return 'Potty';
+    case ActivityType.sleep:
+      return 'Sleep';
   }
 }
 
@@ -66,6 +68,8 @@ IconData activityIcon(ActivityType type) {
       return Icons.favorite;
     case ActivityType.potty:
       return Icons.wc;
+    case ActivityType.sleep:
+      return Icons.bedtime;
   }
 }
 
@@ -100,6 +104,8 @@ Color activityColor(ActivityType type) {
       return Colors.pink;
     case ActivityType.potty:
       return Colors.brown;
+    case ActivityType.sleep:
+      return Colors.indigo;
   }
 }
 

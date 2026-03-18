@@ -66,7 +66,7 @@ lib/
     activity_provider, auth_provider, backup_provider, child_provider,
     family_provider, ingredient_provider, initial_sync_provider,
     insights_provider, invite_provider, recipe_provider, repository_provider,
-    sync_provider, target_provider
+    settings_provider, sync_provider, target_provider
   screens/               — Feature screens
     auth/                — LoginScreen with Google Sign-In
     bulk_add/            — Bulk add activities screen
@@ -93,7 +93,7 @@ lib/
 ```bash
 flutter pub get                                              # Install dependencies
 flutter analyze                                              # Lint check
-flutter test                                                 # Run tests (812 tests)
+flutter test                                                 # Run tests (826 tests)
 flutter run -d chrome                                        # Run on web
 flutter run -d <device>                                      # Run on Android
 ```
@@ -150,7 +150,7 @@ invites/{id}                             — Email-based family invites
 - **Atomic write+queue**: All syncing wrappers use `_db.transaction()` to atomically write data AND enqueue the sync entry — prevents orphaned local data if the app crashes between the two operations
 
 ## Features implemented
-- **Core tracking**: feeds (bottle/breast), diapers, potty, meds, solids, pump, growth, temperature, tummy time, indoor/outdoor play, bath, skin-to-skin
+- **Core tracking**: feeds (bottle/breast), diapers, potty, meds, solids, pump, growth, temperature, tummy time, indoor/outdoor play, bath, skin-to-skin, sleep/nap
 - **Timeline**: calendar day/week/month and rolling 24h/7d/30d views with summary cards
 - **Charts**: fl_chart visualisations
 - **CSV import**: parse exported CSV with preview, filtering (date range, activity type), and row selection before import
@@ -171,7 +171,9 @@ invites/{id}                             — Email-based family invites
 - **Backup/restore**: JSON export/import of family data with last-write-wins merge
 - **Separate date/time pickers**: date and time can be edited independently on log entry screen
 - **Inline ingredient creation**: create new ingredients with allergen tags directly from solids log entry
-- **Smart home summary**: status banner shows actual/target format, weekly/monthly targets with period labels, sorted by urgency
+- **Smart home summary**: progress rings show feeds, diapers, allergens (today/7d) in fixed order; curated via `homeProgressProvider`
+- **Start of day**: per-user setting (0-23h) shifts all day boundaries for insights, timeline, and daily views
+- **Sleep/nap tracking**: duration-based activity type with start/end time, targets (count + duration)
 - **GitHub Releases**: tag-triggered CI builds signed APK + AAB
 
 ## Releasing

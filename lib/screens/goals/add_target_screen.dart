@@ -55,6 +55,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       case ActivityType.outdoorPlay:
       case ActivityType.bath:
       case ActivityType.skinToSkin:
+      case ActivityType.sleep:
         return [TargetMetric.count, TargetMetric.totalDurationMinutes];
       case ActivityType.growth:
       case ActivityType.temperature:

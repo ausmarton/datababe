@@ -181,7 +181,7 @@ void _deleteActivity(BuildContext context, WidgetRef ref, dynamic activity) {
 class _StatusRings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(todayProgressProvider);
+    final progress = ref.watch(homeProgressProvider);
     if (progress.isEmpty) return const SizedBox.shrink();
 
     final metrics = progress.take(3).toList();
@@ -254,6 +254,7 @@ class _QuickLogGrid extends StatelessWidget {
     ActivityType.outdoorPlay,
     ActivityType.skinToSkin,
     ActivityType.potty,
+    ActivityType.sleep,
   ];
 
   @override

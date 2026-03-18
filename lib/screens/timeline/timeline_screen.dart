@@ -7,6 +7,7 @@ import '../../models/enums.dart';
 import '../../providers/activity_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/repository_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../utils/date_range_helpers.dart';
@@ -185,6 +186,7 @@ class _RangeSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(timelineWindowModeProvider);
     final anchor = ref.watch(timelineAnchorProvider);
+    final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
     final isCalendar = isCalendarMode(mode);
 
     // Determine granularity for the segmented button
@@ -278,12 +280,12 @@ class _RangeSelector extends ConsumerWidget {
                     },
                   ),
                   Text(
-                    rangeLabel(mode, anchor),
+                    rangeLabel(mode, anchor, startOfDayHour: sodHour),
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   IconButton(
                     icon: const Icon(Icons.chevron_right),
-                    onPressed: _isNextInFuture(mode, anchor)
+                    onPressed: _isNextInFuture(mode, anchor, sodHour)
                         ? null
                         : () {
                             ref
@@ -295,7 +297,7 @@ class _RangeSelector extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: Text(
-                      rangeLabel(mode, anchor),
+                      rangeLabel(mode, anchor, startOfDayHour: sodHour),
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
@@ -307,10 +309,10 @@ class _RangeSelector extends ConsumerWidget {
     );
   }
 
-  bool _isNextInFuture(TimeWindowMode mode, DateTime anchor) {
-    final now = DateTime.now();
+  bool _isNextInFuture(
+      TimeWindowMode mode, DateTime anchor, int startOfDayHour) {
     final next = nextAnchor(mode, anchor);
-    final today = DateTime(now.year, now.month, now.day);
+    final today = startOfDay(DateTime.now(), startOfDayHour);
     return next.isAfter(today);
   }
 }

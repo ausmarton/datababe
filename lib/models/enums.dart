@@ -14,6 +14,7 @@ enum ActivityType {
   bath,
   skinToSkin,
   potty,
+  sleep,
 }
 
 /// Feed type for bottle feeds.

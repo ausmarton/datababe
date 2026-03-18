@@ -185,6 +185,7 @@ void main() {
       'Outdoor Play': 'Outdoor Play',
       'Bath': 'Bath',
       'Skin to Skin': 'Skin to Skin',
+      'Sleep': 'Sleep',
     }.entries) {
       testWidgets('${entry.key} shows end time and no extra fields',
           (tester) async {
@@ -209,7 +210,7 @@ void main() {
       await tester.runAsync(() => harness.seedMinimal());
       await pumpApp(tester, harness.buildApp());
 
-      // Verify all 14 types have ActionChips
+      // Verify all 15 types have ActionChips
       for (final name in [
         'Bottle Feed',
         'Breast Feed',
@@ -225,6 +226,7 @@ void main() {
         'Bath',
         'Skin to Skin',
         'Potty',
+        'Sleep',
       ]) {
         expect(find.widgetWithText(ActionChip, name), findsOneWidget,
             reason: '$name chip should be visible');

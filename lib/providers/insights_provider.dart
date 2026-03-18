@@ -7,9 +7,11 @@ import '../models/ingredient_model.dart';
 import '../models/target_model.dart';
 import '../utils/activity_aggregator.dart';
 import '../utils/activity_helpers.dart';
+import '../utils/date_range_helpers.dart';
 import 'activity_provider.dart';
 import 'family_provider.dart';
 import 'ingredient_provider.dart';
+import 'settings_provider.dart';
 import 'target_provider.dart';
 
 // ==========================================================================
@@ -573,12 +575,12 @@ List<TrendPoint> computeTrendForMetric({
 // Phase 1 providers
 // ==========================================================================
 
-/// Today's activity summary.
+/// Today's activity summary, respecting start-of-day preference.
 final todaySummaryProvider = Provider<ActivitySummary?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
   if (activities == null) return null;
-  final now = DateTime.now();
-  final todayStart = DateTime(now.year, now.month, now.day);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
   final todayActivities =
       activities.where((a) => !a.startTime.isBefore(todayStart)).toList();
   if (todayActivities.isEmpty) return null;
@@ -589,8 +591,9 @@ final todaySummaryProvider = Provider<ActivitySummary?>((ref) {
 final rollingWeekSummaryProvider = Provider<ActivitySummary?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
   if (activities == null) return null;
-  final now = DateTime.now();
-  final weekStart = now.subtract(const Duration(days: 7));
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
+  final weekStart = todayStart.subtract(const Duration(days: 6));
   final weekActivities = activities
       .where((a) => !a.startTime.isBefore(weekStart) && !a.isDeleted)
       .toList();
@@ -602,8 +605,9 @@ final rollingWeekSummaryProvider = Provider<ActivitySummary?>((ref) {
 final rollingMonthSummaryProvider = Provider<ActivitySummary?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
   if (activities == null) return null;
-  final now = DateTime.now();
-  final monthStart = now.subtract(const Duration(days: 30));
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
+  final monthStart = todayStart.subtract(const Duration(days: 29));
   final monthActivities = activities
       .where((a) => !a.startTime.isBefore(monthStart) && !a.isDeleted)
       .toList();
@@ -615,8 +619,8 @@ final rollingMonthSummaryProvider = Provider<ActivitySummary?>((ref) {
 final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
   if (activities == null) return null;
-  final now = DateTime.now();
-  final todayStart = DateTime(now.year, now.month, now.day);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
 
   double totalBottleMl = 0,
       totalBottleCount = 0,
@@ -844,6 +848,70 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
   return results;
 });
 
+/// Curated metrics for the home screen status rings.
+///
+/// Returns exactly these 4 metrics in fixed order (skipping any without data):
+/// 1. Feeds (today) — combined bottle + breast count
+/// 2. Diapers (today)
+/// 3. Allergens covered (today)
+/// 4. Allergens (7d)
+final homeProgressProvider = Provider<List<MetricProgress>>((ref) {
+  final allProgress = ref.watch(todayProgressProvider);
+  final summary = ref.watch(todaySummaryProvider);
+  final baselines = ref.watch(inferredBaselinesProvider);
+
+  final results = <MetricProgress>[];
+
+  // 1. Combined feed count (bottle + breast) for today
+  // Check explicit targets first, then inferred baselines
+  final feedExplicit = allProgress.where((m) =>
+      m.key.startsWith('feedBottle.') && m.key.endsWith('.daily') ||
+      m.key.startsWith('feedBreast.') && m.key.endsWith('.daily'));
+  if (feedExplicit.isNotEmpty) {
+    // Use the most relevant explicit feed target (lowest fraction = most behind)
+    results.add(feedExplicit.reduce((a, b) => a.fraction < b.fraction ? a : b));
+  } else if (summary != null) {
+    // Inferred combined feed count
+    final feedCount =
+        (summary.bottleFeedCount + summary.breastFeedCount).toDouble();
+    final avgFeedCount = baselines != null && baselines.daysWithData >= 3
+        ? baselines.avgBottleCount + baselines.avgBreastCount
+        : 0.0;
+    if (avgFeedCount >= 0.5) {
+      final fraction = avgFeedCount > 0 ? feedCount / avgFeedCount : 0.0;
+      results.add(MetricProgress(
+        key: 'feed.count.daily',
+        label: 'Feeds',
+        actual: feedCount,
+        target: avgFeedCount,
+        fraction: fraction.clamp(0.0, 1.0),
+        isExplicit: false,
+        icon: activityIcon(ActivityType.feedBottle),
+        color: activityColor(ActivityType.feedBottle),
+      ));
+    }
+  }
+
+  // 2. Diapers (today) — from todayProgressProvider or inferred
+  final diaperMetric =
+      allProgress.where((m) => m.key == 'diaper.count.daily').firstOrNull;
+  if (diaperMetric != null) results.add(diaperMetric);
+
+  // 3. Allergens covered (today)
+  final allergenDaily = allProgress
+      .where((m) => m.key == 'allergens.aggregate.daily')
+      .firstOrNull;
+  if (allergenDaily != null) results.add(allergenDaily);
+
+  // 4. Allergens (7d)
+  final allergenWeekly = allProgress
+      .where((m) => m.key == 'allergens.aggregate.weekly')
+      .firstOrNull;
+  if (allergenWeekly != null) results.add(allergenWeekly);
+
+  return results;
+});
+
 // ==========================================================================
 // Trend providers
 // ==========================================================================
@@ -860,8 +928,8 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
   final days = ref.watch(selectedTrendPeriodProvider);
   if (activities == null) return [];
 
-  final now = DateTime.now();
-  final todayStart = DateTime(now.year, now.month, now.day);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
   final points = <TrendPoint>[];
 
   for (int i = days - 1; i >= 0; i--) {

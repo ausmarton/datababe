@@ -19,7 +19,7 @@ void main() {
       expect(find.text('Baby'), findsWidgets);
     });
 
-    testWidgets('quick-log grid: all 14 chips present', (tester) async {
+    testWidgets('quick-log grid: all 15 chips present', (tester) async {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());
 
@@ -38,6 +38,7 @@ void main() {
         'Outdoor Play',
         'Skin to Skin',
         'Potty',
+        'Sleep',
       ];
 
       for (final label in chipLabels) {

@@ -245,6 +245,8 @@ class CsvParser {
         return _duration(ActivityType.bath, startTime, endTime, duration);
       case 'Skin to skin':
         return _duration(ActivityType.skinToSkin, startTime, endTime, duration);
+      case 'Sleep':
+        return _duration(ActivityType.sleep, startTime, endTime, duration);
       case 'Potty':
         return _parsePotty(startTime, col6);
       default:

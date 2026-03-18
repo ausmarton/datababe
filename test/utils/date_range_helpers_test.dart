@@ -3,12 +3,52 @@ import 'package:datababe/models/enums.dart';
 import 'package:datababe/utils/date_range_helpers.dart';
 
 void main() {
+  group('startOfDay', () {
+    test('hour 0: same as midnight', () {
+      final result = startOfDay(DateTime(2026, 3, 18, 14, 30), 0);
+      expect(result, DateTime(2026, 3, 18));
+    });
+
+    test('hour 6: after start time returns same day', () {
+      final result = startOfDay(DateTime(2026, 3, 18, 8, 0), 6);
+      expect(result, DateTime(2026, 3, 18, 6));
+    });
+
+    test('hour 6: before start time returns previous day', () {
+      final result = startOfDay(DateTime(2026, 3, 18, 3, 0), 6);
+      expect(result, DateTime(2026, 3, 17, 6));
+    });
+
+    test('hour 6: exactly at start time returns same day', () {
+      final result = startOfDay(DateTime(2026, 3, 18, 6, 0), 6);
+      expect(result, DateTime(2026, 3, 18, 6));
+    });
+
+    test('hour 2: 01:59 rolls back', () {
+      final result = startOfDay(DateTime(2026, 3, 18, 1, 59), 2);
+      expect(result, DateTime(2026, 3, 17, 2));
+    });
+
+    test('hour 2: 02:00 is same day', () {
+      final result = startOfDay(DateTime(2026, 3, 18, 2, 0), 2);
+      expect(result, DateTime(2026, 3, 18, 2));
+    });
+  });
+
   group('computeRange', () {
     test('calendarDay: midnight to midnight', () {
       final anchor = DateTime(2026, 2, 26, 14, 30);
       final (start, end) = computeRange(TimeWindowMode.calendarDay, anchor);
       expect(start, DateTime(2026, 2, 26));
       expect(end, DateTime(2026, 2, 27));
+    });
+
+    test('calendarDay with startOfDayHour: shifts boundaries', () {
+      final anchor = DateTime(2026, 2, 26, 14, 30);
+      final (start, end) = computeRange(TimeWindowMode.calendarDay, anchor,
+          startOfDayHour: 6);
+      expect(start, DateTime(2026, 2, 26, 6));
+      expect(end, DateTime(2026, 2, 27, 6));
     });
 
     test('calendarWeek: Monday to Monday', () {

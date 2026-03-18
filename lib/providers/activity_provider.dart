@@ -5,6 +5,7 @@ import '../utils/activity_aggregator.dart';
 import '../utils/date_range_helpers.dart';
 import 'repository_provider.dart';
 import 'child_provider.dart';
+import 'settings_provider.dart';
 
 /// All activities for the selected child, newest first.
 final activitiesProvider = StreamProvider<List<ActivityModel>>((ref) {
@@ -31,14 +32,15 @@ final selectedDateProvider = StateProvider<DateTime>((ref) {
   return DateTime(now.year, now.month, now.day);
 });
 
-/// Activities for the selected day.
+/// Activities for the selected day, respecting start-of-day preference.
 final dailyActivitiesProvider = StreamProvider<List<ActivityModel>>((ref) {
   final childId = ref.watch(selectedChildIdProvider);
   final familyId = ref.watch(selectedFamilyIdProvider);
   final date = ref.watch(selectedDateProvider);
   final repo = ref.watch(activityRepositoryProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   if (childId == null || familyId == null) return Stream.value([]);
-  final start = DateTime(date.year, date.month, date.day);
+  final start = DateTime(date.year, date.month, date.day, sodHour);
   final end = start.add(const Duration(days: 1));
   return repo.watchActivitiesInRange(familyId, childId, start, end);
 });
@@ -66,8 +68,9 @@ final timelineActivitiesProvider =
   final mode = ref.watch(timelineWindowModeProvider);
   final anchor = ref.watch(timelineAnchorProvider);
   final repo = ref.watch(activityRepositoryProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   if (childId == null || familyId == null) return Stream.value([]);
-  final (start, end) = computeRange(mode, anchor);
+  final (start, end) = computeRange(mode, anchor, startOfDayHour: sodHour);
   return repo.watchActivitiesInRange(familyId, childId, start, end);
 });
 

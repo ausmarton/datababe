@@ -21,6 +21,7 @@ void main() {
       expect(activityDisplayName(ActivityType.bath), 'Bath');
       expect(activityDisplayName(ActivityType.skinToSkin), 'Skin to Skin');
       expect(activityDisplayName(ActivityType.potty), 'Potty');
+      expect(activityDisplayName(ActivityType.sleep), 'Sleep');
     });
   });
 
@@ -37,6 +38,7 @@ void main() {
       expect(activityIcon(ActivityType.bath), Icons.bathtub);
       expect(activityIcon(ActivityType.temperature), Icons.thermostat);
       expect(activityIcon(ActivityType.potty), Icons.wc);
+      expect(activityIcon(ActivityType.sleep), Icons.bedtime);
     });
   });
 
