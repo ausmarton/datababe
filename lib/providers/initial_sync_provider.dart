@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../local/database_provider.dart';
 import '../sync/ingredient_dedup_migration.dart';
+import '../sync/timestamp_heal_migration.dart';
 import 'auth_provider.dart';
 import 'sync_provider.dart';
 
@@ -42,12 +43,27 @@ final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
       return const InitialSyncResult(complete: true);
     }
 
+    final db = ref.read(localDatabaseProvider);
+
+    // Timestamp heal migration: resets lastPull to force full re-pull,
+    // fills missing timestamp fields in local records.
+    // Runs BEFORE initialSync so the pull sees lastPull=null and does a
+    // full re-pull, recovering invisible activities and hard-deleted records.
+    try {
+      final healMigration = TimestampHealMigration(db);
+      final healed = await healMigration.run();
+      if (healed > 0) {
+        debugPrint('[Sync] timestamp-heal migration: $healed records fixed');
+      }
+    } catch (e) {
+      debugPrint('[Sync] timestamp-heal migration failed: $e');
+    }
+
     final engine = ref.read(syncEngineProvider);
     await engine.initialSync(familyIds);
 
-    // Run one-time ingredient dedup migration after initial sync.
+    // Run one-time migrations after initial sync.
     try {
-      final db = ref.read(localDatabaseProvider);
       final migration = IngredientDedupMigration(db);
       final changes = await migration.run();
       if (changes.isNotEmpty) {
