@@ -184,8 +184,25 @@ class _StatusRings extends ConsumerWidget {
     final progress = ref.watch(homeProgressProvider);
     if (progress.isEmpty) return const SizedBox.shrink();
 
-    final metrics = progress.take(3).toList();
-    final remaining = progress.length - metrics.length;
+    Widget buildRing(MetricProgress m) => ProgressRing(
+          fraction: m.fraction,
+          icon: m.icon,
+          color: m.color,
+          actual: m.unit.isNotEmpty
+              ? '${m.actual.round()}${m.unit}'
+              : '${m.actual.round()}',
+          target: m.unit.isNotEmpty
+              ? '${m.target.round()}${m.unit}'
+              : '${m.target.round()}',
+          label: m.periodLabel != null
+              ? '${m.label} (${m.periodLabel})'
+              : m.label,
+          isInferred: !m.isExplicit,
+        );
+
+    // Two rows of up to 2 rings each — fits all screen widths.
+    final topRow = progress.take(2).toList();
+    final bottomRow = progress.skip(2).toList();
 
     return GestureDetector(
       onTap: () => GoRouter.of(context).go('/insights'),
@@ -194,41 +211,20 @@ class _StatusRings extends ConsumerWidget {
         child: Card(
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final m in metrics)
-                  ProgressRing(
-                    fraction: m.fraction,
-                    icon: m.icon,
-                    color: m.color,
-                    actual: m.unit.isNotEmpty
-                        ? '${m.actual.round()}${m.unit}'
-                        : '${m.actual.round()}',
-                    target: m.unit.isNotEmpty
-                        ? '${m.target.round()}${m.unit}'
-                        : '${m.target.round()}',
-                    label: m.periodLabel != null
-                        ? '${m.label} (${m.periodLabel})'
-                        : m.label,
-                    isInferred: !m.isExplicit,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [for (final m in topRow) buildRing(m)],
+                ),
+                if (bottomRow.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [for (final m in bottomRow) buildRing(m)],
                   ),
-                if (remaining > 0)
-                  SizedBox(
-                    width: 40,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          child: Text('+$remaining'),
-                        ),
-                        const SizedBox(height: 4),
-                        Text('more',
-                            style: Theme.of(context).textTheme.labelSmall),
-                      ],
-                    ),
-                  ),
+                ],
               ],
             ),
           ),
