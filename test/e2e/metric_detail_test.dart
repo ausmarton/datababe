@@ -117,7 +117,8 @@ void main() {
   tearDown(harness.tearDown);
 
   group('Metric Detail — explicit target', () {
-    testWidgets('shows Feed Vol. detail from explicit target', (tester) async {
+    testWidgets('shows Feed Vol. detail with day progress heading',
+        (tester) async {
       await tester.runAsync(() => harness.seedFull());
       harness.activities = _multiDayActivities();
       await pumpApp(tester, harness.buildApp());
@@ -129,7 +130,7 @@ void main() {
           '/insights/metric/${Uri.encodeComponent('feedBottle.totalVolumeMl.daily')}');
       await tester.pumpAndSettle();
 
-      // Title should be set from the target label
+      // Title should show "Today's Progress" with day navigation
       expect(find.text("Today's Progress"), findsOneWidget);
     });
 
@@ -179,6 +180,43 @@ void main() {
       expect(find.text("Today's Entries"), findsOneWidget);
       // Should show ActivityTile for today's bottle feeds
       expect(find.byType(ActivityTile), findsWidgets);
+    });
+
+    testWidgets('shows prev/next day navigation arrows', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _multiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+
+      final router =
+          GoRouter.of(tester.element(find.byType(Scaffold).first));
+      router.push(
+          '/insights/metric/${Uri.encodeComponent('feedBottle.totalVolumeMl.daily')}');
+      await tester.pumpAndSettle();
+
+      // Should have prev/next arrows
+      expect(find.byIcon(Icons.chevron_left), findsWidgets);
+      expect(find.byIcon(Icons.chevron_right), findsWidgets);
+    });
+
+    testWidgets('navigating to previous day changes label to Yesterday',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _multiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+
+      final router =
+          GoRouter.of(tester.element(find.byType(Scaffold).first));
+      router.push(
+          '/insights/metric/${Uri.encodeComponent('feedBottle.totalVolumeMl.daily')}');
+      await tester.pumpAndSettle();
+
+      // Tap the prev arrow (first chevron_left in the _DateNavRow)
+      final prevArrows = find.byIcon(Icons.chevron_left);
+      await tester.tap(prevArrows.first);
+      await tester.pumpAndSettle();
+
+      expect(find.text("Yesterday's Progress"), findsOneWidget);
+      expect(find.text("Yesterday's Entries"), findsOneWidget);
     });
 
     testWidgets('shows 7-day and 30-day trend cards', (tester) async {
@@ -311,7 +349,7 @@ void main() {
           '/insights/metric/${Uri.encodeComponent('nonexistent.metric.daily')}');
       await tester.pumpAndSettle();
 
-      expect(find.text('No data for today yet'), findsOneWidget);
+      expect(find.text('No data for this day'), findsOneWidget);
     });
   });
 }

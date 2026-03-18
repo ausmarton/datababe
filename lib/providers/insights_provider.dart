@@ -587,6 +587,94 @@ final todaySummaryProvider = Provider<ActivitySummary?>((ref) {
   return ActivityAggregator.compute(todayActivities);
 });
 
+// ==========================================================================
+// Insights period providers
+// ==========================================================================
+
+/// Selected time window mode for the insights screen.
+final insightsWindowModeProvider = StateProvider<TimeWindowMode>(
+    (ref) => TimeWindowMode.last7Days);
+
+/// Anchor date for insights navigation.
+final insightsAnchorProvider = StateProvider<DateTime>((ref) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
+});
+
+/// Activity summary for the insights window.
+final insightsSummaryProvider = Provider<ActivitySummary?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final mode = ref.watch(insightsWindowModeProvider);
+  final anchor = ref.watch(insightsAnchorProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final (start, end) = computeRange(mode, anchor, startOfDayHour: sodHour);
+  final filtered = activities
+      .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
+      .toList();
+  if (filtered.isEmpty) return null;
+  return ActivityAggregator.compute(filtered);
+});
+
+/// Weekly summary anchored to the insights window (for weekly targets).
+final insightsWeeklySummaryProvider = Provider<ActivitySummary?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final mode = ref.watch(insightsWindowModeProvider);
+  final anchor = ref.watch(insightsAnchorProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+
+  // For week/month modes, use the window itself; for day mode, expand to rolling 7d
+  final DateTime start;
+  final DateTime end;
+  if (mode == TimeWindowMode.calendarWeek || mode == TimeWindowMode.last7Days) {
+    final range = computeRange(mode, anchor, startOfDayHour: sodHour);
+    start = range.$1;
+    end = range.$2;
+  } else if (mode == TimeWindowMode.calendarMonth || mode == TimeWindowMode.last30Days) {
+    final range = computeRange(mode, anchor, startOfDayHour: sodHour);
+    start = range.$1;
+    end = range.$2;
+  } else {
+    // Day mode: rolling 7 days ending at the anchor
+    final dayEnd = computeRange(mode, anchor, startOfDayHour: sodHour).$2;
+    start = dayEnd.subtract(const Duration(days: 7));
+    end = dayEnd;
+  }
+  final filtered = activities
+      .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
+      .toList();
+  if (filtered.isEmpty) return null;
+  return ActivityAggregator.compute(filtered);
+});
+
+/// Monthly summary anchored to the insights window (for monthly targets).
+final insightsMonthlySummaryProvider = Provider<ActivitySummary?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final mode = ref.watch(insightsWindowModeProvider);
+  final anchor = ref.watch(insightsAnchorProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+
+  // For month mode, use the window; otherwise expand to rolling 30d
+  final DateTime start;
+  final DateTime end;
+  if (mode == TimeWindowMode.calendarMonth || mode == TimeWindowMode.last30Days) {
+    final range = computeRange(mode, anchor, startOfDayHour: sodHour);
+    start = range.$1;
+    end = range.$2;
+  } else {
+    final dayEnd = computeRange(mode, anchor, startOfDayHour: sodHour).$2;
+    start = dayEnd.subtract(const Duration(days: 30));
+    end = dayEnd;
+  }
+  final filtered = activities
+      .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
+      .toList();
+  if (filtered.isEmpty) return null;
+  return ActivityAggregator.compute(filtered);
+});
+
 /// Rolling 7-day activity summary (for weekly targets).
 final rollingWeekSummaryProvider = Provider<ActivitySummary?>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
@@ -665,23 +753,23 @@ final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
   );
 });
 
-/// Merges explicit goals (daily/weekly/monthly) + inferred baselines into
-/// progress metrics, sorted by urgency (behind-target first).
-final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
-  final summary = ref.watch(todaySummaryProvider);
-  final weekSummary = ref.watch(rollingWeekSummaryProvider);
-  final monthSummary = ref.watch(rollingMonthSummaryProvider);
-  final targets = ref.watch(targetsProvider).valueOrNull ?? [];
-  final baselines = ref.watch(inferredBaselinesProvider);
+/// Reusable progress computation from summaries + targets + baselines.
+List<MetricProgress> computeProgress({
+  required ActivitySummary? dailySummary,
+  required ActivitySummary? weeklySummary,
+  required ActivitySummary? monthlySummary,
+  required InferredBaselines? baselines,
+  required List<TargetModel> targets,
+}) {
   final results = <MetricProgress>[];
   final coveredKeys = <String>{};
 
   // Helper to get the right summary for a period.
   ActivitySummary? summaryForPeriod(String period) => switch (period) {
-        'daily' => summary,
-        'weekly' => weekSummary,
-        'monthly' => monthSummary,
-        _ => summary,
+        'daily' => dailySummary,
+        'weekly' => weeklySummary,
+        'monthly' => monthlySummary,
+        _ => dailySummary,
       };
 
   String? periodLabel(String period) => switch (period) {
@@ -789,7 +877,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       (
         key: 'feedBottle.totalVolumeMl.daily',
         label: 'Feed Vol.',
-        actual: summary?.bottleFeedTotalMl ?? 0.0,
+        actual: dailySummary?.bottleFeedTotalMl ?? 0.0,
         target: baselines.avgBottleMl,
         icon: activityIcon(ActivityType.feedBottle),
         color: activityColor(ActivityType.feedBottle),
@@ -798,7 +886,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       (
         key: 'diaper.count.daily',
         label: 'Diapers',
-        actual: (summary?.diaperCount ?? 0).toDouble(),
+        actual: (dailySummary?.diaperCount ?? 0).toDouble(),
         target: baselines.avgDiaperCount,
         icon: activityIcon(ActivityType.diaper),
         color: activityColor(ActivityType.diaper),
@@ -807,7 +895,7 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       (
         key: 'solids.count.daily',
         label: 'Solids',
-        actual: (summary?.solidsCount ?? 0).toDouble(),
+        actual: (dailySummary?.solidsCount ?? 0).toDouble(),
         target: baselines.avgSolidsCount,
         icon: activityIcon(ActivityType.solids),
         color: activityColor(ActivityType.solids),
@@ -816,8 +904,9 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
       (
         key: 'tummyTime.totalDurationMinutes.daily',
         label: 'Tummy Time',
-        actual: (summary?.durationTotals[ActivityType.tummyTime.name] ?? 0)
-            .toDouble(),
+        actual:
+            (dailySummary?.durationTotals[ActivityType.tummyTime.name] ?? 0)
+                .toDouble(),
         target: baselines.avgTummyTimeMinutes,
         icon: activityIcon(ActivityType.tummyTime),
         color: activityColor(ActivityType.tummyTime),
@@ -846,6 +935,39 @@ final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
   results.sort((a, b) => a.fraction.compareTo(b.fraction));
 
   return results;
+}
+
+/// Merges explicit goals (daily/weekly/monthly) + inferred baselines into
+/// progress metrics, sorted by urgency (behind-target first).
+final todayProgressProvider = Provider<List<MetricProgress>>((ref) {
+  final summary = ref.watch(todaySummaryProvider);
+  final weekSummary = ref.watch(rollingWeekSummaryProvider);
+  final monthSummary = ref.watch(rollingMonthSummaryProvider);
+  final targets = ref.watch(targetsProvider).valueOrNull ?? [];
+  final baselines = ref.watch(inferredBaselinesProvider);
+  return computeProgress(
+    dailySummary: summary,
+    weeklySummary: weekSummary,
+    monthlySummary: monthSummary,
+    baselines: baselines,
+    targets: targets,
+  );
+});
+
+/// Progress metrics for the insights window period.
+final insightsProgressProvider = Provider<List<MetricProgress>>((ref) {
+  final summary = ref.watch(insightsSummaryProvider);
+  final weekSummary = ref.watch(insightsWeeklySummaryProvider);
+  final monthSummary = ref.watch(insightsMonthlySummaryProvider);
+  final targets = ref.watch(targetsProvider).valueOrNull ?? [];
+  final baselines = ref.watch(inferredBaselinesProvider);
+  return computeProgress(
+    dailySummary: summary,
+    weeklySummary: weekSummary,
+    monthlySummary: monthSummary,
+    baselines: baselines,
+    targets: targets,
+  );
 });
 
 /// Curated metrics for the home screen status rings.
@@ -1027,6 +1149,24 @@ final allergenCoverageProvider = Provider<AllergenCoverage?>((ref) {
   );
 });
 
+/// Allergen coverage anchored to the insights window.
+final insightsAllergenCoverageProvider = Provider<AllergenCoverage?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  final categories = ref.watch(allergenCategoriesProvider);
+  final period = ref.watch(allergenCoveragePeriodProvider);
+  final targets = ref.watch(targetsProvider).valueOrNull ?? [];
+  final anchor = ref.watch(insightsAnchorProvider);
+  if (activities == null || categories.isEmpty) return null;
+
+  return computeAllergenCoverage(
+    activities: activities,
+    allergenCategories: categories,
+    referenceDate: anchor,
+    periodDays: period,
+    targets: targets,
+  );
+});
+
 /// Filter mode for the allergen matrix view.
 enum AllergenMatrixFilter { exposedOnly, all }
 
@@ -1047,6 +1187,29 @@ final weeklyAllergenMatrixProvider = Provider<WeeklyAllergenMatrix?>((ref) {
   );
 });
 
+/// Matrix week anchor derived from the insights anchor date.
+final insightsMatrixWeekProvider = StateProvider<DateTime>((ref) {
+  final anchor = ref.watch(insightsAnchorProvider);
+  // Derive Monday of the anchor's week
+  return DateTime(anchor.year, anchor.month, anchor.day)
+      .subtract(Duration(days: anchor.weekday - 1));
+});
+
+/// Weekly allergen matrix anchored to the insights matrix week.
+final insightsWeeklyAllergenMatrixProvider =
+    Provider<WeeklyAllergenMatrix?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  final categories = ref.watch(allergenCategoriesProvider);
+  final matrixWeek = ref.watch(insightsMatrixWeekProvider);
+  if (activities == null || categories.isEmpty) return null;
+
+  return computeWeeklyAllergenMatrix(
+    activities: activities,
+    allergenCategories: categories,
+    referenceDate: matrixWeek,
+  );
+});
+
 /// Drill-down: per-ingredient details for a given allergen category.
 final allergenIngredientDrilldownProvider = Provider.family<
     List<AllergenIngredientDetail>, String>((ref, allergenCategory) {
@@ -1060,6 +1223,89 @@ final allergenIngredientDrilldownProvider = Provider.family<
     referenceDate: DateTime.now(),
     periodDays: 30,
   );
+});
+
+// ==========================================================================
+// Metric detail providers
+// ==========================================================================
+
+/// Selected date for metric detail day navigation.
+final metricDetailDateProvider = StateProvider<DateTime>((ref) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
+});
+
+/// Summary for the metric detail selected date.
+final metricDetailSummaryProvider = Provider<ActivitySummary?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final date = ref.watch(metricDetailDateProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final start = DateTime(date.year, date.month, date.day, sodHour);
+  final end = start.add(const Duration(days: 1));
+  final filtered = activities
+      .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
+      .toList();
+  if (filtered.isEmpty) return null;
+  return ActivityAggregator.compute(filtered);
+});
+
+/// Activities for the metric detail selected date.
+final metricDetailActivitiesProvider =
+    Provider<List<ActivityModel>>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return [];
+  final date = ref.watch(metricDetailDateProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final start = DateTime(date.year, date.month, date.day, sodHour);
+  final end = start.add(const Duration(days: 1));
+  return activities
+      .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
+      .toList();
+});
+
+/// Progress metric for the metric detail selected date.
+final metricDetailProgressProvider =
+    Provider.family<MetricProgress?, String>((ref, metricKey) {
+  final summary = ref.watch(metricDetailSummaryProvider);
+  final targets = ref.watch(targetsProvider).valueOrNull ?? [];
+  final baselines = ref.watch(inferredBaselinesProvider);
+
+  // Reuse computeProgress for the selected day
+  // For weekly/monthly summary, use rolling windows ending at selected date
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final date = ref.watch(metricDetailDateProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final dayEnd = DateTime(date.year, date.month, date.day, sodHour)
+      .add(const Duration(days: 1));
+
+  // Compute weekly summary for the selected date
+  final weekStart = dayEnd.subtract(const Duration(days: 7));
+  final weekFiltered = activities
+      .where(
+          (a) => !a.startTime.isBefore(weekStart) && a.startTime.isBefore(dayEnd))
+      .toList();
+  final weekSummary =
+      weekFiltered.isEmpty ? null : ActivityAggregator.compute(weekFiltered);
+
+  // Compute monthly summary for the selected date
+  final monthStart = dayEnd.subtract(const Duration(days: 30));
+  final monthFiltered = activities
+      .where(
+          (a) => !a.startTime.isBefore(monthStart) && a.startTime.isBefore(dayEnd))
+      .toList();
+  final monthSummary =
+      monthFiltered.isEmpty ? null : ActivityAggregator.compute(monthFiltered);
+
+  final progress = computeProgress(
+    dailySummary: summary,
+    weeklySummary: weekSummary,
+    monthlySummary: monthSummary,
+    baselines: baselines,
+    targets: targets,
+  );
+  return progress.where((m) => m.key == metricKey).firstOrNull;
 });
 
 // ==========================================================================

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
-import '../../providers/activity_provider.dart';
 import '../../providers/insights_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../utils/activity_helpers.dart';
+import '../../utils/date_range_helpers.dart';
 import '../../widgets/activity_tile.dart';
 import '../../widgets/trend_chart.dart';
 
@@ -15,29 +17,30 @@ class MetricDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(todayProgressProvider);
-    final metric = progress.where((m) => m.key == metricKey).firstOrNull;
+    final metric = ref.watch(metricDetailProgressProvider(metricKey));
 
     // Parse activity type from key (e.g. "feedBottle.totalVolumeMl")
     final dotIndex = metricKey.indexOf('.');
-    final activityTypeName = dotIndex >= 0 ? metricKey.substring(0, dotIndex) : metricKey;
+    final activityTypeName =
+        dotIndex >= 0 ? metricKey.substring(0, dotIndex) : metricKey;
     final activityType = parseActivityType(activityTypeName);
 
-    final title = metric?.label ?? (activityType != null
-        ? activityDisplayName(activityType)
-        : activityTypeName);
+    final title = metric?.label ??
+        (activityType != null
+            ? activityDisplayName(activityType)
+            : activityTypeName);
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Today's progress
-          _TodayProgress(metric: metric),
+          // Day progress with navigation
+          _DayProgress(metricKey: metricKey, metric: metric),
           const SizedBox(height: 16),
 
-          // Today's entries
-          _TodayEntries(activityTypeName: activityTypeName),
+          // Day's entries
+          _DayEntries(activityTypeName: activityTypeName),
           const SizedBox(height: 16),
 
           // 7-day trend
@@ -70,13 +73,39 @@ class MetricDetailScreen extends ConsumerWidget {
   }
 }
 
-class _TodayProgress extends StatelessWidget {
+class _DayProgress extends ConsumerWidget {
+  final String metricKey;
   final MetricProgress? metric;
 
-  const _TodayProgress({this.metric});
+  const _DayProgress({required this.metricKey, this.metric});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final date = ref.watch(metricDetailDateProvider);
+    final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+
+    final today = startOfDay(DateTime.now(), sodHour);
+    final selectedDay = DateTime(date.year, date.month, date.day);
+    final isToday = selectedDay == DateTime(today.year, today.month, today.day);
+    final isYesterday = selectedDay ==
+        DateTime(today.year, today.month, today.day)
+            .subtract(const Duration(days: 1));
+
+    String dateLabel;
+    if (isToday) {
+      dateLabel = 'Today';
+    } else if (isYesterday) {
+      dateLabel = 'Yesterday';
+    } else {
+      dateLabel = DateFormat('EEE d MMM').format(date);
+    }
+
+    final headingText = "$dateLabel's Progress";
+
+    final isNextInFuture = selectedDay
+        .add(const Duration(days: 1))
+        .isAfter(DateTime(today.year, today.month, today.day));
+
     if (metric == null) {
       return Card(
         child: Padding(
@@ -84,10 +113,21 @@ class _TodayProgress extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Today's Progress",
-                  style: Theme.of(context).textTheme.titleMedium),
+              _DateNavRow(
+                label: headingText,
+                onPrev: () {
+                  ref.read(metricDetailDateProvider.notifier).state =
+                      date.subtract(const Duration(days: 1));
+                },
+                onNext: isNextInFuture
+                    ? null
+                    : () {
+                        ref.read(metricDetailDateProvider.notifier).state =
+                            date.add(const Duration(days: 1));
+                      },
+              ),
               const SizedBox(height: 8),
-              const Text('No data for today yet'),
+              const Text('No data for this day'),
             ],
           ),
         ),
@@ -110,8 +150,19 @@ class _TodayProgress extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Today's Progress",
-                style: Theme.of(context).textTheme.titleMedium),
+            _DateNavRow(
+              label: headingText,
+              onPrev: () {
+                ref.read(metricDetailDateProvider.notifier).state =
+                    date.subtract(const Duration(days: 1));
+              },
+              onNext: isNextInFuture
+                  ? null
+                  : () {
+                      ref.read(metricDetailDateProvider.notifier).state =
+                          date.add(const Duration(days: 1));
+                    },
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -142,14 +193,69 @@ class _TodayProgress extends StatelessWidget {
   }
 }
 
-class _TodayEntries extends ConsumerWidget {
+class _DateNavRow extends StatelessWidget {
+  final String label;
+  final VoidCallback onPrev;
+  final VoidCallback? onNext;
+
+  const _DateNavRow({
+    required this.label,
+    required this.onPrev,
+    this.onNext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style: Theme.of(context).textTheme.titleMedium),
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_left, size: 20),
+          visualDensity: VisualDensity.compact,
+          onPressed: onPrev,
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right, size: 20),
+          visualDensity: VisualDensity.compact,
+          onPressed: onNext,
+        ),
+      ],
+    );
+  }
+}
+
+class _DayEntries extends ConsumerWidget {
   final String activityTypeName;
 
-  const _TodayEntries({required this.activityTypeName});
+  const _DayEntries({required this.activityTypeName});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dailyAsync = ref.watch(dailyActivitiesProvider);
+    final date = ref.watch(metricDetailDateProvider);
+    final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+
+    final today = startOfDay(DateTime.now(), sodHour);
+    final selectedDay = DateTime(date.year, date.month, date.day);
+    final isToday = selectedDay == DateTime(today.year, today.month, today.day);
+    final isYesterday = selectedDay ==
+        DateTime(today.year, today.month, today.day)
+            .subtract(const Duration(days: 1));
+
+    String dateLabel;
+    if (isToday) {
+      dateLabel = 'Today';
+    } else if (isYesterday) {
+      dateLabel = 'Yesterday';
+    } else {
+      dateLabel = DateFormat('EEE d MMM').format(date);
+    }
+
+    final activities = ref.watch(metricDetailActivitiesProvider);
+    final filtered =
+        activities.where((a) => a.type == activityTypeName).toList();
 
     return Card(
       child: Padding(
@@ -157,27 +263,16 @@ class _TodayEntries extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Today's Entries",
+            Text("$dateLabel's Entries",
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            dailyAsync.when(
-              data: (activities) {
-                final filtered = activities
-                    .where((a) => a.type == activityTypeName)
-                    .toList();
-                if (filtered.isEmpty) {
-                  return const Text('No entries today');
-                }
-                return Column(
-                  children: filtered
-                      .map((a) => ActivityTile(activity: a))
-                      .toList(),
-                );
-              },
-              loading: () => const Center(
-                  child: CircularProgressIndicator()),
-              error: (e, _) => Text('Error: $e'),
-            ),
+            if (filtered.isEmpty)
+              Text('No entries for $dateLabel')
+            else
+              Column(
+                children:
+                    filtered.map((a) => ActivityTile(activity: a)).toList(),
+              ),
           ],
         ),
       ),

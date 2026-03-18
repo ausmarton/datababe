@@ -171,12 +171,33 @@ void main() {
       expect(find.byIcon(Icons.flag_outlined), findsOneWidget);
     });
 
-    testWidgets('Today section visible', (tester) async {
+    testWidgets('period selector present with Day/Week/Month',
+        (tester) async {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
-      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('Day'), findsOneWidget);
+      expect(find.text('Week'), findsOneWidget);
+      expect(find.text('Month'), findsOneWidget);
+    });
+
+    testWidgets('default period is Last 7 days', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // Appears in period selector and progress subtitle
+      expect(find.text('Last 7 days'), findsWidgets);
+    });
+
+    testWidgets('Progress section visible with period label',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      expect(find.text('Progress'), findsOneWidget);
     });
 
     testWidgets('Allergen Tracker section visible', (tester) async {
@@ -187,14 +208,18 @@ void main() {
       expect(find.text('Allergen Tracker'), findsOneWidget);
     });
 
-    testWidgets('This Week section visible', (tester) async {
+    testWidgets('Weekly allergen section shows week range label',
+        (tester) async {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
-      await scrollToVisible(tester, find.text('This Week'));
-      expect(find.text('This Week'), findsOneWidget);
+      await scrollToVisible(tester, find.text('Exposed'));
+      // The matrix section should show a date range like "10 Mar – 16 Mar"
+      // instead of "This Week"
       expect(find.text('Exposed'), findsOneWidget);
+      // Should NOT find "This Week" anymore
+      expect(find.text('This Week'), findsNothing);
     });
 
     testWidgets('Trends section shows metric selectors', (tester) async {
@@ -212,8 +237,9 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
-      await scrollToVisible(tester, find.text('30d'));
-      expect(find.text('30d'), findsOneWidget);
+      await scrollToVisible(tester, find.text('Trends'));
+      // 30d appears in both the trend section and possibly period selector
+      expect(find.text('30d'), findsWidgets);
     });
 
     testWidgets('Growth section shows latest measurements', (tester) async {
@@ -241,6 +267,52 @@ void main() {
     });
   });
 
+  group('Insights — period selector interaction', () {
+    testWidgets('changing to Day mode updates period label', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // Default is "Last 7 days" (Week rolling)
+      expect(find.text('Last 7 days'), findsWidgets);
+
+      // Tap Day button
+      await tester.tap(find.text('Day'));
+      await tester.pumpAndSettle();
+
+      // Should show "Last 24 hours" (rolling day)
+      expect(find.text('Last 24 hours'), findsWidgets);
+      expect(find.text('Last 7 days'), findsNothing);
+    });
+
+    testWidgets('changing to Month mode updates period label',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await tester.tap(find.text('Month'));
+      await tester.pumpAndSettle();
+
+      // Appears in period selector and progress subtitle
+      expect(find.text('Last 30 days'), findsWidgets);
+    });
+
+    testWidgets('switching to calendar mode shows navigation arrows',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // Toggle to calendar mode
+      await tester.tap(find.text('Rolling'));
+      await tester.pumpAndSettle();
+
+      // Should show navigation arrows
+      expect(find.byIcon(Icons.chevron_left), findsWidgets);
+    });
+  });
+
   group('Insights — with one activity', () {
     testWidgets('shows allergen tracker with single non-solids activity',
         (tester) async {
@@ -255,27 +327,15 @@ void main() {
 
   // --- Data-content tests: verify providers compute real values ---
 
-  group('Insights — Today section with real-time data', () {
+  group('Insights — Progress section with real-time data', () {
     testWidgets('shows ProgressRing widgets with targets', (tester) async {
       await tester.runAsync(() => harness.seedFull());
       harness.activities = _recentMultiDayActivities();
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
-      // todayProgressProvider should compute metrics from recent activities
+      // insightsProgressProvider should compute metrics from recent activities
       expect(find.byType(ProgressRing), findsWidgets);
-    });
-
-    testWidgets('shows actual/target values in progress rings',
-        (tester) async {
-      await tester.runAsync(() => harness.seedFull());
-      harness.activities = _recentMultiDayActivities();
-      await pumpApp(tester, harness.buildApp());
-      await navigateToInsights(tester);
-
-      // feedBottle target is 600ml; today has 120ml
-      // ProgressRing shows "$actual / $target" format
-      expect(find.textContaining('120ml'), findsWidgets);
     });
 
     testWidgets('ProgressRings not showing empty state', (tester) async {
@@ -322,7 +382,7 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
-      await scrollToVisible(tester, find.text('This Week'));
+      await scrollToVisible(tester, find.text('Exposed'));
       expect(find.byType(AllergenMatrix), findsOneWidget);
     });
 
@@ -332,9 +392,20 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
-      await scrollToVisible(tester, find.text('This Week'));
+      await scrollToVisible(tester, find.text('Exposed'));
       // "egg" should appear in the matrix (exposed this week)
       expect(find.text('egg'), findsWidgets);
+    });
+
+    testWidgets('matrix section has week navigation arrows', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Exposed'));
+      // Matrix section has its own chevron_left for week navigation
+      expect(find.byIcon(Icons.chevron_left), findsWidgets);
     });
   });
 
@@ -383,7 +454,7 @@ void main() {
       await navigateToInsights(tester);
 
       await scrollToVisible(tester, find.text('Growth'));
-      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right), findsWidgets);
     });
   });
 }

@@ -44,12 +44,12 @@ Widget _buildApp({
       activitiesProvider
           .overrideWith((ref) => Stream.value([_dummyActivity])),
       allergenCategoriesProvider.overrideWithValue(categories),
-      allergenCoverageProvider.overrideWithValue(null),
+      insightsAllergenCoverageProvider.overrideWithValue(null),
       allergenCoveragePeriodProvider.overrideWith((ref) => 7),
-      weeklyAllergenMatrixProvider.overrideWithValue(matrix),
+      insightsWeeklyAllergenMatrixProvider.overrideWithValue(matrix),
       allergenMatrixFilterProvider
           .overrideWith((ref) => initialFilter),
-      todayProgressProvider.overrideWithValue([]),
+      insightsProgressProvider.overrideWithValue([]),
       trendDataProvider.overrideWithValue([]),
       trendBaselineProvider.overrideWithValue(null),
       targetsProvider.overrideWith((ref) => Stream.value([])),

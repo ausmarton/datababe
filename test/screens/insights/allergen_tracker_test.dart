@@ -41,11 +41,11 @@ Widget _buildApp({
       activitiesProvider.overrideWith(
           (ref) => Stream.value([_dummyActivity])),
       allergenCategoriesProvider.overrideWithValue(categories),
-      allergenCoverageProvider.overrideWithValue(coverage),
+      insightsAllergenCoverageProvider.overrideWithValue(coverage),
       allergenCoveragePeriodProvider.overrideWith((ref) => period),
       // Providers consumed by other sections — provide safe defaults
-      todayProgressProvider.overrideWithValue([]),
-      weeklyAllergenMatrixProvider.overrideWithValue(null),
+      insightsProgressProvider.overrideWithValue([]),
+      insightsWeeklyAllergenMatrixProvider.overrideWithValue(null),
       trendDataProvider.overrideWithValue([]),
       trendBaselineProvider.overrideWithValue(null),
       targetsProvider

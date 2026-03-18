@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
@@ -8,7 +9,9 @@ import '../../providers/activity_provider.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/insights_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../utils/activity_helpers.dart';
+import '../../utils/date_range_helpers.dart';
 import '../../widgets/allergen_matrix.dart';
 import '../../widgets/progress_ring.dart';
 import '../../widgets/trend_chart.dart';
@@ -49,7 +52,9 @@ class InsightsScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const _TodaySection(),
+              const _PeriodSelector(),
+              const SizedBox(height: 16),
+              const _ProgressSection(),
               const SizedBox(height: 16),
               const _AllergenTrackerSection(),
               const SizedBox(height: 16),
@@ -68,12 +73,149 @@ class InsightsScreen extends ConsumerWidget {
   }
 }
 
-class _TodaySection extends ConsumerWidget {
-  const _TodaySection();
+enum _Granularity { day, week, month }
+
+class _PeriodSelector extends ConsumerWidget {
+  const _PeriodSelector();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(todayProgressProvider);
+    final mode = ref.watch(insightsWindowModeProvider);
+    final anchor = ref.watch(insightsAnchorProvider);
+    final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+    final isCalendar = isCalendarMode(mode);
+
+    _Granularity granularity;
+    if (mode == TimeWindowMode.calendarDay ||
+        mode == TimeWindowMode.last24h) {
+      granularity = _Granularity.day;
+    } else if (mode == TimeWindowMode.calendarWeek ||
+        mode == TimeWindowMode.last7Days) {
+      granularity = _Granularity.week;
+    } else {
+      granularity = _Granularity.month;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SegmentedButton<_Granularity>(
+              segments: const [
+                ButtonSegment(
+                    value: _Granularity.day, label: Text('Day')),
+                ButtonSegment(
+                    value: _Granularity.week, label: Text('Week')),
+                ButtonSegment(
+                    value: _Granularity.month, label: Text('Month')),
+              ],
+              selected: {granularity},
+              onSelectionChanged: (s) {
+                final g = s.first;
+                TimeWindowMode newMode;
+                if (isCalendar) {
+                  newMode = switch (g) {
+                    _Granularity.day => TimeWindowMode.calendarDay,
+                    _Granularity.week => TimeWindowMode.calendarWeek,
+                    _Granularity.month => TimeWindowMode.calendarMonth,
+                  };
+                } else {
+                  newMode = switch (g) {
+                    _Granularity.day => TimeWindowMode.last24h,
+                    _Granularity.week => TimeWindowMode.last7Days,
+                    _Granularity.month => TimeWindowMode.last30Days,
+                  };
+                }
+                ref.read(insightsWindowModeProvider.notifier).state = newMode;
+              },
+              showSelectedIcon: false,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ChoiceChip(
+                  label: Text(isCalendar ? 'Calendar' : 'Rolling'),
+                  selected: isCalendar,
+                  onSelected: (_) {
+                    TimeWindowMode newMode;
+                    if (isCalendar) {
+                      newMode = switch (granularity) {
+                        _Granularity.day => TimeWindowMode.last24h,
+                        _Granularity.week => TimeWindowMode.last7Days,
+                        _Granularity.month => TimeWindowMode.last30Days,
+                      };
+                    } else {
+                      newMode = switch (granularity) {
+                        _Granularity.day => TimeWindowMode.calendarDay,
+                        _Granularity.week => TimeWindowMode.calendarWeek,
+                        _Granularity.month => TimeWindowMode.calendarMonth,
+                      };
+                    }
+                    ref.read(insightsWindowModeProvider.notifier).state =
+                        newMode;
+                  },
+                ),
+                const Spacer(),
+                if (isCalendar) ...[
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left),
+                    onPressed: () {
+                      ref.read(insightsAnchorProvider.notifier).state =
+                          previousAnchor(mode, anchor);
+                    },
+                  ),
+                  Text(
+                    rangeLabel(mode, anchor, startOfDayHour: sodHour),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right),
+                    onPressed: _isNextInFuture(mode, anchor, sodHour)
+                        ? null
+                        : () {
+                            ref.read(insightsAnchorProvider.notifier).state =
+                                nextAnchor(mode, anchor);
+                          },
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      rangeLabel(mode, anchor, startOfDayHour: sodHour),
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isNextInFuture(
+      TimeWindowMode mode, DateTime anchor, int startOfDayHour) {
+    final next = nextAnchor(mode, anchor);
+    final today = startOfDay(DateTime.now(), startOfDayHour);
+    return next.isAfter(today);
+  }
+}
+
+class _ProgressSection extends ConsumerWidget {
+  const _ProgressSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(insightsProgressProvider);
+    final mode = ref.watch(insightsWindowModeProvider);
+    final anchor = ref.watch(insightsAnchorProvider);
+    final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+    final label = rangeLabel(mode, anchor, startOfDayHour: sodHour);
 
     if (progress.isEmpty) {
       return Card(
@@ -82,7 +224,10 @@ class _TodaySection extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Today', style: Theme.of(context).textTheme.titleMedium),
+              Text('Progress',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(label, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 8),
               const Text('Log a few more days to see progress tracking'),
             ],
@@ -97,7 +242,10 @@ class _TodaySection extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Today', style: Theme.of(context).textTheme.titleMedium),
+            Text('Progress',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 12),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -118,7 +266,7 @@ class _TodaySection extends ConsumerWidget {
                       label: m.label,
                       isInferred: !m.isExplicit,
                       onTap: () => context.push(
-                          m.key == 'allergens.aggregate'
+                          m.key.startsWith('allergens.aggregate')
                               ? '/insights/allergens'
                               : '/insights/metric/${Uri.encodeComponent(m.key)}'),
                     ),
@@ -233,7 +381,7 @@ class _AllergenTrackerSection extends ConsumerWidget {
       );
     }
 
-    final coverage = ref.watch(allergenCoverageProvider);
+    final coverage = ref.watch(insightsAllergenCoverageProvider);
     final period = ref.watch(allergenCoveragePeriodProvider);
 
     if (coverage == null) {
@@ -437,10 +585,16 @@ class _WeeklyAllergenSection extends ConsumerWidget {
     final categories = ref.watch(allergenCategoriesProvider);
     if (categories.isEmpty) return const SizedBox.shrink();
 
-    final matrix = ref.watch(weeklyAllergenMatrixProvider);
+    final matrix = ref.watch(insightsWeeklyAllergenMatrixProvider);
     if (matrix == null) return const SizedBox.shrink();
 
+    final matrixWeek = ref.watch(insightsMatrixWeekProvider);
     final filter = ref.watch(allergenMatrixFilterProvider);
+
+    // Week label from matrix days
+    final weekLabel = matrix.days.isNotEmpty
+        ? '${DateFormat('d MMM').format(matrix.days.first)} – ${DateFormat('d MMM').format(matrix.days.last)}'
+        : 'This Week';
 
     // Filter and sort allergens
     final List<String> filteredAllergens;
@@ -476,10 +630,29 @@ class _WeeklyAllergenSection extends ConsumerWidget {
           children: [
             Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left, size: 20),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    ref.read(insightsMatrixWeekProvider.notifier).state =
+                        matrixWeek.subtract(const Duration(days: 7));
+                  },
+                ),
                 Expanded(
-                  child: Text('This Week',
+                  child: Text(weekLabel,
                       style: Theme.of(context).textTheme.titleMedium),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right, size: 20),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _isNextWeekInFuture(matrixWeek)
+                      ? null
+                      : () {
+                          ref.read(insightsMatrixWeekProvider.notifier).state =
+                              matrixWeek.add(const Duration(days: 7));
+                        },
+                ),
+                const SizedBox(width: 4),
                 SegmentedButton<AllergenMatrixFilter>(
                   segments: const [
                     ButtonSegment(
@@ -531,6 +704,13 @@ class _WeeklyAllergenSection extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  bool _isNextWeekInFuture(DateTime matrixWeek) {
+    final now = DateTime.now();
+    final thisMonday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    return !matrixWeek.isBefore(thisMonday);
   }
 }
 
@@ -648,4 +828,3 @@ class _GrowthStat extends StatelessWidget {
     );
   }
 }
-
