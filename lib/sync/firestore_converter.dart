@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 /// Converts between local map format (ISO 8601 strings) and Firestore format
 /// (Timestamps). Also strips/adds the familyId field.
@@ -48,6 +49,28 @@ class FirestoreConverter {
 
     // Ensure isDeleted has a default value (Firestore docs may lack it).
     result.putIfAbsent('isDeleted', () => false);
+
+    // Ensure required timestamp fields have defaults at storage time.
+    // Without this, records with missing fields generate a new DateTime.now()
+    // on every read via fromMap() fallback — making modifiedAt unstable and
+    // breaking sync comparisons.
+    const requiredTimestamps = {'startTime', 'createdAt', 'modifiedAt'};
+    final missingFields = requiredTimestamps
+        .where((f) => result[f] == null || result[f] == '')
+        .toList();
+    if (missingFields.isNotEmpty) {
+      final now = DateTime.now().toIso8601String();
+      for (final field in missingFields) {
+        if (field == 'modifiedAt') {
+          // modifiedAt defaults to createdAt if available, else now
+          result[field] = result['createdAt'] as String? ?? now;
+        } else {
+          result[field] = now;
+        }
+      }
+      debugPrint('[Sync] fromFirestore: filled missing fields '
+          '$missingFields — data may be corrupt');
+    }
 
     return result;
   }

@@ -283,6 +283,27 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
           final firestoreData = FirestoreConverter.toFirestore(
               Map<String, dynamic>.from(localRecord));
 
+          // Bump modifiedAt for late pushes so other devices' pullDelta
+          // catches this document. Without this, activities created offline
+          // (e.g., March 16) and pushed after other devices' lastPull has
+          // advanced past that date would be permanently invisible.
+          final modifiedAt = firestoreData['modifiedAt'];
+          if (modifiedAt is Timestamp) {
+            final age = DateTime.now().difference(modifiedAt.toDate());
+            if (age > const Duration(minutes: 2)) {
+              final now = DateTime.now();
+              final nowTimestamp = Timestamp.fromDate(now);
+              firestoreData['modifiedAt'] = nowTimestamp;
+              // Update local record to match, preventing push/pull mismatch.
+              final updatedLocal = Map<String, dynamic>.from(localRecord);
+              updatedLocal['modifiedAt'] = now.toIso8601String();
+              await store.record(entry.documentId).put(_db, updatedLocal);
+              debugPrint('[Sync] pushNewBatch: bumped modifiedAt for '
+                  '${entry.collection}/${entry.documentId} '
+                  '(was ${age.inMinutes}m old)');
+            }
+          }
+
           final docRef = _docRef(
             entry.collection,
             entry.familyId,
@@ -512,6 +533,9 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
   }
 
   /// Returns true if local data should overwrite remote.
+  /// Uses >= (not strict >) to handle equal timestamps safely — a wasted
+  /// idempotent write is preferable to silently dropping an edit due to
+  /// timestamp precision loss during round-trip conversion.
   /// Exposed as static for testability.
   static bool shouldPush(
       Map<String, dynamic>? remoteData, Map<String, dynamic> localData) {
@@ -520,7 +544,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
     if (remoteModifiedAt is! Timestamp) return true;
     final localModifiedAt = localData['modifiedAt'];
     if (localModifiedAt is! Timestamp) return true;
-    return localModifiedAt.toDate().isAfter(remoteModifiedAt.toDate());
+    return !remoteModifiedAt.toDate().isAfter(localModifiedAt.toDate());
   }
 
   /// Pre-check: do local and remote document counts match?
@@ -596,13 +620,23 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
       }
 
       if (toDelete.isNotEmpty) {
+        final now = DateTime.now().toIso8601String();
         await _db.transaction((txn) async {
           for (final id in toDelete) {
-            await store.record(id).delete(txn);
+            // Soft-delete instead of hard-delete to preserve data for recovery.
+            // Hard-deleting is irreversible and dangerous if Firestore returned
+            // incomplete results (network timeout, partial response).
+            final record = await store.record(id).get(txn);
+            if (record != null) {
+              final updated = Map<String, dynamic>.from(record);
+              updated['isDeleted'] = true;
+              updated['modifiedAt'] = now;
+              await store.record(id).put(txn, updated);
+            }
           }
         });
         debugPrint(
-            '[Sync] reconcile $familyId/$collection: removed ${toDelete.length} orphaned docs');
+            '[Sync] reconcile $familyId/$collection: soft-deleted ${toDelete.length} orphaned docs');
       }
 
       return _ReconcileResult(reconciled: toDelete.length);

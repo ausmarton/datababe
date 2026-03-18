@@ -54,11 +54,12 @@ void main() {
       expect(SyncEngine.shouldPush(remote, local), isFalse);
     });
 
-    test('equal timestamps → should NOT push', () {
+    test('equal timestamps → should push (>= semantics prevent silent drops)',
+        () {
       final ts = Timestamp.fromDate(DateTime(2026, 3, 6, 10, 0));
       final remote = {'modifiedAt': ts};
       final local = {'modifiedAt': ts};
-      expect(SyncEngine.shouldPush(remote, local), isFalse);
+      expect(SyncEngine.shouldPush(remote, local), isTrue);
     });
 
     test('sub-second precision: local 1ms newer → should push', () {

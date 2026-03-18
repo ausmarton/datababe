@@ -581,8 +581,11 @@ final todaySummaryProvider = Provider<ActivitySummary?>((ref) {
   if (activities == null) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
-  final todayActivities =
-      activities.where((a) => !a.startTime.isBefore(todayStart)).toList();
+  final todayEnd = todayStart.add(const Duration(days: 1));
+  final todayActivities = activities
+      .where((a) =>
+          !a.startTime.isBefore(todayStart) && a.startTime.isBefore(todayEnd))
+      .toList();
   if (todayActivities.isEmpty) return null;
   return ActivityAggregator.compute(todayActivities);
 });
@@ -681,9 +684,11 @@ final rollingWeekSummaryProvider = Provider<ActivitySummary?>((ref) {
   if (activities == null) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
+  final todayEnd = todayStart.add(const Duration(days: 1));
   final weekStart = todayStart.subtract(const Duration(days: 6));
   final weekActivities = activities
-      .where((a) => !a.startTime.isBefore(weekStart) && !a.isDeleted)
+      .where((a) =>
+          !a.startTime.isBefore(weekStart) && a.startTime.isBefore(todayEnd))
       .toList();
   if (weekActivities.isEmpty) return null;
   return ActivityAggregator.compute(weekActivities);
@@ -695,9 +700,11 @@ final rollingMonthSummaryProvider = Provider<ActivitySummary?>((ref) {
   if (activities == null) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
+  final todayEnd = todayStart.add(const Duration(days: 1));
   final monthStart = todayStart.subtract(const Duration(days: 29));
   final monthActivities = activities
-      .where((a) => !a.startTime.isBefore(monthStart) && !a.isDeleted)
+      .where((a) =>
+          !a.startTime.isBefore(monthStart) && a.startTime.isBefore(todayEnd))
       .toList();
   if (monthActivities.isEmpty) return null;
   return ActivityAggregator.compute(monthActivities);

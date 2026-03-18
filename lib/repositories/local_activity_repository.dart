@@ -125,7 +125,7 @@ class LocalActivityRepository implements ActivityRepository {
         Filter.equals('familyId', familyId),
         Filter.equals('childId', childId),
         Filter.greaterThanOrEquals('startTime', start.toIso8601String()),
-        Filter.lessThanOrEquals('startTime', end.toIso8601String()),
+        Filter.lessThan('startTime', end.toIso8601String()),
       ]),
     );
     final records = await _store.find(_db, finder: finder);

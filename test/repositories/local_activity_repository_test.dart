@@ -223,5 +223,38 @@ void main() {
       );
       expect(result, isEmpty);
     });
+
+    test('excludes activity exactly at end boundary (< not <=)', () async {
+      final now = DateTime(2026, 3, 1, 10, 0);
+      final end = DateTime(2026, 3, 2);
+      final atBoundary = ActivityModel(
+        id: 'ft-boundary',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: end, // Exactly at end boundary
+        createdAt: now,
+        modifiedAt: now,
+      );
+      final inside = ActivityModel(
+        id: 'ft-inside',
+        childId: childId,
+        type: 'feedBottle',
+        startTime: DateTime(2026, 3, 1, 23, 59),
+        createdAt: now,
+        modifiedAt: now,
+      );
+      await repo.insertActivity(familyId, atBoundary);
+      await repo.insertActivity(familyId, inside);
+
+      final result = await repo.findByTimeRange(
+        familyId,
+        childId,
+        DateTime(2026, 3, 1),
+        end,
+      );
+      // Should only include 'inside', NOT 'atBoundary'
+      expect(result.length, 1);
+      expect(result.first.id, 'ft-inside');
+    });
   });
 }

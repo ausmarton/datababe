@@ -180,6 +180,78 @@ void main() {
       expect(restored.tempCelsius, model.tempCelsius);
     });
 
+    test('fromMap with missing createdAt uses fallback', () {
+      final map = {
+        'childId': 'c1',
+        'type': 'feedBottle',
+        'startTime': DateTime(2026, 3, 6).toIso8601String(),
+        'modifiedAt': DateTime(2026, 3, 6).toIso8601String(),
+      };
+
+      final before = DateTime.now();
+      final model = ActivityModel.fromMap('act-missing-created', map);
+      final after = DateTime.now();
+
+      expect(model.createdAt, isNotNull);
+      // Should be approximately now (fallback)
+      expect(
+          model.createdAt.isAfter(before.subtract(const Duration(seconds: 1))),
+          isTrue);
+      expect(
+          model.createdAt.isBefore(after.add(const Duration(seconds: 1))),
+          isTrue);
+    });
+
+    test('fromMap with missing modifiedAt falls back to createdAt', () {
+      final createdAt = DateTime(2026, 3, 6, 10, 0);
+      final map = {
+        'childId': 'c1',
+        'type': 'feedBottle',
+        'startTime': DateTime(2026, 3, 6).toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+      final model = ActivityModel.fromMap('act-missing-modified', map);
+
+      expect(model.modifiedAt, createdAt);
+    });
+
+    test('fromMap with missing startTime uses fallback', () {
+      final map = {
+        'childId': 'c1',
+        'type': 'feedBottle',
+        'createdAt': DateTime(2026, 3, 6).toIso8601String(),
+        'modifiedAt': DateTime(2026, 3, 6).toIso8601String(),
+      };
+
+      final before = DateTime.now();
+      final model = ActivityModel.fromMap('act-missing-start', map);
+      final after = DateTime.now();
+
+      expect(model.startTime, isNotNull);
+      expect(
+          model.startTime.isAfter(before.subtract(const Duration(seconds: 1))),
+          isTrue);
+      expect(
+          model.startTime.isBefore(after.add(const Duration(seconds: 1))),
+          isTrue);
+    });
+
+    test('fromMap with ALL timestamps missing fills all with fallbacks', () {
+      final map = <String, dynamic>{
+        'childId': 'c1',
+        'type': 'feedBottle',
+      };
+
+      final model = ActivityModel.fromMap('act-all-missing', map);
+
+      expect(model.startTime, isNotNull);
+      expect(model.createdAt, isNotNull);
+      expect(model.modifiedAt, isNotNull);
+      // modifiedAt should equal createdAt (fallback chain)
+      expect(model.modifiedAt, model.createdAt);
+    });
+
     test('toMap/fromMap handles nullable fields as null', () {
       final now = DateTime(2026, 2, 27);
       final model = ActivityModel(

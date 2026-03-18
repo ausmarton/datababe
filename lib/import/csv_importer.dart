@@ -98,11 +98,12 @@ class CsvImporter {
     }
 
     // Query existing activities in that range (including soft-deleted).
+    // Add 1 second to maxTime because findByTimeRange uses exclusive end (< not <=).
     final existing = await _repo.findByTimeRange(
       familyId,
       childId,
       minTime,
-      maxTime,
+      maxTime.add(const Duration(seconds: 1)),
     );
 
     // Filter candidates based on soft-delete preference.

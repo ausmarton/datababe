@@ -191,5 +191,79 @@ void main() {
       expect(firestoreMap['startTime'], isA<Timestamp>());
       expect(firestoreMap.containsKey('familyId'), isFalse);
     });
+
+    test('fills missing startTime with default', () {
+      final firestoreMap = {
+        'type': 'feedBottle',
+        'createdAt': Timestamp.fromDate(DateTime(2026, 3, 6)),
+        'modifiedAt': Timestamp.fromDate(DateTime(2026, 3, 6)),
+      };
+
+      final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
+
+      expect(result['startTime'], isA<String>());
+      expect(() => DateTime.parse(result['startTime'] as String), returnsNormally);
+    });
+
+    test('fills missing createdAt with default', () {
+      final firestoreMap = {
+        'type': 'feedBottle',
+        'startTime': Timestamp.fromDate(DateTime(2026, 3, 6)),
+        'modifiedAt': Timestamp.fromDate(DateTime(2026, 3, 6)),
+      };
+
+      final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
+
+      expect(result['createdAt'], isA<String>());
+      expect(() => DateTime.parse(result['createdAt'] as String), returnsNormally);
+    });
+
+    test('fills missing modifiedAt with createdAt value', () {
+      final dt = DateTime(2026, 3, 6, 10, 0);
+      final firestoreMap = {
+        'type': 'feedBottle',
+        'startTime': Timestamp.fromDate(dt),
+        'createdAt': Timestamp.fromDate(dt),
+      };
+
+      final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
+
+      expect(result['modifiedAt'], isA<String>());
+      // modifiedAt should default to createdAt, not a new DateTime.now()
+      expect(result['modifiedAt'], result['createdAt']);
+    });
+
+    test('fills all missing timestamp fields at once', () {
+      final firestoreMap = <String, dynamic>{
+        'type': 'feedBottle',
+        'childId': 'c1',
+      };
+
+      final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
+
+      expect(result['startTime'], isA<String>());
+      expect(result['createdAt'], isA<String>());
+      expect(result['modifiedAt'], isA<String>());
+      // All parseable as DateTime
+      for (final field in ['startTime', 'createdAt', 'modifiedAt']) {
+        expect(() => DateTime.parse(result[field] as String), returnsNormally,
+            reason: '$field should be a valid ISO 8601 string');
+      }
+    });
+
+    test('does not overwrite existing timestamp fields', () {
+      final dt = DateTime(2026, 3, 6, 10, 30);
+      final firestoreMap = {
+        'startTime': Timestamp.fromDate(dt),
+        'createdAt': Timestamp.fromDate(dt),
+        'modifiedAt': Timestamp.fromDate(dt),
+      };
+
+      final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
+
+      expect(DateTime.parse(result['startTime'] as String), dt);
+      expect(DateTime.parse(result['createdAt'] as String), dt);
+      expect(DateTime.parse(result['modifiedAt'] as String), dt);
+    });
   });
 }
