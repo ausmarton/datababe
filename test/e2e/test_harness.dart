@@ -278,6 +278,10 @@ class ControllableSyncEngine implements SyncEngineInterface {
   Future<Map<String, dynamic>> getDiagnostics(String familyId) async => {};
 
   @override
+  Future<Map<String, dynamic>> dateAudit(
+      String familyId, DateTime date) async => {};
+
+  @override
   Future<void> initialSync(List<String> familyIds) async {}
 
   @override

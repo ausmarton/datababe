@@ -557,6 +557,7 @@ class _DiagnosticsTile extends ConsumerStatefulWidget {
 
 class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
   Map<String, dynamic>? _diagnostics;
+  Map<String, dynamic>? _dateAudit;
   bool _loading = false;
 
   @override
@@ -611,15 +612,51 @@ class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: FilledButton.icon(
-              onPressed: _forceResync,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Force Full Re-sync'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _forceResync,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Force Re-sync'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _runDateAudit,
+                    icon: const Icon(Icons.search),
+                    label: const Text('Date Audit'),
+                  ),
+                ),
+              ],
             ),
           ),
+          if (_dateAudit != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Date Audit: ${_dateAudit!['date']}',
+                          style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      _buildAuditSection(context, 'Firestore',
+                          _dateAudit!['firestore'] as Map<String, dynamic>),
+                      const Divider(),
+                      _buildAuditSection(context, 'Local DB',
+                          _dateAudit!['local'] as Map<String, dynamic>),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ],
     );
@@ -645,6 +682,78 @@ class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Diagnostics failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Widget _buildAuditSection(
+      BuildContext context, String label, Map<String, dynamic> data) {
+    if (data.containsKey('error')) {
+      return Text('$label: ERROR — ${data['error']}',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: Theme.of(context).colorScheme.error));
+    }
+
+    final records = (data['records'] as List<dynamic>?) ?? [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label: ${data['onDate']} on date '
+          '(${data['totalActivities']} total)',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        for (final r in records)
+          Padding(
+            padding: const EdgeInsets.only(left: 8, top: 2),
+            child: Text(
+              '${(r as Map)['type']} | '
+              'start:${r['hasStartTime'] ? 'Y' : 'N'} '
+              'created:${r['hasCreatedAt'] ? 'Y' : 'N'} '
+              'modified:${r['hasModifiedAt'] ? 'Y' : 'N'}'
+              '${r['isDeleted'] == true ? ' | DELETED' : ''}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: r['isDeleted'] == true
+                        ? Theme.of(context).colorScheme.error
+                        : null,
+                  ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _runDateAudit() async {
+    final familyId = ref.read(selectedFamilyIdProvider);
+    if (familyId == null) return;
+
+    // Default to March 16, 2026 — the reported problem date
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2026, 3, 16),
+      firstDate: DateTime(2025),
+      lastDate: DateTime.now(),
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _loading = true);
+    try {
+      final engine = ref.read(syncEngineProvider);
+      final audit = await engine.dateAudit(familyId, picked);
+      if (mounted) setState(() => _dateAudit = audit);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Date audit failed: $e')),
         );
       }
     } finally {

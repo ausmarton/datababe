@@ -39,6 +39,10 @@ abstract class SyncEngineInterface {
 
   /// Get diagnostic info about local DB state for a family.
   Future<Map<String, dynamic>> getDiagnostics(String familyId);
+
+  /// Audit activities for a specific date — compares Firestore vs local DB.
+  Future<Map<String, dynamic>> dateAudit(
+      String familyId, DateTime date);
 }
 
 /// Sync status for UI display.

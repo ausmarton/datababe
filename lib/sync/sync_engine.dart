@@ -742,6 +742,103 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
     }
   }
 
+  /// Audit activities for a specific date — compares Firestore vs local DB.
+  @override
+  Future<Map<String, dynamic>> dateAudit(
+      String familyId, DateTime date) async {
+    final result = <String, dynamic>{};
+    final store = StoreRefs.activities;
+    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    try {
+      // Query Firestore for all activities in this family
+      final snapshot = await _firestore
+          .collection('families')
+          .doc(familyId)
+          .collection('activities')
+          .get();
+
+      // Categorize by whether startTime/createdAt falls on the target date
+      final firestoreOnDate = <Map<String, dynamic>>[];
+      final firestoreTotal = snapshot.docs.length;
+
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final startTime = (data['startTime'] as Timestamp?)?.toDate();
+        final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+
+        final startStr = startTime != null
+            ? '${startTime.toLocal().year}-${startTime.toLocal().month.toString().padLeft(2, '0')}-${startTime.toLocal().day.toString().padLeft(2, '0')}'
+            : null;
+        final createdStr = createdAt != null
+            ? '${createdAt.toLocal().year}-${createdAt.toLocal().month.toString().padLeft(2, '0')}-${createdAt.toLocal().day.toString().padLeft(2, '0')}'
+            : null;
+
+        if (startStr == dateStr || createdStr == dateStr) {
+          firestoreOnDate.add({
+            'id': doc.id,
+            'type': data['type'],
+            'hasStartTime': data['startTime'] != null,
+            'hasCreatedAt': data['createdAt'] != null,
+            'hasModifiedAt': data['modifiedAt'] != null,
+            'isDeleted': data['isDeleted'] ?? false,
+            'startTime': startTime?.toLocal().toIso8601String(),
+            'createdAt': createdAt?.toLocal().toIso8601String(),
+          });
+        }
+      }
+
+      result['firestore'] = {
+        'totalActivities': firestoreTotal,
+        'onDate': firestoreOnDate.length,
+        'records': firestoreOnDate,
+      };
+    } catch (e) {
+      result['firestore'] = {'error': e.toString()};
+    }
+
+    try {
+      // Query local Sembast
+      final localRecords = await store.find(_db,
+          finder: Finder(filter: Filter.equals('familyId', familyId)));
+
+      final localOnDate = <Map<String, dynamic>>[];
+
+      for (final record in localRecords) {
+        final data = record.value;
+        final startTime = data['startTime'] as String?;
+        final createdAt = data['createdAt'] as String?;
+
+        final startDate = startTime?.substring(0, 10);
+        final createdDate = createdAt?.substring(0, 10);
+
+        if (startDate == dateStr || createdDate == dateStr) {
+          localOnDate.add({
+            'id': record.key,
+            'type': data['type'],
+            'hasStartTime': data['startTime'] != null,
+            'hasCreatedAt': data['createdAt'] != null,
+            'hasModifiedAt': data['modifiedAt'] != null,
+            'isDeleted': data['isDeleted'] ?? false,
+            'startTime': startTime,
+            'createdAt': createdAt,
+          });
+        }
+      }
+
+      result['local'] = {
+        'totalActivities': localRecords.length,
+        'onDate': localOnDate.length,
+        'records': localOnDate,
+      };
+    } catch (e) {
+      result['local'] = {'error': e.toString()};
+    }
+
+    result['date'] = dateStr;
+    return result;
+  }
+
   /// Get diagnostic info about local DB state for a family.
   @override
   Future<Map<String, dynamic>> getDiagnostics(String familyId) async {
