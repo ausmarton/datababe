@@ -1,10 +1,8 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:datababe/models/activity_model.dart';
-import 'package:datababe/widgets/allergen_matrix.dart';
 import 'package:datababe/widgets/progress_ring.dart';
 import 'package:datababe/widgets/trend_chart.dart';
 
