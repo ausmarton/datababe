@@ -1,7 +1,133 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:datababe/models/activity_model.dart';
+import 'package:datababe/widgets/allergen_matrix.dart';
+import 'package:datababe/widgets/progress_ring.dart';
+import 'package:datababe/widgets/trend_chart.dart';
+
 import 'test_harness.dart';
+
+/// Activities with dates relative to DateTime.now() so computed providers work.
+List<ActivityModel> _recentMultiDayActivities() {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final activities = <ActivityModel>[];
+
+  // Today: feeds, diaper, solids with allergens, growth, tummy time
+  activities.add(ActivityModel(
+    id: 'today-bottle',
+    childId: 'c1',
+    type: 'feedBottle',
+    startTime: today.add(const Duration(hours: 8)),
+    feedType: 'formula',
+    volumeMl: 120.0,
+    createdAt: today.add(const Duration(hours: 8)),
+    modifiedAt: today.add(const Duration(hours: 8)),
+  ));
+  activities.add(ActivityModel(
+    id: 'today-breast',
+    childId: 'c1',
+    type: 'feedBreast',
+    startTime: today.add(const Duration(hours: 6)),
+    rightBreastMinutes: 10,
+    leftBreastMinutes: 8,
+    createdAt: today.add(const Duration(hours: 6)),
+    modifiedAt: today.add(const Duration(hours: 6)),
+  ));
+  activities.add(ActivityModel(
+    id: 'today-diaper',
+    childId: 'c1',
+    type: 'diaper',
+    startTime: today.add(const Duration(hours: 9)),
+    contents: 'both',
+    contentSize: 'medium',
+    pooColour: 'yellow',
+    pooConsistency: 'soft',
+    createdAt: today.add(const Duration(hours: 9)),
+    modifiedAt: today.add(const Duration(hours: 9)),
+  ));
+  activities.add(ActivityModel(
+    id: 'today-solids',
+    childId: 'c1',
+    type: 'solids',
+    startTime: today.add(const Duration(hours: 10)),
+    foodDescription: 'scrambled eggs',
+    ingredientNames: ['egg', 'milk'],
+    allergenNames: ['egg', 'dairy'],
+    createdAt: today.add(const Duration(hours: 10)),
+    modifiedAt: today.add(const Duration(hours: 10)),
+  ));
+  activities.add(ActivityModel(
+    id: 'today-growth',
+    childId: 'c1',
+    type: 'growth',
+    startTime: today.add(const Duration(hours: 7)),
+    weightKg: 8.5,
+    lengthCm: 72.0,
+    headCircumferenceCm: 45.0,
+    createdAt: today.add(const Duration(hours: 7)),
+    modifiedAt: today.add(const Duration(hours: 7)),
+  ));
+  activities.add(ActivityModel(
+    id: 'today-tummy',
+    childId: 'c1',
+    type: 'tummyTime',
+    startTime: today.add(const Duration(hours: 5)),
+    durationMinutes: 15,
+    createdAt: today.add(const Duration(hours: 5)),
+    modifiedAt: today.add(const Duration(hours: 5)),
+  ));
+
+  // 7 previous days of data (for baselines and trends)
+  for (int day = 1; day <= 7; day++) {
+    final pastDay = today.subtract(Duration(days: day));
+    final dayAt8 = pastDay.add(const Duration(hours: 8));
+    activities.add(ActivityModel(
+      id: 'day$day-bottle',
+      childId: 'c1',
+      type: 'feedBottle',
+      startTime: dayAt8,
+      feedType: 'formula',
+      volumeMl: 100.0 + day * 10,
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
+    activities.add(ActivityModel(
+      id: 'day$day-diaper',
+      childId: 'c1',
+      type: 'diaper',
+      startTime: dayAt8.add(const Duration(hours: 1)),
+      contents: 'pee',
+      contentSize: 'medium',
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
+    activities.add(ActivityModel(
+      id: 'day$day-tummy',
+      childId: 'c1',
+      type: 'tummyTime',
+      startTime: dayAt8.add(const Duration(hours: 2)),
+      durationMinutes: 10 + day,
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
+    activities.add(ActivityModel(
+      id: 'day$day-solids',
+      childId: 'c1',
+      type: 'solids',
+      startTime: dayAt8.add(const Duration(hours: 3)),
+      foodDescription: 'food day $day',
+      ingredientNames: ['egg'],
+      allergenNames: ['egg'],
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
+  }
+
+  return activities;
+}
 
 void main() {
   final harness = TestHarness();
@@ -35,7 +161,7 @@ void main() {
     });
   });
 
-  group('Insights — with data', () {
+  group('Insights — section visibility', () {
     testWidgets('shows Insights title and Goals button', (tester) async {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());
@@ -124,6 +250,140 @@ void main() {
       await navigateToInsights(tester);
 
       expect(find.text('Allergen Tracker'), findsOneWidget);
+    });
+  });
+
+  // --- Data-content tests: verify providers compute real values ---
+
+  group('Insights — Today section with real-time data', () {
+    testWidgets('shows ProgressRing widgets with targets', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // todayProgressProvider should compute metrics from recent activities
+      expect(find.byType(ProgressRing), findsWidgets);
+    });
+
+    testWidgets('shows actual/target values in progress rings',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // feedBottle target is 600ml; today has 120ml
+      // ProgressRing shows "$actual / $target" format
+      expect(find.textContaining('120ml'), findsWidgets);
+    });
+
+    testWidgets('ProgressRings not showing empty state', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // With recent data, should NOT show "Log a few more days..." message
+      expect(find.text('Log a few more days to see progress tracking'),
+          findsNothing);
+    });
+  });
+
+  group('Insights — Allergen Tracker data', () {
+    testWidgets('shows coverage count with recent allergen data',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // Today's solids has egg+dairy allergens. Family has 5 categories.
+      // Allergen Tracker section shows "N/M covered" text
+      expect(find.textContaining('covered'), findsWidgets);
+    });
+
+    testWidgets('shows allergen period toggle (7d/14d)', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      expect(find.text('7d'), findsWidgets);
+      expect(find.text('14d'), findsWidgets);
+    });
+  });
+
+  group('Insights — Weekly Allergen Matrix data', () {
+    testWidgets('shows AllergenMatrix widget with exposure data',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('This Week'));
+      expect(find.byType(AllergenMatrix), findsOneWidget);
+    });
+
+    testWidgets('shows allergen names in matrix', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('This Week'));
+      // "egg" should appear in the matrix (exposed this week)
+      expect(find.text('egg'), findsWidgets);
+    });
+  });
+
+  group('Insights — Trend chart data', () {
+    testWidgets('shows TrendChart with bar data', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Trends'));
+      expect(find.byType(TrendChart), findsOneWidget);
+      expect(find.byType(BarChart), findsOneWidget);
+    });
+
+    testWidgets('trend chart not showing "No data" with activities',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Trends'));
+      // TrendChart shows "No data" when data is empty — should NOT appear
+      expect(find.text('No data'), findsNothing);
+    });
+  });
+
+  group('Insights — Growth section data', () {
+    testWidgets('shows growth values with recent data', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Growth'));
+      expect(find.text('8.5kg'), findsOneWidget);
+      expect(find.text('72.0cm'), findsOneWidget);
+      expect(find.text('45.0cm'), findsOneWidget);
+    });
+
+    testWidgets('shows chevron indicating tappable', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Growth'));
+      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     });
   });
 }
