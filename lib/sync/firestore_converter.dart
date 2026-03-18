@@ -43,7 +43,12 @@ class FirestoreConverter {
     for (final field in _dateFields) {
       final value = result[field];
       if (value is Timestamp) {
-        result[field] = value.toDate().toIso8601String();
+        // Convert to LOCAL time before producing ISO string.
+        // Queries use DateTime(year, month, day).toIso8601String() which is
+        // local time (no 'Z' suffix). Storing UTC (with 'Z') causes
+        // lexicographic mismatches at date boundaries — activities near
+        // midnight shift to the wrong calendar day in non-UTC timezones.
+        result[field] = value.toDate().toLocal().toIso8601String();
       }
     }
 
