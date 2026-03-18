@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sembast/sembast.dart';
 
 import '../local/database_provider.dart';
+import '../local/store_refs.dart';
 import '../sync/ingredient_dedup_migration.dart';
 import '../sync/timestamp_heal_migration.dart';
 import 'auth_provider.dart';
@@ -63,6 +65,50 @@ final initialSyncProvider = FutureProvider<InitialSyncResult>((ref) async {
     await engine.initialSync(familyIds);
 
     // Run one-time migrations after initial sync.
+
+    // Push-back: after the pull, activities that had missing startTime in
+    // Firestore were healed locally (startTime = createdAt by fromFirestore).
+    // Enqueue those for push so Firestore gets the corrected timestamps.
+    // One-time: guarded by the same migration key as the heal migration.
+    try {
+      final healKey = await StoreRefs.syncMeta.record('timestamp_heal_v2').get(db);
+      final pushBackDone = healKey?['pushBackDone'] as bool? ?? false;
+      if (!pushBackDone) {
+        final activities = await StoreRefs.activities.find(db);
+        final queue = ref.read(syncQueueProvider);
+        var enqueued = 0;
+        for (final a in activities) {
+          final startTime = a.value['startTime'] as String?;
+          final createdAt = a.value['createdAt'] as String?;
+          // startTime == createdAt means it was auto-filled (normal user
+          // activities have different startTime and createdAt).
+          if (startTime != null && createdAt != null && startTime == createdAt) {
+            final familyId = a.value['familyId'] as String?;
+            if (familyId != null) {
+              await queue.enqueue(
+                collection: 'activities',
+                documentId: a.key,
+                familyId: familyId,
+              );
+              enqueued++;
+            }
+          }
+        }
+        // Mark push-back as done.
+        final existing = healKey ?? {};
+        await StoreRefs.syncMeta.record('timestamp_heal_v2').put(db, {
+          ...existing,
+          'pushBackDone': true,
+        });
+        if (enqueued > 0) {
+          engine.notifyWrite();
+          debugPrint('[Sync] timestamp push-back: $enqueued activities enqueued');
+        }
+      }
+    } catch (e) {
+      debugPrint('[Sync] timestamp push-back failed: $e');
+    }
+
     try {
       final migration = IngredientDedupMigration(db);
       final changes = await migration.run();

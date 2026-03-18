@@ -67,7 +67,7 @@ void main() {
       expect(record!['modifiedAt'], '2026-03-16T08:00:00.000');
     });
 
-    test('fills missing startTime for activity records', () async {
+    test('fills missing startTime with createdAt for activity records', () async {
       await StoreRefs.activities.record('act-3').put(db, {
         'childId': 'c1',
         'type': 'feedBottle',
@@ -80,9 +80,8 @@ void main() {
       await TimestampHealMigration(db).run();
 
       final record = await StoreRefs.activities.record('act-3').get(db);
-      expect(record!['startTime'], isA<String>());
-      expect(
-          () => DateTime.parse(record['startTime'] as String), returnsNormally);
+      // startTime should be createdAt, NOT DateTime.now()
+      expect(record!['startTime'], '2026-03-16T10:00:00.000');
     });
 
     test('does not add startTime to non-activity records', () async {

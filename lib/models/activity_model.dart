@@ -161,7 +161,7 @@ class ActivityModel {
       type: d['type'] as String? ?? '',
       startTime: d['startTime'] != null
           ? DateTime.parse(d['startTime'] as String)
-          : DateTime.now(),
+          : createdAt,
       endTime: d['endTime'] != null
           ? DateTime.parse(d['endTime'] as String)
           : null,
@@ -204,19 +204,20 @@ class ActivityModel {
   factory ActivityModel.fromFirestore(
       DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
+    final createdAt =
+        (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
     return ActivityModel(
       id: doc.id,
       childId: d['childId'] as String? ?? '',
       type: d['type'] as String? ?? '',
       startTime:
-          (d['startTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          (d['startTime'] as Timestamp?)?.toDate() ?? createdAt,
       endTime: (d['endTime'] as Timestamp?)?.toDate(),
       durationMinutes: d['durationMinutes'] as int?,
       createdBy: d['createdBy'] as String?,
-      createdAt:
-          (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: createdAt,
       modifiedAt:
-          (d['modifiedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          (d['modifiedAt'] as Timestamp?)?.toDate() ?? createdAt,
       isDeleted: d['isDeleted'] as bool? ?? false,
       notes: d['notes'] as String?,
       feedType: d['feedType'] as String?,

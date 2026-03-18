@@ -192,17 +192,32 @@ void main() {
       expect(firestoreMap.containsKey('familyId'), isFalse);
     });
 
-    test('fills missing startTime with default', () {
+    test('fills missing startTime with createdAt for activity records', () {
+      final dt = DateTime(2026, 3, 6, 10, 0);
       final firestoreMap = {
         'type': 'feedBottle',
-        'createdAt': Timestamp.fromDate(DateTime(2026, 3, 6)),
-        'modifiedAt': Timestamp.fromDate(DateTime(2026, 3, 6)),
+        'createdAt': Timestamp.fromDate(dt),
+        'modifiedAt': Timestamp.fromDate(dt),
       };
 
       final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
 
-      expect(result['startTime'], isA<String>());
-      expect(() => DateTime.parse(result['startTime'] as String), returnsNormally);
+      // startTime should equal createdAt, NOT DateTime.now()
+      expect(result['startTime'], result['createdAt']);
+    });
+
+    test('does not add startTime to non-activity records', () {
+      final dt = DateTime(2026, 3, 6, 10, 0);
+      final firestoreMap = {
+        'name': 'egg',
+        'createdAt': Timestamp.fromDate(dt),
+        'modifiedAt': Timestamp.fromDate(dt),
+      };
+
+      final result = FirestoreConverter.fromFirestore(firestoreMap, 'fam-1');
+
+      // Non-activity records (no 'type' field) should NOT get startTime
+      expect(result.containsKey('startTime'), isFalse);
     });
 
     test('fills missing createdAt with default', () {
@@ -244,6 +259,9 @@ void main() {
       expect(result['startTime'], isA<String>());
       expect(result['createdAt'], isA<String>());
       expect(result['modifiedAt'], isA<String>());
+      // startTime and modifiedAt should all fall back to createdAt
+      expect(result['startTime'], result['createdAt']);
+      expect(result['modifiedAt'], result['createdAt']);
       // All parseable as DateTime
       for (final field in ['startTime', 'createdAt', 'modifiedAt']) {
         expect(() => DateTime.parse(result[field] as String), returnsNormally,

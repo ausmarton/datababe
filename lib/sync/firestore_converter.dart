@@ -54,22 +54,33 @@ class FirestoreConverter {
     // Without this, records with missing fields generate a new DateTime.now()
     // on every read via fromMap() fallback — making modifiedAt unstable and
     // breaking sync comparisons.
-    const requiredTimestamps = {'startTime', 'createdAt', 'modifiedAt'};
-    final missingFields = requiredTimestamps
-        .where((f) => result[f] == null || result[f] == '')
-        .toList();
-    if (missingFields.isNotEmpty) {
-      final now = DateTime.now().toIso8601String();
-      for (final field in missingFields) {
-        if (field == 'modifiedAt') {
-          // modifiedAt defaults to createdAt if available, else now
-          result[field] = result['createdAt'] as String? ?? now;
-        } else {
-          result[field] = now;
-        }
+    final filledFields = <String>[];
+    final now = DateTime.now().toIso8601String();
+
+    if (result['createdAt'] == null || result['createdAt'] == '') {
+      result['createdAt'] = now;
+      filledFields.add('createdAt');
+    }
+
+    if (result['modifiedAt'] == null || result['modifiedAt'] == '') {
+      result['modifiedAt'] = result['createdAt'] as String;
+      filledFields.add('modifiedAt');
+    }
+
+    // startTime only applies to activity records (identified by 'type' field).
+    // Use createdAt as fallback — it's the closest approximation to when the
+    // activity was logged, unlike DateTime.now() which shifts the activity to
+    // today's date and makes the original date appear empty.
+    if (result.containsKey('type')) {
+      if (result['startTime'] == null || result['startTime'] == '') {
+        result['startTime'] = result['createdAt'] as String;
+        filledFields.add('startTime');
       }
+    }
+
+    if (filledFields.isNotEmpty) {
       debugPrint('[Sync] fromFirestore: filled missing fields '
-          '$missingFields — data may be corrupt');
+          '$filledFields — data may be corrupt');
     }
 
     return result;

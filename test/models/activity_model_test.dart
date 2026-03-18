@@ -216,25 +216,19 @@ void main() {
       expect(model.modifiedAt, createdAt);
     });
 
-    test('fromMap with missing startTime uses fallback', () {
+    test('fromMap with missing startTime falls back to createdAt', () {
+      final createdAt = DateTime(2026, 3, 6, 10, 0);
       final map = {
         'childId': 'c1',
         'type': 'feedBottle',
-        'createdAt': DateTime(2026, 3, 6).toIso8601String(),
+        'createdAt': createdAt.toIso8601String(),
         'modifiedAt': DateTime(2026, 3, 6).toIso8601String(),
       };
 
-      final before = DateTime.now();
       final model = ActivityModel.fromMap('act-missing-start', map);
-      final after = DateTime.now();
 
-      expect(model.startTime, isNotNull);
-      expect(
-          model.startTime.isAfter(before.subtract(const Duration(seconds: 1))),
-          isTrue);
-      expect(
-          model.startTime.isBefore(after.add(const Duration(seconds: 1))),
-          isTrue);
+      // startTime should fall back to createdAt, NOT DateTime.now()
+      expect(model.startTime, createdAt);
     });
 
     test('fromMap with ALL timestamps missing fills all with fallbacks', () {
@@ -248,8 +242,9 @@ void main() {
       expect(model.startTime, isNotNull);
       expect(model.createdAt, isNotNull);
       expect(model.modifiedAt, isNotNull);
-      // modifiedAt should equal createdAt (fallback chain)
+      // All should fall back to the same DateTime.now() value
       expect(model.modifiedAt, model.createdAt);
+      expect(model.startTime, model.createdAt);
     });
 
     test('toMap/fromMap handles nullable fields as null', () {

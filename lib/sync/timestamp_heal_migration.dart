@@ -19,7 +19,7 @@ import 'sync_metadata.dart';
 /// Records completion in syncMeta store so it only runs once per local DB.
 /// Idempotent — re-runs harmlessly after logout/login.
 class TimestampHealMigration {
-  static const _migrationKey = 'timestamp_heal_v1';
+  static const _migrationKey = 'timestamp_heal_v2';
 
   final Database _db;
 
@@ -76,12 +76,15 @@ class TimestampHealMigration {
           changed = true;
         }
 
-        // Fill missing startTime (activities only — other models don't have it)
+        // Fill missing startTime (activities only — other models don't have it).
+        // Use createdAt as fallback — it's the closest approximation to when
+        // the activity was logged, unlike now which shifts it to today's date.
         if (updated.containsKey('type') &&
             (updated['startTime'] == null ||
                 (updated['startTime'] is String &&
                     (updated['startTime'] as String).isEmpty))) {
-          updated['startTime'] = now;
+          updated['startTime'] =
+              updated['createdAt'] as String? ?? now;
           changed = true;
         }
 
