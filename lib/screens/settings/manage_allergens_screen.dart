@@ -109,7 +109,8 @@ class _ManageAllergensScreenState
             labelText: 'New name',
             border: OutlineInputBorder(),
           ),
-          onSubmitted: (value) => Navigator.of(ctx).pop(value.trim().toLowerCase()),
+          onSubmitted: (value) =>
+              Navigator.of(ctx).pop(value.trim().toLowerCase()),
         ),
         actions: [
           TextButton(
@@ -117,14 +118,18 @@ class _ManageAllergensScreenState
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(renameController.text.trim().toLowerCase()),
+            onPressed: () => Navigator.of(ctx)
+                .pop(renameController.text.trim().toLowerCase()),
             child: const Text('Rename'),
           ),
         ],
       ),
     );
-    renameController.dispose();
+    // Dispose after a post-frame callback so the dialog's widget tree has
+    // fully unmounted and no longer references the controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      renameController.dispose();
+    });
 
     if (newName == null || newName.isEmpty || newName == oldName) return;
 

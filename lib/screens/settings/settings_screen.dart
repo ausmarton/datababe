@@ -739,7 +739,7 @@ class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
     // Default to March 16, 2026 — the reported problem date
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2026, 3, 16),
+      initialDate: DateTime.now(),
       firstDate: DateTime(2025),
       lastDate: DateTime.now(),
     );

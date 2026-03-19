@@ -378,4 +378,311 @@ void main() {
       expect(find.text('Trends'), findsOneWidget);
     });
   });
+
+  // =========================================================================
+  // Journey 6 — "Ingredient to insights pipeline"
+  // =========================================================================
+
+  group('Journey 6 — Ingredient to insights pipeline', () {
+    testWidgets(
+        'Settings → Ingredients (5 seeded) → Recipes (3 visible) → Home solids chip → Insights allergen tracker',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+
+      // Navigate to Settings tab
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Tap Manage Ingredients
+      await tester.tap(find.text('Manage Ingredients'));
+      await tester.pumpAndSettle();
+
+      // Verify 5 ingredients seeded — title shows count
+      expect(find.text('Ingredients (5)'), findsOneWidget);
+
+      // Verify individual ingredient names visible
+      expect(find.text('egg'), findsWidgets);
+      expect(find.text('milk'), findsOneWidget);
+      expect(find.text('banana'), findsOneWidget);
+
+      // Go back to Settings
+      final backButton = find.byTooltip('Back');
+      await tester.tap(backButton.first);
+      await tester.pumpAndSettle();
+
+      // Scroll to and tap Manage Recipes
+      final recipesTile = find.text('Manage Recipes');
+      await tester.scrollUntilVisible(
+        recipesTile,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(recipesTile);
+      await tester.pumpAndSettle();
+
+      // Verify 3 recipes visible — title shows count
+      expect(find.text('Recipes (3)'), findsOneWidget);
+
+      // Verify individual recipe names visible
+      expect(find.text('scrambled eggs'), findsOneWidget);
+      expect(find.text('toast with butter'), findsOneWidget);
+      expect(find.text('banana mash'), findsOneWidget);
+
+      // Go back to Settings
+      await tester.tap(backButton.first);
+      await tester.pumpAndSettle();
+
+      // Navigate to Home tab
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+
+      // Verify Solids chip present in quick-log grid
+      expect(find.text('Solids'), findsWidgets);
+
+      // Navigate to Insights tab
+      await tester.tap(find.text('Insights'));
+      await tester.pumpAndSettle();
+
+      // Verify Allergen Tracker section shows coverage data
+      expect(find.text('Allergen Tracker'), findsOneWidget);
+      expect(find.textContaining('covered'), findsWidgets);
+    });
+  });
+
+  // =========================================================================
+  // Journey 7 — "Goal tracking flow"
+  // =========================================================================
+
+  group('Journey 7 — Goal tracking flow', () {
+    testWidgets(
+        'Settings → Goals (5 targets) → verify specific targets → Home status rings → Insights progress rings',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+
+      // Navigate to Settings tab
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Tap Goals
+      final goalsTile = find.widgetWithText(ListTile, 'Goals');
+      await tester.scrollUntilVisible(
+        goalsTile,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(goalsTile);
+      await tester.pumpAndSettle();
+      await tester.tap(goalsTile);
+      await tester.pumpAndSettle();
+
+      // Verify Goals screen loaded with "Other Goals" section
+      expect(find.text('Other Goals'), findsOneWidget);
+
+      // Verify feed bottle target — shows "Bottle Feed"
+      expect(find.text('Bottle Feed'), findsOneWidget);
+
+      // Verify tummy time target — shows "Tummy Time"
+      expect(find.text('Tummy Time'), findsOneWidget);
+
+      // Verify allergen goals section present
+      expect(find.textContaining('Allergen'), findsWidgets);
+
+      // Go back to Settings
+      final backButton = find.byTooltip('Back');
+      await tester.tap(backButton.first);
+      await tester.pumpAndSettle();
+
+      // Navigate to Home tab
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+
+      // Verify status rings card is present (connected to targets)
+      expect(find.byKey(const Key('status-rings')), findsOneWidget);
+
+      // Navigate to Insights tab
+      await tester.tap(find.text('Insights'));
+      await tester.pumpAndSettle();
+
+      // Verify Progress section shows rings
+      expect(find.text('Progress'), findsOneWidget);
+      expect(find.byType(ProgressRing), findsWidgets);
+    });
+  });
+
+  // =========================================================================
+  // Journey 8 — "Multi-carer family view"
+  // =========================================================================
+
+  group('Journey 8 — Multi-carer family view', () {
+    testWidgets(
+        'Family tab → 2 members with roles → Home still works → Settings shows account',
+        (tester) async {
+      await tester.runAsync(() => harness.seedMultiCarer());
+      await pumpApp(tester, harness.buildApp());
+
+      // Navigate to Family tab
+      await tester.tap(find.text('Family'));
+      await tester.pumpAndSettle();
+
+      // Verify Members section present
+      expect(find.text('Members'), findsOneWidget);
+
+      // Verify both members visible
+      expect(find.text('Test User'), findsWidgets);
+      expect(find.text('Partner'), findsOneWidget);
+
+      // Verify role chips displayed
+      expect(find.widgetWithText(Chip, 'parent'), findsOneWidget);
+      expect(find.widgetWithText(Chip, 'carer'), findsOneWidget);
+
+      // Navigate to Home tab — verify app still functional
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+
+      // Home should show the child's name
+      expect(find.text('Baby'), findsWidgets);
+
+      // Navigate to Settings tab
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Verify Account section shows current user info
+      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Test User'), findsOneWidget);
+      expect(find.text('test@example.com'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  // Journey 9 — "Activity detail drill-down"
+  // =========================================================================
+
+  group('Journey 9 — Activity detail drill-down', () {
+    testWidgets(
+        'Home → bottle feed tile → Insights → metric detail → progress + entries + trend',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+
+      // Verify Home screen loaded with bottle feed tile
+      expect(find.textContaining('120ml'), findsWidgets);
+
+      // Navigate to Insights tab
+      await tester.tap(find.text('Insights'));
+      await tester.pumpAndSettle();
+
+      // Navigate to feed volume metric detail via GoRouter
+      final router = GoRouter.of(tester.element(find.byType(Scaffold).first));
+      router.push(
+          '/insights/metric/${Uri.encodeComponent('feedBottle.totalVolumeMl.daily')}');
+      await tester.pumpAndSettle();
+
+      // Verify "Today's Progress" section
+      expect(find.text("Today's Progress"), findsOneWidget);
+
+      // Verify "Today's Entries" section
+      expect(find.text("Today's Entries"), findsOneWidget);
+
+      // Scroll to 7-day trend and verify TrendChart present
+      await scrollToVisible(tester, find.text('7-day trend'));
+      expect(find.text('7-day trend'), findsOneWidget);
+      expect(find.byType(TrendChart), findsWidgets);
+
+      // Go back using AppBar back button
+      final backButton = find.byTooltip('Back');
+      if (backButton.evaluate().isNotEmpty) {
+        await tester.tap(backButton.first);
+        await tester.pumpAndSettle();
+      }
+
+      // Verify we're back on Insights — Progress section still visible
+      expect(find.text('Progress'), findsOneWidget);
+    });
+  });
+
+  // =========================================================================
+  // Journey 10 — "Settings exploration"
+  // =========================================================================
+
+  group('Journey 10 — Settings exploration', () {
+    testWidgets(
+        'Settings → Account + Data + Sync + Diagnostics → Manage Allergens → back',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+
+      // Navigate to Settings tab
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Verify Account section
+      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Test User'), findsOneWidget);
+      expect(find.text('test@example.com'), findsOneWidget);
+
+      // Verify Data section tiles
+      expect(find.text('Data'), findsOneWidget);
+      expect(find.text('Manage Allergens'), findsOneWidget);
+      expect(find.text('Manage Ingredients'), findsOneWidget);
+
+      // Scroll to see more Data tiles
+      await tester.scrollUntilVisible(
+        find.text('Manage Recipes'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('Manage Recipes'), findsOneWidget);
+
+      // Scroll to Sync section — verify Sync Now present
+      await tester.scrollUntilVisible(
+        find.text('Sync Now'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('Sync Now'), findsOneWidget);
+
+      // Verify Diagnostics tile present
+      await tester.scrollUntilVisible(
+        find.text('Diagnostics'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(find.text('Diagnostics'), findsOneWidget);
+
+      // Scroll back up and tap Manage Allergens
+      await tester.dragUntilVisible(
+        find.text('Manage Allergens'),
+        find.byType(Scrollable).last,
+        const Offset(0, 200),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Manage Allergens'));
+      await tester.pumpAndSettle();
+
+      // Verify allergen management screen opens
+      expect(find.text('Manage Allergens'), findsWidgets);
+
+      // Go back to Settings
+      final backButton = find.byTooltip('Back');
+      await tester.tap(backButton.first);
+      await tester.pumpAndSettle();
+
+      // Verify Settings still shows sections (scroll to top first)
+      await tester.dragUntilVisible(
+        find.text('Account'),
+        find.byType(Scrollable).last,
+        const Offset(0, 200),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Data'), findsOneWidget);
+    });
+  });
 }
