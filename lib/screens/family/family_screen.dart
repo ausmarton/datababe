@@ -11,6 +11,7 @@ import '../../providers/family_provider.dart';
 import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/child_provider.dart';
+import '../../widgets/data_error_widget.dart';
 
 class FamilyScreen extends ConsumerWidget {
   const FamilyScreen({super.key});
@@ -113,7 +114,10 @@ class FamilyScreen extends ConsumerWidget {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
+            error: (e, _) => DataErrorWidget(
+              error: e,
+              onRetry: () => ref.invalidate(familyCarersProvider),
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -220,7 +224,10 @@ class FamilyScreen extends ConsumerWidget {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
+            error: (e, _) => DataErrorWidget(
+              error: e,
+              onRetry: () => ref.invalidate(allChildrenProvider),
+            ),
           ),
         ],
       ),

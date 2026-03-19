@@ -14,6 +14,7 @@ import '../../utils/activity_helpers.dart';
 import '../../utils/date_range_helpers.dart';
 import '../../widgets/allergen_matrix.dart';
 import '../../widgets/progress_ring.dart';
+import '../../widgets/data_error_widget.dart';
 import '../../widgets/trend_chart.dart';
 
 class InsightsScreen extends ConsumerWidget {
@@ -67,7 +68,10 @@ class InsightsScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => DataErrorWidget(
+          error: e,
+          onRetry: () => ref.invalidate(activitiesProvider),
+        ),
       ),
     );
   }

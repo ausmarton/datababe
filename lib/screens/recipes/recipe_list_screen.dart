@@ -8,6 +8,7 @@ import '../../providers/ingredient_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/allergen_helpers.dart';
+import '../../widgets/data_error_widget.dart';
 
 final _recipeSearchProvider = StateProvider<String>((ref) => '');
 
@@ -81,7 +82,10 @@ class RecipeListScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => DataErrorWidget(
+          error: e,
+          onRetry: () => ref.invalidate(recipesProvider),
+        ),
       ),
     );
   }

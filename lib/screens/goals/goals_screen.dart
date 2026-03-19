@@ -7,6 +7,7 @@ import '../../providers/child_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
+import '../../widgets/data_error_widget.dart';
 import '../../widgets/summary_card.dart';
 
 class GoalsScreen extends ConsumerWidget {
@@ -89,7 +90,10 @@ class GoalsScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => DataErrorWidget(
+          error: e,
+          onRetry: () => ref.invalidate(targetsProvider),
+        ),
       ),
     );
   }

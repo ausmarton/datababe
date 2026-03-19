@@ -12,6 +12,7 @@ import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../utils/date_range_helpers.dart';
 import '../../widgets/activity_tile.dart';
+import '../../widgets/data_error_widget.dart';
 import '../../widgets/summary_card.dart';
 
 class TimelineScreen extends ConsumerWidget {
@@ -142,7 +143,10 @@ class TimelineScreen extends ConsumerWidget {
               },
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              error: (e, _) => DataErrorWidget(
+                error: e,
+                onRetry: () => ref.invalidate(timelineActivitiesProvider),
+              ),
             ),
           ),
         ],

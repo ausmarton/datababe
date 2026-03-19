@@ -11,6 +11,7 @@ import '../../providers/invite_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/activity_helpers.dart';
 import '../../widgets/activity_tile.dart';
+import '../../widgets/data_error_widget.dart';
 import '../home/setup_prompt.dart';
 import '../home/invite_pending_prompt.dart';
 
@@ -137,7 +138,10 @@ class HomeScreen extends ConsumerWidget {
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (e, _) => SliverFillRemaining(
-            child: Center(child: Text('Error: $e')),
+            child: DataErrorWidget(
+              error: e,
+              onRetry: () => ref.invalidate(dailyActivitiesProvider),
+            ),
           ),
         ),
       ],

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
 import '../../providers/activity_provider.dart';
+import '../../widgets/data_error_widget.dart';
 
 class GrowthDetailScreen extends ConsumerStatefulWidget {
   const GrowthDetailScreen({super.key});
@@ -137,7 +138,10 @@ class _GrowthDetailScreenState extends ConsumerState<GrowthDetailScreen> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => DataErrorWidget(
+          error: e,
+          onRetry: () => ref.invalidate(activitiesProvider),
+        ),
       ),
     );
   }
