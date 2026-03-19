@@ -156,8 +156,8 @@ void main() {
       await navigateToInsights(tester);
 
       expect(find.text('Insights'), findsWidgets);
-      expect(find.text('Start logging activities to see insights'),
-          findsOneWidget);
+      expect(find.text('No insights yet'), findsOneWidget);
+      expect(find.text('Start Logging'), findsOneWidget);
     });
   });
 

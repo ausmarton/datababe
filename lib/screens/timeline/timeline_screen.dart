@@ -91,8 +91,31 @@ class TimelineScreen extends ConsumerWidget {
                     : activities;
 
                 if (filtered.isEmpty) {
-                  return const Center(
-                      child: Text('No activities in this period'));
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.event_note,
+                            size: 48,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No activities in this period',
+                          style:
+                              Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Try a different date range or log a new activity.',
+                          style:
+                              Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
                 // Group by date

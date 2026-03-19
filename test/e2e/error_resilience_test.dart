@@ -84,7 +84,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('Start logging activities to see insights'),
+        find.text('No insights yet'),
         findsOneWidget,
       );
     });
@@ -95,6 +95,7 @@ void main() {
       await navigateToGoals(tester);
 
       expect(find.textContaining('No goals set yet'), findsOneWidget);
+      expect(find.text('Add First Goal'), findsOneWidget);
     });
 
     testWidgets('ingredients with none shows empty state', (tester) async {

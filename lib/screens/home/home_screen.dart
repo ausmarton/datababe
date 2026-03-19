@@ -114,8 +114,29 @@ class HomeScreen extends ConsumerWidget {
         dailyActivities.when(
           data: (activities) {
             if (activities.isEmpty) {
-              return const SliverFillRemaining(
-                child: Center(child: Text('No activities logged today')),
+              return SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.baby_changing_station,
+                          size: 48,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No activities logged today',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tap a chip above to start logging.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
               );
             }
             return SliverList(

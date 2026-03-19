@@ -36,8 +36,38 @@ class GoalsScreen extends ConsumerWidget {
       body: targetsAsync.when(
         data: (targets) {
           if (targets.isEmpty) {
-            return const Center(
-              child: Text('No goals set yet.\nTap + to add one.'),
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.track_changes,
+                        size: 48,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No goals set yet',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Set targets for feeds, diapers, and allergens\n'
+                      'to track daily progress.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => context.push('/goals/add'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add First Goal'),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
 

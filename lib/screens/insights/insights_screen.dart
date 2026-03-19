@@ -46,8 +46,41 @@ class InsightsScreen extends ConsumerWidget {
       body: activitiesAsync.when(
         data: (activities) {
           if (activities.isEmpty) {
-            return const Center(
-              child: Text('Start logging activities to see insights'),
+            return Center(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.insights,
+                          size: 48,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No insights yet',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Log a few days of activities to see\n'
+                        'patterns, trends, and progress.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () =>
+                            context.push('/log/feedBottle'),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Start Logging'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
           }
           return ListView(

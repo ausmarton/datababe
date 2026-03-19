@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/activity_model.dart';
@@ -35,7 +36,40 @@ class _GrowthDetailScreenState extends ConsumerState<GrowthDetailScreen> {
             ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
           if (entries.isEmpty) {
-            return const Center(child: Text('No growth entries yet'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.show_chart,
+                        size: 48,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No growth entries yet',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Log weight, length, or head circumference\n'
+                      'to see growth charts and trends.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () =>
+                          context.push('/log/growth'),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Log Growth'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final latest = entries.last;

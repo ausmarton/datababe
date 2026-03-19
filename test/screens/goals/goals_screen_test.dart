@@ -245,7 +245,8 @@ void main() {
       await tester.pumpWidget(_buildApp(targets: []));
       await tester.pumpAndSettle();
 
-      expect(find.text('No goals set yet.\nTap + to add one.'), findsOneWidget);
+      expect(find.text('No goals set yet'), findsOneWidget);
+      expect(find.text('Add First Goal'), findsOneWidget);
     });
 
     testWidgets('delete icon in expanded list triggers dialog',
