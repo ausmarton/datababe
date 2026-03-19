@@ -37,6 +37,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   final _formKey = GlobalKey<FormState>();
   late ActivityType _type;
   bool _saving = false;
+  bool _isDirty = false;
 
   // Common fields
   late DateTime _startTime;
@@ -249,6 +250,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     if (date == null || !mounted) return;
 
     setState(() {
+      _isDirty = true;
       final dt = DateTime(date.year, date.month, date.day, current.hour, current.minute);
       if (isStart) {
         _startTime = dt;
@@ -267,6 +269,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
     if (time == null || !mounted) return;
 
     setState(() {
+      _isDirty = true;
       final dt = DateTime(current.year, current.month, current.day, time.hour, time.minute);
       if (isStart) {
         _startTime = dt;
@@ -414,7 +417,10 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       } else {
         await repo.insertActivity(familyId, entry);
       }
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        _isDirty = false;
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
@@ -454,7 +460,34 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       );
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Discard changes?'),
+            content: const Text(
+                'You have unsaved changes. Are you sure you want to go back?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Discard'),
+              ),
+            ],
+          ),
+        );
+        if (discard == true && context.mounted) {
+          _isDirty = false;
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(
           '${isEdit ? 'Edit' : isCopy ? 'Copy' : 'Log'} ${activityDisplayName(_type)}',
@@ -478,6 +511,9 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       ),
       body: Form(
         key: _formKey,
+        onChanged: () {
+          if (!_isDirty) setState(() => _isDirty = true);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -563,6 +599,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
