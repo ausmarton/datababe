@@ -1,7 +1,7 @@
 name: datababe
 description: "Baby care tracking app for parents and caregivers."
 publish_to: 'none'
-version: 1.12.0+44
+version: 1.12.1+45
 
 environment:
   sdk: ^3.7.0
