@@ -948,6 +948,15 @@ class TestData {
 /// With direct stream provider overrides (bypassing Sembast), only a few
 /// pump cycles are needed for Future.microtask auto-selection to resolve.
 Future<void> pumpApp(WidgetTester tester, Widget app) async {
+  // Use a phone-like surface size to prevent NavigationBar overflow
+  // (5 destinations don't fit at the default 800x600).
+  tester.view.physicalSize = const Size(1080, 1920);
+  tester.view.devicePixelRatio = 2.0;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
   await tester.pumpWidget(app);
   // FutureProvider (initialSync) + StreamProvider emissions need microtask flushes.
   // Auto-selection via Future.microtask needs additional pump cycles.

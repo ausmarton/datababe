@@ -201,7 +201,10 @@ void main() {
           tester, harness.buildApp(initialSyncStatus: SyncStatus.syncing));
 
       await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
+      // Use pump() instead of pumpAndSettle() — the syncing indicator
+      // has a continuous animation that prevents pumpAndSettle from settling.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       // Scroll to sync section
       await tester.scrollUntilVisible(
