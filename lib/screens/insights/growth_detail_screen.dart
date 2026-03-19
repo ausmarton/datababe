@@ -7,24 +7,16 @@ import 'package:intl/intl.dart';
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
 import '../../providers/activity_provider.dart';
+import '../../providers/insights_provider.dart';
 import '../../widgets/data_error_widget.dart';
 
-class GrowthDetailScreen extends ConsumerStatefulWidget {
+class GrowthDetailScreen extends ConsumerWidget {
   const GrowthDetailScreen({super.key});
 
   @override
-  ConsumerState<GrowthDetailScreen> createState() =>
-      _GrowthDetailScreenState();
-}
-
-class _GrowthDetailScreenState extends ConsumerState<GrowthDetailScreen> {
-  bool _showWeight = true;
-  bool _showLength = true;
-  bool _showHead = true;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final activitiesAsync = ref.watch(activitiesProvider);
+    final visibility = ref.watch(growthChartVisibilityProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Growth')),
@@ -123,22 +115,22 @@ class _GrowthDetailScreenState extends ConsumerState<GrowthDetailScreen> {
                 children: [
                   FilterChip(
                     label: const Text('Weight'),
-                    selected: _showWeight,
-                    onSelected: (v) => setState(() => _showWeight = v),
+                    selected: visibility.contains(GrowthMetric.weight),
+                    onSelected: (v) => _toggleMetric(ref, GrowthMetric.weight, v),
                     selectedColor: Colors.teal.withValues(alpha: 0.2),
                     checkmarkColor: Colors.teal,
                   ),
                   FilterChip(
                     label: const Text('Length'),
-                    selected: _showLength,
-                    onSelected: (v) => setState(() => _showLength = v),
+                    selected: visibility.contains(GrowthMetric.length),
+                    onSelected: (v) => _toggleMetric(ref, GrowthMetric.length, v),
                     selectedColor: Colors.indigo.withValues(alpha: 0.2),
                     checkmarkColor: Colors.indigo,
                   ),
                   FilterChip(
                     label: const Text('Head'),
-                    selected: _showHead,
-                    onSelected: (v) => setState(() => _showHead = v),
+                    selected: visibility.contains(GrowthMetric.head),
+                    onSelected: (v) => _toggleMetric(ref, GrowthMetric.head, v),
                     selectedColor: Colors.orange.withValues(alpha: 0.2),
                     checkmarkColor: Colors.orange,
                   ),
@@ -147,21 +139,21 @@ class _GrowthDetailScreenState extends ConsumerState<GrowthDetailScreen> {
               const SizedBox(height: 16),
 
               // Charts
-              if (_showWeight)
+              if (visibility.contains(GrowthMetric.weight))
                 _MetricChart(
                   label: 'Weight (kg)',
                   entries: entries,
                   getValue: (a) => a.weightKg,
                   color: Colors.teal,
                 ),
-              if (_showLength)
+              if (visibility.contains(GrowthMetric.length))
                 _MetricChart(
                   label: 'Length (cm)',
                   entries: entries,
                   getValue: (a) => a.lengthCm,
                   color: Colors.indigo,
                 ),
-              if (_showHead)
+              if (visibility.contains(GrowthMetric.head))
                 _MetricChart(
                   label: 'Head circumference (cm)',
                   entries: entries,
@@ -178,6 +170,12 @@ class _GrowthDetailScreenState extends ConsumerState<GrowthDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _toggleMetric(WidgetRef ref, GrowthMetric metric, bool on) {
+    final current = ref.read(growthChartVisibilityProvider);
+    ref.read(growthChartVisibilityProvider.notifier).state =
+        on ? ({...current}..add(metric)) : ({...current}..remove(metric));
   }
 
   String _formatDelta(double delta, String unit) {

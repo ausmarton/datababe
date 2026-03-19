@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/target_model.dart';
 import '../../providers/child_provider.dart';
+import '../../providers/insights_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
@@ -173,7 +174,7 @@ class GoalsScreen extends ConsumerWidget {
   }
 }
 
-class _AllergenGoalSection extends StatefulWidget {
+class _AllergenGoalSection extends ConsumerWidget {
   final String period;
   final List<TargetModel> targets;
   final List<TargetProgress> progress;
@@ -187,18 +188,14 @@ class _AllergenGoalSection extends StatefulWidget {
   });
 
   @override
-  State<_AllergenGoalSection> createState() => _AllergenGoalSectionState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final expandedPeriods = ref.watch(goalsAllergenExpandedProvider);
+    final expanded = expandedPeriods.contains(period);
 
-class _AllergenGoalSectionState extends State<_AllergenGoalSection> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = widget.targets.length;
+    final total = targets.length;
     int onTrackCount = 0;
-    for (final t in widget.targets) {
-      final tp = widget.progress
+    for (final t in targets) {
+      final tp = progress
           .where((p) => p.target.id == t.id)
           .firstOrNull;
       if (tp != null && tp.fraction >= 1.0) onTrackCount++;
@@ -220,7 +217,7 @@ class _AllergenGoalSectionState extends State<_AllergenGoalSection> {
               children: [
                 Expanded(
                   child: Text(
-                    'Allergen Goals (${widget.period})',
+                    'Allergen Goals ($period)',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -253,11 +250,17 @@ class _AllergenGoalSectionState extends State<_AllergenGoalSection> {
             ),
             const SizedBox(height: 8),
             GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap: () {
+                final current = ref.read(goalsAllergenExpandedProvider);
+                ref.read(goalsAllergenExpandedProvider.notifier).state =
+                    expanded
+                        ? ({...current}..remove(period))
+                        : ({...current}..add(period));
+              },
               child: Row(
                 children: [
                   Icon(
-                    _expanded
+                    expanded
                         ? Icons.expand_less
                         : Icons.expand_more,
                     size: 20,
@@ -266,7 +269,7 @@ class _AllergenGoalSectionState extends State<_AllergenGoalSection> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _expanded ? 'Hide' : 'Show all',
+                    expanded ? 'Hide' : 'Show all',
                     style: Theme.of(context)
                         .textTheme
                         .labelMedium
@@ -278,10 +281,10 @@ class _AllergenGoalSectionState extends State<_AllergenGoalSection> {
                 ],
               ),
             ),
-            if (_expanded) ...[
+            if (expanded) ...[
               const SizedBox(height: 8),
-              ...widget.targets.map((target) {
-                final tp = widget.progress
+              ...targets.map((target) {
+                final tp = progress
                     .where((p) => p.target.id == target.id)
                     .firstOrNull;
                 final progressFraction = tp?.fraction ?? 0.0;
@@ -336,7 +339,7 @@ class _AllergenGoalSectionState extends State<_AllergenGoalSection> {
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                           onPressed: () =>
-                              widget.onDelete(target),
+                              onDelete(target),
                         ),
                       ),
                     ],

@@ -158,7 +158,7 @@ class _DetailBody extends ConsumerWidget {
   }
 }
 
-class _AllergenRow extends ConsumerStatefulWidget {
+class _AllergenRow extends ConsumerWidget {
   final String category;
   final int exposureCount;
   final DateTime? lastExposed;
@@ -175,13 +175,6 @@ class _AllergenRow extends ConsumerStatefulWidget {
     this.urgency,
   });
 
-  @override
-  ConsumerState<_AllergenRow> createState() => _AllergenRowState();
-}
-
-class _AllergenRowState extends ConsumerState<_AllergenRow> {
-  bool _expanded = false;
-
   String _formatLastExposed(DateTime? date) {
     if (date == null) return 'Never';
     final now = DateTime.now();
@@ -194,12 +187,15 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final tp = widget.targetProgress;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final expandedSet = ref.watch(allergenDetailExpandedProvider);
+    final expanded = expandedSet.contains(category.toLowerCase());
+
+    final tp = targetProgress;
     final fraction = tp != null
         ? tp.fraction
-        : widget.maxCount > 0
-            ? widget.exposureCount / widget.maxCount
+        : maxCount > 0
+            ? exposureCount / maxCount
             : 0.0;
     final progressColor = tp != null
         ? (tp.fraction >= 1.0
@@ -207,42 +203,49 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
             : tp.fraction >= 0.5
                 ? Colors.amber
                 : Colors.red)
-        : (widget.exposureCount > 0 ? Colors.green : Colors.grey);
+        : (exposureCount > 0 ? Colors.green : Colors.grey);
 
     final subtitle = tp != null
-        ? '${tp.actual.round()} / ${tp.scaledTarget.round()}  |  Last: ${_formatLastExposed(widget.lastExposed)}'
-        : '${widget.exposureCount}x  |  Last: ${_formatLastExposed(widget.lastExposed)}';
+        ? '${tp.actual.round()} / ${tp.scaledTarget.round()}  |  Last: ${_formatLastExposed(lastExposed)}'
+        : '${exposureCount}x  |  Last: ${_formatLastExposed(lastExposed)}';
 
     return Card(
       child: Column(
         children: [
           ListTile(
-            leading: widget.urgency != null
+            leading: urgency != null
                 ? Icon(
-                    widget.urgency!.urgency == AllergenUrgency.overdue
+                    urgency!.urgency == AllergenUrgency.overdue
                         ? Icons.warning_amber
-                        : widget.urgency!.urgency == AllergenUrgency.due
+                        : urgency!.urgency == AllergenUrgency.due
                             ? Icons.timelapse
                             : Icons.check_circle,
                     color:
-                        widget.urgency!.urgency == AllergenUrgency.overdue
+                        urgency!.urgency == AllergenUrgency.overdue
                             ? Colors.red
-                            : widget.urgency!.urgency ==
+                            : urgency!.urgency ==
                                     AllergenUrgency.due
                                 ? Colors.amber
                                 : Colors.green,
                     size: 20,
                   )
                 : null,
-            title: Text(widget.category),
+            title: Text(category),
             subtitle: Text(
               subtitle,
               style: Theme.of(context).textTheme.bodySmall,
             ),
             trailing: Icon(
-              _expanded ? Icons.expand_less : Icons.expand_more,
+              expanded ? Icons.expand_less : Icons.expand_more,
             ),
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: () {
+              final current = ref.read(allergenDetailExpandedProvider);
+              final key = category.toLowerCase();
+              ref.read(allergenDetailExpandedProvider.notifier).state =
+                  expanded
+                      ? ({...current}..remove(key))
+                      : ({...current}..add(key));
+            },
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -252,16 +255,16 @@ class _AllergenRowState extends ConsumerState<_AllergenRow> {
               backgroundColor: progressColor.withValues(alpha: 0.1),
             ),
           ),
-          if (_expanded) _buildIngredientList(),
+          if (expanded) _buildIngredientList(context, ref),
           const SizedBox(height: 8),
         ],
       ),
     );
   }
 
-  Widget _buildIngredientList() {
+  Widget _buildIngredientList(BuildContext context, WidgetRef ref) {
     final details = ref.watch(
-        allergenIngredientDrilldownProvider(widget.category));
+        allergenIngredientDrilldownProvider(category));
 
     if (details.isEmpty) {
       return const Padding(

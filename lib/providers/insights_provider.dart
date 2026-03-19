@@ -1446,3 +1446,22 @@ String _metricUnit(String metric) {
     _ => '',
   };
 }
+
+// ==========================================================================
+// UI state persistence providers (#47)
+// ==========================================================================
+
+/// Expanded allergen goal periods on the Goals screen.
+final goalsAllergenExpandedProvider =
+    StateProvider<Set<String>>((ref) => {});
+
+/// Visible growth chart metrics on the Growth Detail screen.
+enum GrowthMetric { weight, length, head }
+
+final growthChartVisibilityProvider =
+    StateProvider<Set<GrowthMetric>>(
+        (ref) => {GrowthMetric.weight, GrowthMetric.length, GrowthMetric.head});
+
+/// Expanded allergen rows on the Allergen Detail screen.
+final allergenDetailExpandedProvider =
+    StateProvider<Set<String>>((ref) => {});
