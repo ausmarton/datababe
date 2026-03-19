@@ -13,7 +13,9 @@ import '../../providers/target_provider.dart';
 import '../../utils/activity_helpers.dart';
 
 class AddTargetScreen extends ConsumerStatefulWidget {
-  const AddTargetScreen({super.key});
+  final String? targetId;
+
+  const AddTargetScreen({super.key, this.targetId});
 
   @override
   ConsumerState<AddTargetScreen> createState() => _AddTargetScreenState();
@@ -27,6 +29,51 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
   String? _selectedIngredient;
   String? _selectedAllergen;
   bool _saving = false;
+
+  bool get _isEdit => widget.targetId != null;
+  String? _editId;
+  String? _originalCreatedBy;
+  DateTime? _originalCreatedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.targetId != null) {
+      // Deferred to post-frame so ref.read is available
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadExistingTarget();
+      });
+    }
+  }
+
+  void _loadExistingTarget() {
+    final targets = ref.read(targetsProvider).valueOrNull ?? [];
+    final target =
+        targets.where((t) => t.id == widget.targetId).firstOrNull;
+    if (target == null) return;
+
+    final type = parseActivityType(target.activityType);
+    final metric = TargetMetric.values
+        .where((m) => m.name == target.metric)
+        .firstOrNull;
+    final period = TargetPeriod.values
+        .where((p) => p.name == target.period)
+        .firstOrNull;
+
+    setState(() {
+      _editId = target.id;
+      _originalCreatedBy = target.createdBy;
+      _originalCreatedAt = target.createdAt;
+      if (type != null) _activityType = type;
+      if (metric != null) _metric = metric;
+      if (period != null) _period = period;
+      _valueController.text = target.targetValue % 1 == 0
+          ? target.targetValue.round().toString()
+          : target.targetValue.toString();
+      _selectedIngredient = target.ingredientName;
+      _selectedAllergen = target.allergenName;
+    });
+  }
 
   /// Returns the metrics supported by the selected activity type.
   List<TargetMetric> get _supportedMetrics {
@@ -112,6 +159,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
 
     final existingTargets = ref.read(targetsProvider).valueOrNull ?? [];
     final isDuplicate = existingTargets.any((t) =>
+        (_isEdit ? t.id != _editId : true) && // Exclude self in edit mode
         t.activityType == _activityType.name &&
         t.metric == _metric.name &&
         t.period == _period.name &&
@@ -133,14 +181,14 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
     try {
       final now = DateTime.now();
       final target = TargetModel(
-        id: const Uuid().v4(),
+        id: _isEdit ? _editId! : const Uuid().v4(),
         childId: childId,
         activityType: _activityType.name,
         metric: _metric.name,
         period: _period.name,
         targetValue: value,
-        createdBy: user.uid,
-        createdAt: now,
+        createdBy: _isEdit ? _originalCreatedBy ?? user.uid : user.uid,
+        createdAt: _isEdit ? _originalCreatedAt ?? now : now,
         modifiedAt: now,
         ingredientName: _metric == TargetMetric.ingredientExposures
             ? _selectedIngredient!.toLowerCase()
@@ -152,7 +200,11 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
       );
 
       final repo = ref.read(targetRepositoryProvider);
-      await repo.createTarget(familyId, target);
+      if (_isEdit) {
+        await repo.updateTarget(familyId, target);
+      } else {
+        await repo.createTarget(familyId, target);
+      }
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -171,7 +223,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
     ref.watch(selectedChildProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Goal')),
+      appBar: AppBar(title: Text(_isEdit ? 'Edit Goal' : 'Add Goal')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -195,16 +247,18 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
                       ),
                     ))
                 .toList(),
-            onChanged: (v) {
-              if (v == null) return;
-              setState(() {
-                _activityType = v;
-                final supported = _supportedMetrics;
-                if (!supported.contains(_metric)) {
-                  _metric = supported.first;
-                }
-              });
-            },
+            onChanged: _isEdit
+                ? null
+                : (v) {
+                    if (v == null) return;
+                    setState(() {
+                      _activityType = v;
+                      final supported = _supportedMetrics;
+                      if (!supported.contains(_metric)) {
+                        _metric = supported.first;
+                      }
+                    });
+                  },
           ),
           const SizedBox(height: 16),
 
@@ -223,9 +277,11 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
                       child: Text(_metricLabel(m)),
                     ))
                 .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => _metric = v);
-            },
+            onChanged: _isEdit
+                ? null
+                : (v) {
+                    if (v != null) setState(() => _metric = v);
+                  },
           ),
           const SizedBox(height: 16),
 
@@ -308,7 +364,9 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
                   value: TargetPeriod.monthly, label: Text('Monthly')),
             ],
             selected: {_period},
-            onSelectionChanged: (s) => setState(() => _period = s.first),
+            onSelectionChanged: _isEdit
+                ? null
+                : (s) => setState(() => _period = s.first),
           ),
           const SizedBox(height: 16),
 

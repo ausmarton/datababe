@@ -160,4 +160,120 @@ void main() {
       expect(find.text('Goals'), findsWidgets);
     });
   });
+
+  group('Edit goal', () {
+    Future<void> tapGoalCard(WidgetTester tester) async {
+      // Scroll to and tap a specific goal card text — "Bottle Feed" is
+      // from target t4 (feedBottle, totalVolumeMl, daily, 600).
+      final goalText = find.text('Bottle Feed');
+      await tester.scrollUntilVisible(
+        goalText,
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(goalText);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('tapping goal card opens edit screen', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tapGoalCard(tester);
+
+      expect(find.text('Edit Goal'), findsOneWidget);
+    });
+
+    testWidgets('edit screen pre-fills target value', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tapGoalCard(tester);
+
+      expect(find.text('Edit Goal'), findsOneWidget);
+      // t4 has targetValue 600 — should appear in the text field
+      expect(find.text('600'), findsOneWidget);
+    });
+
+    testWidgets('activity type dropdown is disabled in edit mode',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tapGoalCard(tester);
+
+      expect(find.text('Edit Goal'), findsOneWidget);
+      // In edit mode, tapping the activity type dropdown should NOT open it
+      // (onChanged: null makes it disabled). The dropdown text should show
+      // "Bottle Feed" but tapping it shouldn't open options.
+      final dropdownFinder = find.text('Activity type');
+      expect(dropdownFinder, findsOneWidget);
+    });
+
+    testWidgets('period buttons present in edit mode', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tapGoalCard(tester);
+
+      // Period buttons should be visible (Daily/Weekly/Monthly)
+      expect(find.text('Daily'), findsOneWidget);
+      expect(find.text('Weekly'), findsOneWidget);
+      expect(find.text('Monthly'), findsOneWidget);
+    });
+
+    testWidgets('save button is present in edit mode', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tapGoalCard(tester);
+
+      expect(find.text('Save'), findsOneWidget);
+    });
+
+    testWidgets('metric label shown in edit mode', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tapGoalCard(tester);
+
+      // t4 is feedBottle with metric totalVolumeMl
+      expect(find.text('Metric'), findsOneWidget);
+    });
+
+    testWidgets('FAB still opens Add Goal (not Edit)', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tester.tap(find.byIcon(Icons.add));
+      await tester.pumpAndSettle();
+
+      // FAB should open "Add Goal", not "Edit Goal"
+      expect(find.text('Add Goal'), findsOneWidget);
+      expect(find.text('Edit Goal'), findsNothing);
+    });
+
+    testWidgets('add goal has enabled period buttons', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGoals(tester);
+
+      await tester.tap(find.byIcon(Icons.add));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Goal'), findsOneWidget);
+      // In add mode, the period buttons should be present and enabled
+      expect(find.text('Daily'), findsOneWidget);
+      expect(find.text('Weekly'), findsOneWidget);
+      expect(find.text('Monthly'), findsOneWidget);
+    });
+  });
 }

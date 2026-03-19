@@ -81,6 +81,8 @@ class GoalsScreen extends ConsumerWidget {
                       progress: progress,
                       onDelete: () =>
                           _deleteGoal(context, ref, target),
+                      onTap: () =>
+                          context.push('/goals/add?id=${target.id}'),
                     )),
               ],
             ],
@@ -319,11 +321,13 @@ class _GoalCard extends StatelessWidget {
   final TargetModel target;
   final List<TargetProgress> progress;
   final VoidCallback onDelete;
+  final VoidCallback? onTap;
 
   const _GoalCard({
     required this.target,
     required this.progress,
     required this.onDelete,
+    this.onTap,
   });
 
   @override
@@ -340,43 +344,47 @@ class _GoalCard extends StatelessWidget {
             : Colors.red;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (type != null) ...[
-                  Icon(activityIcon(type),
-                      color: activityColor(type), size: 20),
-                  const SizedBox(width: 8),
-                  Text(activityDisplayName(type)),
-                ] else
-                  Text(target.activityType),
-                const Spacer(),
-                Chip(
-                  label: Text(target.period),
-                  visualDensity: VisualDensity.compact,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: onDelete,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${_metricLabel(target.metric, ingredientName: target.ingredientName, allergenName: target.allergenName)}: ${actual.round()} / ${target.targetValue.round()}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(
-              value: progressFraction.clamp(0.0, 1.0),
-              color: color,
-              backgroundColor: color.withValues(alpha: 0.2),
-            ),
-          ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (type != null) ...[
+                    Icon(activityIcon(type),
+                        color: activityColor(type), size: 20),
+                    const SizedBox(width: 8),
+                    Text(activityDisplayName(type)),
+                  ] else
+                    Text(target.activityType),
+                  const Spacer(),
+                  Chip(
+                    label: Text(target.period),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: onDelete,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${_metricLabel(target.metric, ingredientName: target.ingredientName, allergenName: target.allergenName)}: ${actual.round()} / ${target.targetValue.round()}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              LinearProgressIndicator(
+                value: progressFraction.clamp(0.0, 1.0),
+                color: color,
+                backgroundColor: color.withValues(alpha: 0.2),
+              ),
+            ],
+          ),
         ),
       ),
     );

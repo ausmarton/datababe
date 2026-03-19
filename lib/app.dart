@@ -101,7 +101,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/goals/add',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const AddTargetScreen(),
+        builder: (context, state) => AddTargetScreen(
+          targetId: state.uri.queryParameters['id'],
+        ),
       ),
       GoRoute(
         path: '/goals/bulk-allergens',
