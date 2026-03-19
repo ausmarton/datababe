@@ -298,7 +298,10 @@ AllergenCoverage computeAllergenCoverage({
   final exposureCounts = <String, int>{};
   final lastExposed = <String, DateTime>{};
   final lastExposedAll = <String, DateTime>{}; // regardless of window
+  final exposureDays = <String, Set<String>>{};
 
+  // Single pass: collect exposure counts, last exposure dates, and distinct
+  // exposure days instead of scanning activities twice.
   for (final a in activities) {
     if (a.type != ActivityType.solids.name) continue;
     if (a.allergenNames == null) continue;
@@ -317,19 +320,9 @@ AllergenCoverage computeAllergenCoverage({
       if (existing == null || a.startTime.isAfter(existing)) {
         lastExposed[normalized] = a.startTime;
       }
-    }
-  }
-
-  // Count distinct exposure days per allergen within the window.
-  final exposureDays = <String, Set<String>>{};
-  for (final a in activities) {
-    if (a.type != ActivityType.solids.name) continue;
-    if (a.allergenNames == null) continue;
-    if (a.startTime.isBefore(cutoff)) continue;
-    final dayKey =
-        '${a.startTime.year}-${a.startTime.month}-${a.startTime.day}';
-    for (final allergen in a.allergenNames!) {
-      final normalized = allergen.trim().toLowerCase();
+      // Track distinct exposure days within the window.
+      final dayKey =
+          '${a.startTime.year}-${a.startTime.month}-${a.startTime.day}';
       (exposureDays[normalized] ??= {}).add(dayKey);
     }
   }
@@ -536,12 +529,76 @@ List<AllergenIngredientDetail> computeAllergenIngredientDrilldown({
     ..sort((a, b) => b.exposureCount.compareTo(a.exposureCount));
 }
 
+/// Compute per-ingredient drilldowns for ALL allergen categories at once.
+/// Single activity scan instead of N scans for N allergens.
+Map<String, List<AllergenIngredientDetail>> computeAllAllergenDrilldowns({
+  required List<ActivityModel> activities,
+  required List<IngredientModel> ingredients,
+  required DateTime referenceDate,
+  required int periodDays,
+}) {
+  // Build allergen -> [ingredient] lookup
+  final allergenToIngredients = <String, List<IngredientModel>>{};
+  for (final i in ingredients) {
+    for (final a in i.allergens) {
+      final normalized = a.trim().toLowerCase();
+      (allergenToIngredients[normalized] ??= []).add(i);
+    }
+  }
+
+  if (allergenToIngredients.isEmpty) return {};
+
+  final cutoff = DateTime(
+    referenceDate.year,
+    referenceDate.month,
+    referenceDate.day,
+  ).subtract(Duration(days: periodDays));
+
+  // Single scan: collect counts and dates for all ingredient names
+  final counts = <String, int>{};
+  final lastDates = <String, DateTime>{};
+
+  for (final a in activities) {
+    if (a.type != ActivityType.solids.name) continue;
+    if (a.startTime.isBefore(cutoff)) continue;
+    if (a.ingredientNames == null) continue;
+
+    for (final name in a.ingredientNames!) {
+      final n = name.trim().toLowerCase();
+      counts[n] = (counts[n] ?? 0) + 1;
+      final existing = lastDates[n];
+      if (existing == null || a.startTime.isAfter(existing)) {
+        lastDates[n] = a.startTime;
+      }
+    }
+  }
+
+  // Build result map
+  final result = <String, List<AllergenIngredientDetail>>{};
+  for (final entry in allergenToIngredients.entries) {
+    final details = entry.value.map((i) {
+      final n = i.name.toLowerCase();
+      return AllergenIngredientDetail(
+        ingredientName: i.name,
+        exposureCount: counts[n] ?? 0,
+        lastExposure: lastDates[n],
+      );
+    }).toList()
+      ..sort((a, b) => b.exposureCount.compareTo(a.exposureCount));
+    result[entry.key] = details;
+  }
+  return result;
+}
+
 /// Compute daily trend values for an arbitrary metric key over a period.
+/// If [dailySummaryMap] is provided, uses pre-computed summaries instead of
+/// recomputing from activities (much faster for multiple calls).
 List<TrendPoint> computeTrendForMetric({
   required List<ActivityModel> activities,
   required String metricKey,
   required DateTime referenceDate,
   required int days,
+  Map<String, ActivitySummary>? dailySummaryMap,
 }) {
   final dotIndex = metricKey.indexOf('.');
   if (dotIndex < 0) return [];
@@ -554,22 +611,63 @@ List<TrendPoint> computeTrendForMetric({
 
   for (int i = days - 1; i >= 0; i--) {
     final dayStart = ref.subtract(Duration(days: i));
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    final dayActivities = activities
-        .where((a) =>
-            !a.startTime.isBefore(dayStart) && a.startTime.isBefore(dayEnd))
-        .toList();
-
     double value = 0;
-    if (dayActivities.isNotEmpty) {
-      final summary = ActivityAggregator.compute(dayActivities);
-      value = extractMetricFromSummary(activityType, metric, summary) ?? 0;
+
+    if (dailySummaryMap != null) {
+      final summary = dailySummaryMap[_dayKey(dayStart)];
+      if (summary != null) {
+        value = extractMetricFromSummary(activityType, metric, summary) ?? 0;
+      }
+    } else {
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      final dayActivities = activities
+          .where((a) =>
+              !a.startTime.isBefore(dayStart) && a.startTime.isBefore(dayEnd))
+          .toList();
+      if (dayActivities.isNotEmpty) {
+        final summary = ActivityAggregator.compute(dayActivities);
+        value = extractMetricFromSummary(activityType, metric, summary) ?? 0;
+      }
     }
     points.add(TrendPoint(date: dayStart, value: value));
   }
 
   return points;
 }
+
+// ==========================================================================
+// Shared daily summary cache
+// ==========================================================================
+
+/// Date key for the daily summary map.
+String _dayKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+/// Pre-computed daily summaries for the trailing 30 days (+ today).
+/// All providers that need per-day aggregation should read from this map
+/// instead of calling ActivityAggregator.compute() per day.
+final dailySummaryMapProvider =
+    Provider<Map<String, ActivitySummary>>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return {};
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
+
+  // Bucket activities into days
+  final buckets = <String, List<ActivityModel>>{};
+  final oldest = todayStart.subtract(const Duration(days: 30));
+  for (final a in activities) {
+    if (a.startTime.isBefore(oldest)) continue;
+    final dayStart = startOfDay(a.startTime, sodHour);
+    final key = _dayKey(dayStart);
+    (buckets[key] ??= []).add(a);
+  }
+
+  // Compute summary for each day
+  return {
+    for (final e in buckets.entries)
+      e.key: ActivityAggregator.compute(e.value),
+  };
+});
 
 // ==========================================================================
 // Phase 1 providers
@@ -711,9 +809,10 @@ final rollingMonthSummaryProvider = Provider<ActivitySummary?>((ref) {
 });
 
 /// 7-day trailing averages for key metrics (excluding today).
+/// Uses dailySummaryMapProvider to avoid redundant compute() calls.
 final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
-  final activities = ref.watch(activitiesProvider).valueOrNull;
-  if (activities == null) return null;
+  final dailyMap = ref.watch(dailySummaryMapProvider);
+  if (dailyMap.isEmpty) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
 
@@ -728,14 +827,9 @@ final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
 
   for (int i = 1; i <= 7; i++) {
     final dayStart = todayStart.subtract(Duration(days: i));
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    final dayActivities = activities
-        .where((a) =>
-            !a.startTime.isBefore(dayStart) && a.startTime.isBefore(dayEnd))
-        .toList();
-    if (dayActivities.isEmpty) continue;
+    final summary = dailyMap[_dayKey(dayStart)];
+    if (summary == null) continue;
     daysWithData++;
-    final summary = ActivityAggregator.compute(dayActivities);
     totalBottleMl += summary.bottleFeedTotalMl;
     totalBottleCount += summary.bottleFeedCount;
     totalBreastCount += summary.breastFeedCount;
@@ -1051,11 +1145,14 @@ final selectedTrendMetricProvider =
 final selectedTrendPeriodProvider = StateProvider<int>((ref) => 7);
 
 /// Daily trend data for the selected metric and period.
+/// Uses dailySummaryMapProvider to avoid redundant compute() calls.
 final trendDataProvider = Provider<List<TrendPoint>>((ref) {
-  final activities = ref.watch(activitiesProvider).valueOrNull;
+  final dailyMap = ref.watch(dailySummaryMapProvider);
   final metric = ref.watch(selectedTrendMetricProvider);
   final days = ref.watch(selectedTrendPeriodProvider);
-  if (activities == null) return [];
+  if (dailyMap.isEmpty && ref.watch(activitiesProvider).valueOrNull == null) {
+    return [];
+  }
 
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
@@ -1063,15 +1160,10 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
 
   for (int i = days - 1; i >= 0; i--) {
     final dayStart = todayStart.subtract(Duration(days: i));
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    final dayActivities = activities
-        .where((a) =>
-            !a.startTime.isBefore(dayStart) && a.startTime.isBefore(dayEnd))
-        .toList();
+    final s = dailyMap[_dayKey(dayStart)];
 
     double value = 0;
-    if (dayActivities.isNotEmpty) {
-      final s = ActivityAggregator.compute(dayActivities);
+    if (s != null) {
       value = switch (metric) {
         TrendMetric.feedVolume => s.bottleFeedTotalMl,
         TrendMetric.diapers => s.diaperCount.toDouble(),
@@ -1119,16 +1211,19 @@ final trendBaselineProvider = Provider<double?>((ref) {
 });
 
 /// Trend data for an arbitrary metric key over a given number of days.
+/// Uses dailySummaryMapProvider for O(1) daily lookups.
 final metricTrendDataProvider =
     Provider.family<List<TrendPoint>, ({String metricKey, int days})>(
         (ref, query) {
   final activities = ref.watch(activitiesProvider).valueOrNull;
   if (activities == null) return [];
+  final dailyMap = ref.watch(dailySummaryMapProvider);
   return computeTrendForMetric(
     activities: activities,
     metricKey: query.metricKey,
     referenceDate: DateTime.now(),
     days: query.days,
+    dailySummaryMap: dailyMap.isNotEmpty ? dailyMap : null,
   );
 });
 
@@ -1217,19 +1312,25 @@ final insightsWeeklyAllergenMatrixProvider =
   );
 });
 
-/// Drill-down: per-ingredient details for a given allergen category.
-final allergenIngredientDrilldownProvider = Provider.family<
-    List<AllergenIngredientDetail>, String>((ref, allergenCategory) {
+/// Pre-computed drilldowns for ALL allergen categories (single activity scan).
+final _allAllergenDrilldownsProvider =
+    Provider<Map<String, List<AllergenIngredientDetail>>>((ref) {
   final activities = ref.watch(activitiesProvider).valueOrNull ?? [];
   final ingredients = ref.watch(ingredientsProvider).valueOrNull ?? [];
-
-  return computeAllergenIngredientDrilldown(
+  return computeAllAllergenDrilldowns(
     activities: activities,
     ingredients: ingredients,
-    allergenCategory: allergenCategory,
     referenceDate: DateTime.now(),
     periodDays: 30,
   );
+});
+
+/// Drill-down: per-ingredient details for a given allergen category.
+/// Reads from the batch-computed map instead of scanning per allergen.
+final allergenIngredientDrilldownProvider = Provider.family<
+    List<AllergenIngredientDetail>, String>((ref, allergenCategory) {
+  final allDrilldowns = ref.watch(_allAllergenDrilldownsProvider);
+  return allDrilldowns[allergenCategory.trim().toLowerCase()] ?? [];
 });
 
 // ==========================================================================

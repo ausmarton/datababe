@@ -2110,4 +2110,165 @@ void main() {
       expect(result[2].key, contains('diaper'));
     });
   });
+
+  // ========================================================================
+  // computeAllAllergenDrilldowns (batch)
+  // ========================================================================
+  group('computeAllAllergenDrilldowns', () {
+    test('returns drilldowns for all allergen categories at once', () {
+      final ingredients = [
+        _ingredient('egg', ['egg']),
+        _ingredient('milk', ['dairy']),
+        _ingredient('cheese', ['dairy']),
+        _ingredient('bread', ['wheat']),
+      ];
+      final activities = [
+        _activity(
+          type: 'solids',
+          startTime: DateTime(2026, 3, 5),
+          ingredientNames: ['egg'],
+        ),
+        _activity(
+          type: 'solids',
+          startTime: DateTime(2026, 3, 5),
+          ingredientNames: ['milk', 'cheese'],
+        ),
+        _activity(
+          type: 'solids',
+          startTime: DateTime(2026, 3, 6),
+          ingredientNames: ['egg', 'bread'],
+        ),
+      ];
+
+      final result = computeAllAllergenDrilldowns(
+        activities: activities,
+        ingredients: ingredients,
+        referenceDate: DateTime(2026, 3, 6),
+        periodDays: 30,
+      );
+
+      expect(result.keys, containsAll(['egg', 'dairy', 'wheat']));
+      // egg ingredient: 2 exposures
+      expect(result['egg']!.first.exposureCount, 2);
+      // dairy: milk=1, cheese=1
+      expect(result['dairy']!.length, 2);
+      final dairyCounts = result['dairy']!.map((d) => d.exposureCount).toList();
+      expect(dairyCounts, containsAll([1, 1]));
+      // wheat: bread=1
+      expect(result['wheat']!.first.exposureCount, 1);
+    });
+
+    test('matches single-allergen computeAllergenIngredientDrilldown output', () {
+      final ingredients = [
+        _ingredient('egg', ['egg']),
+        _ingredient('mayo', ['egg']),
+      ];
+      final activities = [
+        _activity(
+          type: 'solids',
+          startTime: DateTime(2026, 3, 5),
+          ingredientNames: ['egg'],
+        ),
+        _activity(
+          type: 'solids',
+          startTime: DateTime(2026, 3, 6),
+          ingredientNames: ['egg', 'mayo'],
+        ),
+      ];
+
+      final batch = computeAllAllergenDrilldowns(
+        activities: activities,
+        ingredients: ingredients,
+        referenceDate: DateTime(2026, 3, 6),
+        periodDays: 30,
+      );
+      final single = computeAllergenIngredientDrilldown(
+        activities: activities,
+        ingredients: ingredients,
+        allergenCategory: 'egg',
+        referenceDate: DateTime(2026, 3, 6),
+        periodDays: 30,
+      );
+
+      expect(batch['egg']!.length, single.length);
+      for (int i = 0; i < single.length; i++) {
+        expect(batch['egg']![i].ingredientName, single[i].ingredientName);
+        expect(batch['egg']![i].exposureCount, single[i].exposureCount);
+      }
+    });
+
+    test('returns empty map when no ingredients', () {
+      final result = computeAllAllergenDrilldowns(
+        activities: [_activity(type: 'solids', ingredientNames: ['egg'])],
+        ingredients: [],
+        referenceDate: DateTime(2026, 3, 6),
+        periodDays: 30,
+      );
+      expect(result, isEmpty);
+    });
+  });
+
+  // ========================================================================
+  // computeTrendForMetric with dailySummaryMap
+  // ========================================================================
+  group('computeTrendForMetric with dailySummaryMap', () {
+    test('uses pre-computed map instead of recomputing', () {
+      final activities = [
+        _activity(type: 'feedBottle', startTime: DateTime(2026, 3, 5), volumeMl: 100),
+        _activity(type: 'feedBottle', startTime: DateTime(2026, 3, 6), volumeMl: 200),
+      ];
+
+      // Pre-compute daily map
+      final day5 = ActivityAggregator.compute(
+          activities.where((a) => a.startTime.day == 5).toList());
+      final day6 = ActivityAggregator.compute(
+          activities.where((a) => a.startTime.day == 6).toList());
+      final dailyMap = {
+        '2026-3-5': day5,
+        '2026-3-6': day6,
+      };
+
+      final withMap = computeTrendForMetric(
+        activities: activities,
+        metricKey: 'feedBottle.totalVolumeMl',
+        referenceDate: DateTime(2026, 3, 6),
+        days: 2,
+        dailySummaryMap: dailyMap,
+      );
+
+      final withoutMap = computeTrendForMetric(
+        activities: activities,
+        metricKey: 'feedBottle.totalVolumeMl',
+        referenceDate: DateTime(2026, 3, 6),
+        days: 2,
+      );
+
+      expect(withMap.length, withoutMap.length);
+      for (int i = 0; i < withMap.length; i++) {
+        expect(withMap[i].value, withoutMap[i].value);
+        expect(withMap[i].date, withoutMap[i].date);
+      }
+    });
+
+    test('handles missing days in map gracefully', () {
+      final dailyMap = <String, ActivitySummary>{
+        '2026-3-6': ActivityAggregator.compute([
+          _activity(type: 'diaper', startTime: DateTime(2026, 3, 6)),
+        ]),
+      };
+
+      final result = computeTrendForMetric(
+        activities: [],
+        metricKey: 'diaper.count',
+        referenceDate: DateTime(2026, 3, 6),
+        days: 3,
+        dailySummaryMap: dailyMap,
+      );
+
+      expect(result.length, 3);
+      expect(result[0].value, 0); // day 4 missing
+      expect(result[1].value, 0); // day 5 missing
+      expect(result[2].value, 1); // day 6 has 1 diaper
+    });
+  });
 }
