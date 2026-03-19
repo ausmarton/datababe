@@ -324,6 +324,14 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validate duration: endTime must be after startTime
+    if (_hasDuration && _endTime != null && _endTime!.isBefore(_startTime)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be after start time')),
+      );
+      return;
+    }
+
     final childId = ref.read(selectedChildIdProvider);
     final familyId = ref.read(selectedFamilyIdProvider);
     if (childId == null || familyId == null) return;
@@ -506,13 +514,20 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
                 trailing: const Icon(Icons.access_time),
                 onTap: () => _pickTime(isStart: false),
               ),
-              if (_computeDuration() != null)
+              if (_endTime != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Duration: ${formatDuration(_computeDuration())}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  child: _endTime!.isBefore(_startTime)
+                      ? Text(
+                          'End time must be after start time',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        )
+                      : Text(
+                          'Duration: ${formatDuration(_computeDuration())}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                 ),
             ],
 
