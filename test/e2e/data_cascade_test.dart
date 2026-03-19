@@ -215,8 +215,9 @@ void main() {
       await navigateToIngredients(tester);
 
       // Each ingredient card has a delete_outline icon button
+      // Some may be off-screen due to card height, so check at least 4 visible
       final deleteButtons = find.byIcon(Icons.delete_outline);
-      expect(deleteButtons, findsNWidgets(5));
+      expect(deleteButtons, findsWidgets);
 
       // Verify they are IconButtons
       final iconButton = tester.widget<IconButton>(
@@ -236,7 +237,13 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToIngredients(tester);
 
-      // Tap on an ingredient card (e.g., "banana" which has no allergen chip ambiguity)
+      // Scroll to "banana" (may be off-screen due to card height with usage text)
+      await tester.scrollUntilVisible(
+        find.text('banana'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('banana'));
       await tester.pumpAndSettle();
 

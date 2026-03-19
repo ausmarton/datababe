@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../models/ingredient_model.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/ingredient_provider.dart';
+import '../../providers/activity_provider.dart';
+import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../widgets/data_error_widget.dart';
 
@@ -92,6 +94,21 @@ class _IngredientCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final activities = ref.watch(activitiesProvider).valueOrNull ?? [];
+    final recipes = ref.watch(recipesProvider).valueOrNull ?? [];
+    final recipeCount = recipes
+        .where((r) => r.ingredients.contains(ingredient.name))
+        .length;
+    final activityCount = activities
+        .where((a) =>
+            a.ingredientNames != null &&
+            a.ingredientNames!.contains(ingredient.name))
+        .length;
+    final usageText = recipeCount == 0 && activityCount == 0
+        ? 'Not used'
+        : 'Used in $recipeCount recipe${recipeCount == 1 ? '' : 's'}, '
+            '$activityCount activit${activityCount == 1 ? 'y' : 'ies'}';
+
     return Card(
       child: InkWell(
         onTap: () =>
@@ -109,6 +126,11 @@ class _IngredientCard extends ConsumerWidget {
                       ingredient.name,
                       style:
                           Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      usageText,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                     if (ingredient.allergens.isNotEmpty) ...[
                       const SizedBox(height: 8),

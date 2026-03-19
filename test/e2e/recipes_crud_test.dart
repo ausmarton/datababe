@@ -133,5 +133,25 @@ void main() {
       expect(find.text('Search recipes...'), findsOneWidget);
       expect(find.byIcon(Icons.search), findsOneWidget);
     });
+
+    testWidgets('recipe with activity usage shows count', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToRecipes(tester);
+
+      // Activity a4 references recipe r1 ("scrambled eggs")
+      // So "scrambled eggs" should show "Used in 1 activity"
+      expect(find.text('Used in 1 activity'), findsOneWidget);
+    });
+
+    testWidgets('recipe without activity usage shows "Not used"',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      await pumpApp(tester, harness.buildApp());
+      await navigateToRecipes(tester);
+
+      // "toast with butter" (r2) and "banana mash" (r3) are not used in activities
+      expect(find.text('Not used'), findsNWidgets(2));
+    });
   });
 }

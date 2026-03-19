@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/recipe_model.dart';
 import '../../providers/child_provider.dart';
 import '../../providers/ingredient_provider.dart';
+import '../../providers/activity_provider.dart';
 import '../../providers/recipe_provider.dart';
 import '../../providers/repository_provider.dart';
 import '../../utils/allergen_helpers.dart';
@@ -99,6 +100,14 @@ class _RecipeCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final activities = ref.watch(activitiesProvider).valueOrNull ?? [];
+    final activityCount = activities
+        .where((a) => a.recipeId == recipe.id)
+        .length;
+    final usageText = activityCount == 0
+        ? 'Not used'
+        : 'Used in $activityCount activit${activityCount == 1 ? 'y' : 'ies'}';
+
     return Card(
       child: InkWell(
         onTap: () => context.push('/recipes/add?id=${recipe.id}'),
@@ -133,6 +142,11 @@ class _RecipeCard extends ConsumerWidget {
                               ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      usageText,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
                     Wrap(

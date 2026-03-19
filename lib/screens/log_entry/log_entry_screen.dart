@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../models/activity_model.dart';
 import '../../models/enums.dart';
 import '../../models/ingredient_model.dart';
+import '../../models/recipe_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/ingredient_provider.dart';
@@ -797,30 +798,23 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
 
     showModalBottomSheet(
       context: context,
-      builder: (context) => ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: recipes.length,
-        itemBuilder: (context, index) {
-          final recipe = recipes[index];
-          return ListTile(
-            title: Text(recipe.name),
-            subtitle: Text(recipe.ingredients.join(', ')),
-            leading: const Icon(Icons.menu_book),
-            onTap: () {
-              final allIngredients =
-                  ref.read(ingredientsProvider).valueOrNull ?? [];
-              final allergens = computeAllergensByName(
-                  recipe.ingredients, allIngredients);
-              setState(() {
-                _recipeId = recipe.id;
-                _ingredientNames = List<String>.from(recipe.ingredients);
-                _allergenNames =
-                    allergens.isNotEmpty ? allergens.toList() : null;
-                _foodDescController.text = recipe.name;
-              });
-              Navigator.pop(context);
-            },
-          );
+      isScrollControlled: true,
+      builder: (sheetContext) => _RecipePickerSheet(
+        recipes: recipes,
+        onSelected: (recipe) {
+          final allIngredients =
+              ref.read(ingredientsProvider).valueOrNull ?? [];
+          final allergens = computeAllergensByName(
+              recipe.ingredients, allIngredients);
+          setState(() {
+            _isDirty = true;
+            _recipeId = recipe.id;
+            _ingredientNames = List<String>.from(recipe.ingredients);
+            _allergenNames =
+                allergens.isNotEmpty ? allergens.toList() : null;
+            _foodDescController.text = recipe.name;
+          });
+          Navigator.pop(sheetContext);
         },
       ),
     );
@@ -1171,5 +1165,73 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
         onSelectionChanged: (s) => setState(() => _contentSize = s.first),
       ),
     ];
+  }
+}
+
+/// Bottom sheet with search for picking a recipe.
+class _RecipePickerSheet extends StatefulWidget {
+  final List<RecipeModel> recipes;
+  final ValueChanged<RecipeModel> onSelected;
+
+  const _RecipePickerSheet({
+    required this.recipes,
+    required this.onSelected,
+  });
+
+  @override
+  State<_RecipePickerSheet> createState() => _RecipePickerSheetState();
+}
+
+class _RecipePickerSheetState extends State<_RecipePickerSheet> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _query.isEmpty
+        ? widget.recipes
+        : widget.recipes
+            .where((r) => r.name.contains(_query.toLowerCase()))
+            .toList();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      builder: (context, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search recipes...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? const Center(child: Text('No matching recipes'))
+                : ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final recipe = filtered[index];
+                      return ListTile(
+                        title: Text(recipe.name),
+                        subtitle: Text(recipe.ingredients.join(', ')),
+                        leading: const Icon(Icons.menu_book),
+                        onTap: () => widget.onSelected(recipe),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 }

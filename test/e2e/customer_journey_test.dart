@@ -402,9 +402,15 @@ void main() {
       // Verify 5 ingredients seeded — title shows count
       expect(find.text('Ingredients (5)'), findsOneWidget);
 
-      // Verify individual ingredient names visible
+      // Verify individual ingredient names visible (scroll to see all)
       expect(find.text('egg'), findsWidgets);
       expect(find.text('milk'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('banana'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
       expect(find.text('banana'), findsOneWidget);
 
       // Go back to Settings
