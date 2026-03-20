@@ -72,7 +72,8 @@ enum TrendMetric {
   solids('Solids'),
   tummyTime('Tummy Time'),
   sleep('Sleep'),
-  temperature('Temperature');
+  temperature('Temperature'),
+  meds('Medication');
 
   final String label;
   const TrendMetric(this.label);
@@ -220,6 +221,11 @@ double? extractMetricFromSummary(
       }
       if (activityType == ActivityType.potty.name) {
         return summary.pottyCount.toDouble();
+      }
+      if (activityType == ActivityType.meds.name) {
+        return summary.medsBreakdown.values
+            .fold(0, (a, b) => a + b)
+            .toDouble();
       }
       return summary.durationCounts[activityType]?.toDouble();
     case 'uniqueFoods':
@@ -1175,6 +1181,8 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
         TrendMetric.sleep =>
           (s.durationTotals[ActivityType.sleep.name] ?? 0).toDouble(),
         TrendMetric.temperature => s.latestTempC ?? 0,
+        TrendMetric.meds =>
+          s.medsBreakdown.values.fold(0, (a, b) => a + b).toDouble(),
       };
     }
     points.add(TrendPoint(date: dayStart, value: value));
@@ -1206,6 +1214,8 @@ final trendBaselineProvider = Provider<double?>((ref) {
         t.activityType == ActivityType.sleep.name &&
             t.metric == 'totalDurationMinutes',
       TrendMetric.temperature => false, // no target-based baseline for temp
+      TrendMetric.meds =>
+        t.activityType == ActivityType.meds.name && t.metric == 'count',
     };
     if (matches) return t.targetValue;
   }
@@ -1218,6 +1228,7 @@ final trendBaselineProvider = Provider<double?>((ref) {
     TrendMetric.tummyTime => baselines.avgTummyTimeMinutes,
     TrendMetric.sleep => null,
     TrendMetric.temperature => null,
+    TrendMetric.meds => null,
   };
 });
 
@@ -1823,4 +1834,37 @@ final temperatureTrendProvider = Provider<List<TemperatureTrendPoint>>((ref) {
     ));
   }
   return points;
+});
+
+// ==========================================================================
+// Medication tracking insights (#41)
+// ==========================================================================
+
+/// Medication overview for the insights window.
+class MedicationOverview {
+  final Map<String, int> perMedCount; // medication name -> count
+
+  const MedicationOverview({required this.perMedCount});
+
+  int get totalCount => perMedCount.values.fold(0, (a, b) => a + b);
+
+  /// Medication names sorted by count descending.
+  List<String> get medications {
+    final entries = perMedCount.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries.map((e) => e.key).toList();
+  }
+}
+
+/// Pure computation: builds MedicationOverview from an ActivitySummary.
+MedicationOverview? computeMedicationOverview(ActivitySummary summary) {
+  if (summary.medsBreakdown.isEmpty) return null;
+  return MedicationOverview(perMedCount: Map.of(summary.medsBreakdown));
+}
+
+/// Medication overview for the insights window period.
+final medicationOverviewProvider = Provider<MedicationOverview?>((ref) {
+  final summary = ref.watch(insightsSummaryProvider);
+  if (summary == null) return null;
+  return computeMedicationOverview(summary);
 });

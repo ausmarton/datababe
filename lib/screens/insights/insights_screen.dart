@@ -97,6 +97,8 @@ class InsightsScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               const _TemperatureSection(),
               const SizedBox(height: 16),
+              const _MedicationSection(),
+              const SizedBox(height: 16),
               const _AllergenTrackerSection(),
               const SizedBox(height: 16),
               const _WeeklyAllergenSection(),
@@ -839,6 +841,101 @@ class _TempStat extends StatelessWidget {
   }
 }
 
+class _MedicationSection extends ConsumerWidget {
+  const _MedicationSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(medicationOverviewProvider);
+    if (overview == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final medColor = activityColor(ActivityType.meds);
+    final meds = overview.medications;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.medication, size: 18, color: medColor),
+                const SizedBox(width: 6),
+                Text('Medication', style: theme.textTheme.titleSmall),
+                const Spacer(),
+                Text(
+                  '${overview.totalCount} dose${overview.totalCount == 1 ? '' : 's'}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: medColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final med in meds) ...[
+              _MedRow(
+                name: med,
+                count: overview.perMedCount[med]!,
+                total: overview.totalCount,
+                color: medColor,
+              ),
+              if (med != meds.last) const SizedBox(height: 4),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MedRow extends StatelessWidget {
+  final String name;
+  final int count;
+  final int total;
+  final Color color;
+
+  const _MedRow({
+    required this.name,
+    required this.count,
+    required this.total,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? count / total : 0.0;
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.3 + pct * 0.7),
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            name,
+            style: Theme.of(context).textTheme.bodySmall,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          '$count',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TrendSection extends ConsumerWidget {
   const _TrendSection();
 
@@ -856,6 +953,7 @@ class _TrendSection extends ConsumerWidget {
       TrendMetric.tummyTime => activityColor(ActivityType.tummyTime),
       TrendMetric.sleep => activityColor(ActivityType.sleep),
       TrendMetric.temperature => activityColor(ActivityType.temperature),
+      TrendMetric.meds => activityColor(ActivityType.meds),
     };
 
     return Card(

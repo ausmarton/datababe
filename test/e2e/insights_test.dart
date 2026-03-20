@@ -102,6 +102,26 @@ List<ActivityModel> _recentMultiDayActivities() {
     modifiedAt: today,
   ));
 
+  // Today: medication
+  activities.add(ActivityModel(
+    id: 'today-med-vitd',
+    childId: 'c1',
+    type: 'meds',
+    startTime: today.add(const Duration(hours: 8, minutes: 30)),
+    medicationName: 'Vitamin D',
+    createdAt: today,
+    modifiedAt: today,
+  ));
+  activities.add(ActivityModel(
+    id: 'yesterday-med-iron',
+    childId: 'c1',
+    type: 'meds',
+    startTime: today.subtract(const Duration(hours: 12)),
+    medicationName: 'Iron',
+    createdAt: today,
+    modifiedAt: today,
+  ));
+
   // 7 previous days of data (for baselines and trends)
   for (int day = 1; day <= 7; day++) {
     final pastDay = today.subtract(Duration(days: day));
@@ -152,6 +172,15 @@ List<ActivityModel> _recentMultiDayActivities() {
       type: 'temperature',
       startTime: dayAt8.add(const Duration(hours: 4)),
       tempCelsius: 36.5 + day * 0.2,
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
+    activities.add(ActivityModel(
+      id: 'day$day-med',
+      childId: 'c1',
+      type: 'meds',
+      startTime: dayAt8.add(const Duration(hours: 5)),
+      medicationName: 'Vitamin D',
       createdAt: dayAt8,
       modifiedAt: dayAt8,
     ));
@@ -419,6 +448,65 @@ void main() {
       // With recent data, should NOT show "Log a few more days..." message
       expect(find.text('Log a few more days to see progress tracking'),
           findsNothing);
+    });
+  });
+
+  group('Insights — Medication section data', () {
+    testWidgets('Medication section visible with med data', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Medication'));
+      expect(find.text('Medication'), findsWidgets);
+    });
+
+    testWidgets('shows per-medication breakdown', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Medication'));
+      // Vitamin D appears (today + 7 previous days = 8 doses)
+      expect(find.text('Vitamin D'), findsOneWidget);
+      // Iron appears (today only = 1 dose)
+      expect(find.text('Iron'), findsOneWidget);
+    });
+
+    testWidgets('shows total dose count', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Medication'));
+      // Should show dose count (number varies based on time window)
+      expect(find.textContaining('dose'), findsOneWidget);
+    });
+
+    testWidgets('hidden when no meds in data', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      // Use activities without meds
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      harness.activities = [
+        ActivityModel(
+          id: 'only-bottle',
+          childId: 'c1',
+          type: 'feedBottle',
+          startTime: today.add(const Duration(hours: 8)),
+          volumeMl: 120.0,
+          createdAt: today,
+          modifiedAt: today,
+        ),
+      ];
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      // Medication section should not appear
+      expect(find.byIcon(Icons.medication), findsNothing);
     });
   });
 

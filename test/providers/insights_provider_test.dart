@@ -29,6 +29,7 @@ ActivityModel _activity({
   int? rightBreastMinutes,
   int? leftBreastMinutes,
   double? tempCelsius,
+  String? medicationName,
 }) {
   final now = startTime ?? DateTime(2026, 3, 6, 10, 0);
   return ActivityModel(
@@ -51,6 +52,7 @@ ActivityModel _activity({
     rightBreastMinutes: rightBreastMinutes,
     leftBreastMinutes: leftBreastMinutes,
     tempCelsius: tempCelsius,
+    medicationName: medicationName,
   );
 }
 
@@ -2568,6 +2570,90 @@ void main() {
   group('feverThresholdC', () {
     test('is 38.0', () {
       expect(feverThresholdC, 38.0);
+    });
+  });
+
+  // ========================================================================
+  // extractMetricFromSummary — meds (#41)
+  // ========================================================================
+  group('extractMetricFromSummary — meds', () {
+    test('count returns total medication count', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'meds', medicationName: 'Vitamin D'),
+        _activity(type: 'meds', medicationName: 'Vitamin D'),
+        _activity(type: 'meds', medicationName: 'Iron'),
+      ]);
+      expect(extractMetricFromSummary('meds', 'count', summary), 3);
+    });
+
+    test('count returns 0 for no meds', () {
+      final summary = ActivityAggregator.compute([]);
+      expect(extractMetricFromSummary('meds', 'count', summary), 0);
+    });
+
+    test('count with null medication name counts as Unknown', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'meds'),
+      ]);
+      expect(extractMetricFromSummary('meds', 'count', summary), 1);
+    });
+  });
+
+  // ========================================================================
+  // MedicationOverview (#41)
+  // ========================================================================
+  group('MedicationOverview', () {
+    test('totalCount sums all medication counts', () {
+      const overview = MedicationOverview(
+        perMedCount: {'Vitamin D': 7, 'Iron': 3},
+      );
+      expect(overview.totalCount, 10);
+    });
+
+    test('totalCount is 0 for empty breakdown', () {
+      const overview = MedicationOverview(perMedCount: {});
+      expect(overview.totalCount, 0);
+    });
+
+    test('medications returns sorted list by count descending', () {
+      const overview = MedicationOverview(
+        perMedCount: {'Iron': 2, 'Vitamin D': 7, 'Zinc': 3},
+      );
+      expect(overview.medications, ['Vitamin D', 'Zinc', 'Iron']);
+    });
+  });
+
+  // ========================================================================
+  // computeMedicationOverview (#41)
+  // ========================================================================
+  group('computeMedicationOverview', () {
+    test('returns null when no meds in summary', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 120),
+      ]);
+      expect(computeMedicationOverview(summary), isNull);
+    });
+
+    test('aggregates per-medication counts', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'meds', medicationName: 'Vitamin D'),
+        _activity(type: 'meds', medicationName: 'Vitamin D'),
+        _activity(type: 'meds', medicationName: 'Iron'),
+      ]);
+      final overview = computeMedicationOverview(summary);
+      expect(overview, isNotNull);
+      expect(overview!.perMedCount['Vitamin D'], 2);
+      expect(overview.perMedCount['Iron'], 1);
+      expect(overview.totalCount, 3);
+    });
+
+    test('null medication name becomes Unknown', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'meds'),
+      ]);
+      final overview = computeMedicationOverview(summary);
+      expect(overview, isNotNull);
+      expect(overview!.perMedCount['Unknown'], 1);
     });
   });
 }
