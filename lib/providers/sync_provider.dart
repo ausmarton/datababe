@@ -58,6 +58,12 @@ final pendingSyncCountProvider = FutureProvider<int>((ref) {
   return queue.pendingCount();
 });
 
+final quarantinedCountProvider = FutureProvider<int>((ref) async {
+  ref.watch(syncStatusProvider);
+  final queue = ref.watch(syncQueueProvider);
+  return queue.quarantinedCount();
+});
+
 /// Pull failure info: worst consecutive failure count + last error across all
 /// family+collection combos. Returns null if no failures.
 /// Re-evaluated after each sync cycle.

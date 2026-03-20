@@ -247,6 +247,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
       } catch (e) {
         failCount++;
         debugPrint('[Sync] push ${entry.collection}/${entry.documentId}: $e');
+        await _handlePushFailure(entry, '$e');
       }
     }
 
@@ -345,6 +346,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
             failCount++;
             debugPrint(
                 '[Sync] pushSingle ${entry.collection}/${entry.documentId}: $e2');
+            await _handlePushFailure(entry, '$e2');
           }
         }
       }
@@ -551,6 +553,20 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
     }
   }
 
+  /// Quarantine threshold: entries exceeding this are moved to dead letter.
+  static const _quarantineThreshold = 50;
+
+  /// Handle a push failure: increment retry count and quarantine if needed.
+  Future<void> _handlePushFailure(SyncEntry entry, String error) async {
+    await _queue.incrementRetry(entry.id, error);
+    final newCount = entry.retryCount + 1;
+    if (newCount >= _quarantineThreshold) {
+      await _queue.quarantine(entry.id, error);
+      debugPrint('[Sync] quarantined ${entry.collection}/${entry.documentId} '
+          'after $newCount failures');
+    }
+  }
+
   /// Check if there's a pending sync entry for a specific document.
   Future<bool> _hasPendingForDoc(
       String collection, String documentId) async {
@@ -737,6 +753,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         await store.drop(txn);
       }
       await StoreRefs.syncQueue.drop(txn);
+      await StoreRefs.syncDeadLetter.drop(txn);
       await StoreRefs.syncMeta.drop(txn);
     });
   }
@@ -906,6 +923,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
       };
     }
     result['pendingSync'] = await _queue.pendingCount();
+    result['quarantined'] = await _queue.quarantinedCount();
     return result;
   }
 }

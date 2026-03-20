@@ -487,6 +487,7 @@ class _SyncStatusTile extends ConsumerWidget {
     final lastSync = ref.watch(lastSyncTimeProvider);
     final pendingCount = ref.watch(pendingSyncCountProvider);
     final failureInfo = ref.watch(pullFailureInfoProvider).valueOrNull;
+    final quarantined = ref.watch(quarantinedCountProvider).valueOrNull ?? 0;
 
     final status = syncStatus.valueOrNull ?? SyncStatus.idle;
     final lastTime = lastSync.valueOrNull;
@@ -502,6 +503,9 @@ class _SyncStatusTile extends ConsumerWidget {
     final subtitle = StringBuffer(statusLabel);
     if (pending > 0) {
       subtitle.write(' ($pending pending)');
+    }
+    if (quarantined > 0) {
+      subtitle.write(' ($quarantined stuck)');
     }
     if (lastTime != null) {
       final ago = DateTime.now().difference(lastTime);
@@ -668,6 +672,18 @@ class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
                       'Pending sync: ${_diagnostics!['pendingSync']}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
+                    if ((_diagnostics!['quarantined'] as int?) != null &&
+                        (_diagnostics!['quarantined'] as int) > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Quarantined: ${_diagnostics!['quarantined']} '
+                          '(stuck entries, not blocking pull)',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ),
                   ],
                 ),
               ),

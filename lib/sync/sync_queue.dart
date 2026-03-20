@@ -10,6 +10,8 @@ class SyncEntry {
   final String familyId;
   final DateTime createdAt;
   final bool isNew;
+  final int retryCount;
+  final String? lastError;
 
   const SyncEntry({
     required this.id,
@@ -18,6 +20,8 @@ class SyncEntry {
     required this.familyId,
     required this.createdAt,
     this.isNew = false,
+    this.retryCount = 0,
+    this.lastError,
   });
 
   Map<String, dynamic> toMap() => {
@@ -26,6 +30,8 @@ class SyncEntry {
         'familyId': familyId,
         'createdAt': createdAt.toIso8601String(),
         'isNew': isNew,
+        'retryCount': retryCount,
+        if (lastError != null) 'lastError': lastError,
       };
 
   factory SyncEntry.fromMap(String id, Map<String, dynamic> d) {
@@ -36,6 +42,8 @@ class SyncEntry {
       familyId: d['familyId'] as String,
       createdAt: DateTime.parse(d['createdAt'] as String),
       isNew: d['isNew'] as bool? ?? false,
+      retryCount: d['retryCount'] as int? ?? 0,
+      lastError: d['lastError'] as String?,
     );
   }
 }
@@ -131,5 +139,71 @@ class SyncQueue {
   /// Count of pending changes.
   Future<int> pendingCount() async {
     return _store.count(_db);
+  }
+
+  // ── Retry tracking ────────────────────────────────────────────────
+
+  /// Increment the retry count for a failed entry and store the error.
+  Future<void> incrementRetry(String id, String error) async {
+    final existing = await _store.record(id).get(_db);
+    if (existing == null) return;
+    final updated = Map<String, dynamic>.from(existing);
+    updated['retryCount'] = ((existing['retryCount'] as int?) ?? 0) + 1;
+    updated['lastError'] = error;
+    await _store.record(id).put(_db, updated);
+  }
+
+  // ── Dead letter / quarantine ──────────────────────────────────────
+
+  StoreRef<String, Map<String, dynamic>> get _deadLetterStore =>
+      StoreRefs.syncDeadLetter;
+
+  /// Move a permanently failing entry to the dead letter store.
+  Future<void> quarantine(String id, String error) async {
+    await _db.transaction((txn) async {
+      final existing = await _store.record(id).get(txn);
+      if (existing == null) return;
+
+      final data = Map<String, dynamic>.from(existing);
+      data['lastError'] = error;
+      data['quarantinedAt'] = DateTime.now().toIso8601String();
+      await _deadLetterStore.record(id).put(txn, data);
+      await _store.record(id).delete(txn);
+    });
+  }
+
+  /// Get all quarantined entries.
+  Future<List<SyncEntry>> getQuarantined() async {
+    final records = await _deadLetterStore.find(_db);
+    return records
+        .map((r) => SyncEntry.fromMap(r.key, r.value))
+        .toList();
+  }
+
+  /// Count of quarantined entries.
+  Future<int> quarantinedCount() async {
+    return _deadLetterStore.count(_db);
+  }
+
+  /// Clear all quarantined entries (discard permanently).
+  Future<void> clearQuarantined() async {
+    await _deadLetterStore.drop(_db);
+  }
+
+  /// Move a quarantined entry back to the active queue for retry.
+  /// Resets retryCount and lastError.
+  Future<void> retryQuarantined(String id) async {
+    await _db.transaction((txn) async {
+      final existing = await _deadLetterStore.record(id).get(txn);
+      if (existing == null) return;
+
+      final data = Map<String, dynamic>.from(existing);
+      data['retryCount'] = 0;
+      data.remove('lastError');
+      data.remove('quarantinedAt');
+      data['createdAt'] = DateTime.now().toIso8601String();
+      await _store.record(id).put(txn, data);
+      await _deadLetterStore.record(id).delete(txn);
+    });
   }
 }
