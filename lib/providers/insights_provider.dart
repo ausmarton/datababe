@@ -1465,3 +1465,81 @@ final growthChartVisibilityProvider =
 /// Expanded allergen rows on the Allergen Detail screen.
 final allergenDetailExpandedProvider =
     StateProvider<Set<String>>((ref) => {});
+
+// ==========================================================================
+// Feeding overview (#45)
+// ==========================================================================
+
+/// Feeding method breakdown for a summary.
+class FeedingBreakdown {
+  final int bottleCount;
+  final int breastCount;
+  final double bottleMl;
+  final int breastMinutes;
+  final double bottlePct;
+  final double breastPct;
+
+  const FeedingBreakdown({
+    required this.bottleCount,
+    required this.breastCount,
+    required this.bottleMl,
+    required this.breastMinutes,
+    required this.bottlePct,
+    required this.breastPct,
+  });
+
+  int get totalCount => bottleCount + breastCount;
+}
+
+/// Daily feeding breakdown trend points.
+class FeedingTrendPoint {
+  final DateTime date;
+  final int bottleCount;
+  final int breastCount;
+
+  const FeedingTrendPoint({
+    required this.date,
+    required this.bottleCount,
+    required this.breastCount,
+  });
+
+  int get totalCount => bottleCount + breastCount;
+  double get bottlePct =>
+      totalCount > 0 ? bottleCount / totalCount : 0.0;
+}
+
+/// Feeding breakdown for the insights window period.
+final feedingBreakdownProvider = Provider<FeedingBreakdown?>((ref) {
+  final summary = ref.watch(insightsSummaryProvider);
+  if (summary == null) return null;
+  final total = summary.bottleFeedCount + summary.breastFeedCount;
+  if (total == 0) return null;
+  return FeedingBreakdown(
+    bottleCount: summary.bottleFeedCount,
+    breastCount: summary.breastFeedCount,
+    bottleMl: summary.bottleFeedTotalMl,
+    breastMinutes: summary.breastFeedTotalMinutes,
+    bottlePct: summary.bottleFeedCount / total,
+    breastPct: summary.breastFeedCount / total,
+  );
+});
+
+/// Daily feeding breakdown trend for the insights period.
+final feedingTrendProvider = Provider<List<FeedingTrendPoint>>((ref) {
+  final dailyMap = ref.watch(dailySummaryMapProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
+  final days = ref.watch(selectedTrendPeriodProvider);
+
+  final points = <FeedingTrendPoint>[];
+  for (int i = days - 1; i >= 0; i--) {
+    final dayStart = todayStart.subtract(Duration(days: i));
+    final s = dailyMap[_dayKey(dayStart)];
+    points.add(FeedingTrendPoint(
+      date: dayStart,
+      bottleCount: s?.bottleFeedCount ?? 0,
+      breastCount: s?.breastFeedCount ?? 0,
+    ));
+  }
+  return points;
+});

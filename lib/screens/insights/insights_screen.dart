@@ -90,6 +90,8 @@ class InsightsScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               const _ProgressSection(),
               const SizedBox(height: 16),
+              const _FeedingOverviewSection(),
+              const SizedBox(height: 16),
               const _AllergenTrackerSection(),
               const SizedBox(height: 16),
               const _WeeklyAllergenSection(),
@@ -314,6 +316,129 @@ class _ProgressSection extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FeedingOverviewSection extends ConsumerWidget {
+  const _FeedingOverviewSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final breakdown = ref.watch(feedingBreakdownProvider);
+    if (breakdown == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Feeding Overview',
+                style: theme.textTheme.titleSmall),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // Donut-style indicator
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          value: breakdown.bottlePct,
+                          strokeWidth: 8,
+                          backgroundColor: Colors.pink.withValues(alpha: 0.3),
+                          valueColor:
+                              const AlwaysStoppedAnimation(Colors.blue),
+                        ),
+                      ),
+                      Text(
+                        '${breakdown.totalCount}',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _FeedRow(
+                        label: 'Bottle',
+                        count: breakdown.bottleCount,
+                        detail: '${breakdown.bottleMl.round()}ml',
+                        pct: breakdown.bottlePct,
+                        color: Colors.blue,
+                      ),
+                      const SizedBox(height: 4),
+                      _FeedRow(
+                        label: 'Breast',
+                        count: breakdown.breastCount,
+                        detail: '${breakdown.breastMinutes}min',
+                        pct: breakdown.breastPct,
+                        color: Colors.pink,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedRow extends StatelessWidget {
+  final String label;
+  final int count;
+  final String detail;
+  final double pct;
+  final Color color;
+
+  const _FeedRow({
+    required this.label,
+    required this.count,
+    required this.detail,
+    required this.pct,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$label: $count ($detail)',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const Spacer(),
+        Text(
+          '${(pct * 100).round()}%',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ],
     );
   }
 }

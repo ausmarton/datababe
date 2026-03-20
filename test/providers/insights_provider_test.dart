@@ -2209,6 +2209,70 @@ void main() {
   });
 
   // ========================================================================
+  // FeedingBreakdown
+  // ========================================================================
+  group('FeedingBreakdown', () {
+    test('computes percentages from summary', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 120),
+        _activity(type: 'feedBottle', volumeMl: 150),
+        _activity(type: 'feedBreast', rightBreastMinutes: 10, leftBreastMinutes: 5),
+      ]);
+      final total = summary.bottleFeedCount + summary.breastFeedCount;
+      expect(total, 3);
+      expect(summary.bottleFeedCount, 2);
+      expect(summary.breastFeedCount, 1);
+      final bottlePct = summary.bottleFeedCount / total;
+      final breastPct = summary.breastFeedCount / total;
+      expect(bottlePct, closeTo(0.667, 0.01));
+      expect(breastPct, closeTo(0.333, 0.01));
+    });
+
+    test('all bottle feeds: 100% bottle', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 100),
+        _activity(type: 'feedBottle', volumeMl: 200),
+      ]);
+      final total = summary.bottleFeedCount + summary.breastFeedCount;
+      expect(summary.bottleFeedCount / total, 1.0);
+    });
+
+    test('all breast feeds: 100% breast', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'feedBreast', rightBreastMinutes: 10),
+        _activity(type: 'feedBreast', leftBreastMinutes: 15),
+      ]);
+      final total = summary.bottleFeedCount + summary.breastFeedCount;
+      expect(summary.breastFeedCount / total, 1.0);
+    });
+  });
+
+  // ========================================================================
+  // FeedingTrendPoint
+  // ========================================================================
+  group('FeedingTrendPoint', () {
+    test('totalCount and bottlePct', () {
+      final p = FeedingTrendPoint(
+        date: DateTime(2026, 3, 6),
+        bottleCount: 3,
+        breastCount: 2,
+      );
+      expect(p.totalCount, 5);
+      expect(p.bottlePct, closeTo(0.6, 0.01));
+    });
+
+    test('zero feeds: pct is 0', () {
+      final p = FeedingTrendPoint(
+        date: DateTime(2026, 3, 6),
+        bottleCount: 0,
+        breastCount: 0,
+      );
+      expect(p.totalCount, 0);
+      expect(p.bottlePct, 0.0);
+    });
+  });
+
+  // ========================================================================
   // computeTrendForMetric with dailySummaryMap
   // ========================================================================
   group('computeTrendForMetric with dailySummaryMap', () {

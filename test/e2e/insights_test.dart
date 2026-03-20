@@ -200,6 +200,18 @@ void main() {
       expect(find.text('Progress'), findsOneWidget);
     });
 
+    testWidgets('Feeding Overview section visible with feeds',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Feeding Overview'));
+      expect(find.text('Feeding Overview'), findsOneWidget);
+      expect(find.textContaining('Bottle'), findsWidgets);
+    });
+
     testWidgets('Allergen Tracker section visible', (tester) async {
       await tester.runAsync(() => harness.seedFull());
       await pumpApp(tester, harness.buildApp());

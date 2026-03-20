@@ -233,7 +233,10 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('2 allergens not exposed this week'));
+      final footer = find.text('2 allergens not exposed this week');
+      await tester.ensureVisible(footer);
+      await tester.pumpAndSettle();
+      await tester.tap(footer);
       await tester.pumpAndSettle();
 
       // Now all should be visible
