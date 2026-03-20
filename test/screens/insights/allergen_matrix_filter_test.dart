@@ -50,6 +50,8 @@ Widget _buildApp({
       allergenMatrixFilterProvider
           .overrideWith((ref) => initialFilter),
       insightsProgressProvider.overrideWithValue([]),
+      feedingBreakdownProvider.overrideWithValue(null),
+      sleepQualityProvider.overrideWithValue(null),
       trendDataProvider.overrideWithValue([]),
       trendBaselineProvider.overrideWithValue(null),
       targetsProvider.overrideWith((ref) => Stream.value([])),

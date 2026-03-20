@@ -70,7 +70,8 @@ enum TrendMetric {
   feedVolume('Feed Volume'),
   diapers('Diapers'),
   solids('Solids'),
-  tummyTime('Tummy Time');
+  tummyTime('Tummy Time'),
+  sleep('Sleep');
 
   final String label;
   const TrendMetric(this.label);
@@ -1170,6 +1171,8 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
         TrendMetric.solids => s.solidsCount.toDouble(),
         TrendMetric.tummyTime =>
           (s.durationTotals[ActivityType.tummyTime.name] ?? 0).toDouble(),
+        TrendMetric.sleep =>
+          (s.durationTotals[ActivityType.sleep.name] ?? 0).toDouble(),
       };
     }
     points.add(TrendPoint(date: dayStart, value: value));
@@ -1197,6 +1200,9 @@ final trendBaselineProvider = Provider<double?>((ref) {
       TrendMetric.tummyTime =>
         t.activityType == ActivityType.tummyTime.name &&
             t.metric == 'totalDurationMinutes',
+      TrendMetric.sleep =>
+        t.activityType == ActivityType.sleep.name &&
+            t.metric == 'totalDurationMinutes',
     };
     if (matches) return t.targetValue;
   }
@@ -1207,6 +1213,7 @@ final trendBaselineProvider = Provider<double?>((ref) {
     TrendMetric.diapers => baselines.avgDiaperCount,
     TrendMetric.solids => baselines.avgSolidsCount,
     TrendMetric.tummyTime => baselines.avgTummyTimeMinutes,
+    TrendMetric.sleep => null,
   };
 });
 
@@ -1540,6 +1547,173 @@ final feedingTrendProvider = Provider<List<FeedingTrendPoint>>((ref) {
       bottleCount: s?.bottleFeedCount ?? 0,
       breastCount: s?.breastFeedCount ?? 0,
     ));
+  }
+  return points;
+});
+
+// ==========================================================================
+// Sleep quality metrics (#44)
+// ==========================================================================
+
+/// Whether a sleep activity is "night sleep" (vs nap).
+/// Night window: 19:00–06:59 (start hour of the activity).
+bool isNightSleep(DateTime startTime) {
+  final h = startTime.hour;
+  return h >= 19 || h < 7;
+}
+
+/// Sleep quality metrics for a set of sleep activities.
+class SleepQuality {
+  final int nightSleepMin;
+  final int napMin;
+  final int nightSessionCount;
+  final int napCount;
+  final int longestStretchMin;
+  final double avgNightlyWakings;
+
+  const SleepQuality({
+    required this.nightSleepMin,
+    required this.napMin,
+    required this.nightSessionCount,
+    required this.napCount,
+    required this.longestStretchMin,
+    required this.avgNightlyWakings,
+  });
+
+  int get totalMin => nightSleepMin + napMin;
+  int get totalSessions => nightSessionCount + napCount;
+  double get nightPct => totalMin > 0 ? nightSleepMin / totalMin : 0.0;
+}
+
+/// Per-day sleep breakdown for trend charts.
+class SleepTrendPoint {
+  final DateTime date;
+  final int nightMin;
+  final int napMin;
+
+  const SleepTrendPoint({
+    required this.date,
+    required this.nightMin,
+    required this.napMin,
+  });
+
+  int get totalMin => nightMin + napMin;
+}
+
+/// Compute sleep quality from raw sleep activities.
+///
+/// [sleepActivities] must contain only `sleep` type activities.
+SleepQuality? computeSleepQuality(List<ActivityModel> sleepActivities) {
+  if (sleepActivities.isEmpty) return null;
+
+  int nightMin = 0;
+  int napMin = 0;
+  int nightCount = 0;
+  int napCount = 0;
+  int longestStretch = 0;
+
+  // Group night sessions by "which night" for waking computation.
+  // A night is keyed by the evening date: 19:00 on day N to 06:59 on day N+1.
+  final nightSessions = <String, List<ActivityModel>>{};
+
+  for (final a in sleepActivities) {
+    final dur = a.durationMinutes ?? 0;
+    if (dur <= 0) continue;
+
+    if (dur > longestStretch) longestStretch = dur;
+
+    if (isNightSleep(a.startTime)) {
+      nightMin += dur;
+      nightCount++;
+      // Key by the evening date: if hour >= 19, use that date; if < 7, use previous date
+      final nightDate = a.startTime.hour >= 19
+          ? DateTime(a.startTime.year, a.startTime.month, a.startTime.day)
+          : DateTime(a.startTime.year, a.startTime.month, a.startTime.day)
+              .subtract(const Duration(days: 1));
+      final key = _dayKey(nightDate);
+      (nightSessions[key] ??= []).add(a);
+    } else {
+      napMin += dur;
+      napCount++;
+    }
+  }
+
+  if (nightCount == 0 && napCount == 0) return null;
+
+  // Compute average nightly wakings.
+  // For each night with sessions, wakings = sessions - 1.
+  double avgWakings = 0;
+  if (nightSessions.isNotEmpty) {
+    int totalWakings = 0;
+    for (final sessions in nightSessions.values) {
+      totalWakings += (sessions.length - 1).clamp(0, sessions.length);
+    }
+    avgWakings = totalWakings / nightSessions.length;
+  }
+
+  return SleepQuality(
+    nightSleepMin: nightMin,
+    napMin: napMin,
+    nightSessionCount: nightCount,
+    napCount: napCount,
+    longestStretchMin: longestStretch,
+    avgNightlyWakings: avgWakings,
+  );
+}
+
+/// Sleep quality for the insights window period.
+final sleepQualityProvider = Provider<SleepQuality?>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return null;
+  final mode = ref.watch(insightsWindowModeProvider);
+  final anchor = ref.watch(insightsAnchorProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final (start, end) = computeRange(mode, anchor, startOfDayHour: sodHour);
+  final sleepActivities = activities
+      .where((a) =>
+          a.type == ActivityType.sleep.name &&
+          !a.startTime.isBefore(start) &&
+          a.startTime.isBefore(end))
+      .toList();
+  return computeSleepQuality(sleepActivities);
+});
+
+/// Daily sleep trend for the insights period (night vs nap split).
+final sleepTrendProvider = Provider<List<SleepTrendPoint>>((ref) {
+  final activities = ref.watch(activitiesProvider).valueOrNull;
+  if (activities == null) return [];
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
+  final days = ref.watch(selectedTrendPeriodProvider);
+
+  // Bucket sleep activities by day
+  final buckets = <String, List<ActivityModel>>{};
+  final oldest = todayStart.subtract(Duration(days: days));
+  for (final a in activities) {
+    if (a.type != ActivityType.sleep.name) continue;
+    if (a.startTime.isBefore(oldest)) continue;
+    final dayStart = startOfDay(a.startTime, sodHour);
+    final key = _dayKey(dayStart);
+    (buckets[key] ??= []).add(a);
+  }
+
+  final points = <SleepTrendPoint>[];
+  for (int i = days - 1; i >= 0; i--) {
+    final dayStart = todayStart.subtract(Duration(days: i));
+    final key = _dayKey(dayStart);
+    final daySleep = buckets[key] ?? [];
+    int nightMin = 0;
+    int napMin = 0;
+    for (final a in daySleep) {
+      final dur = a.durationMinutes ?? 0;
+      if (dur <= 0) continue;
+      if (isNightSleep(a.startTime)) {
+        nightMin += dur;
+      } else {
+        napMin += dur;
+      }
+    }
+    points.add(SleepTrendPoint(date: dayStart, nightMin: nightMin, napMin: napMin));
   }
   return points;
 });

@@ -80,6 +80,28 @@ List<ActivityModel> _recentMultiDayActivities() {
     modifiedAt: today.add(const Duration(hours: 5)),
   ));
 
+  // Today: night sleep + nap
+  activities.add(ActivityModel(
+    id: 'today-night-sleep',
+    childId: 'c1',
+    type: 'sleep',
+    startTime: today.subtract(const Duration(hours: 4)), // ~8pm previous day
+    endTime: today.add(const Duration(hours: 2)),
+    durationMinutes: 360,
+    createdAt: today,
+    modifiedAt: today,
+  ));
+  activities.add(ActivityModel(
+    id: 'today-nap',
+    childId: 'c1',
+    type: 'sleep',
+    startTime: today.add(const Duration(hours: 13)),
+    endTime: today.add(const Duration(hours: 14)),
+    durationMinutes: 60,
+    createdAt: today,
+    modifiedAt: today,
+  ));
+
   // 7 previous days of data (for baselines and trends)
   for (int day = 1; day <= 7; day++) {
     final pastDay = today.subtract(Duration(days: day));
@@ -210,6 +232,21 @@ void main() {
       await scrollToVisible(tester, find.text('Feeding Overview'));
       expect(find.text('Feeding Overview'), findsOneWidget);
       expect(find.textContaining('Bottle'), findsWidgets);
+    });
+
+    testWidgets('Sleep Overview section visible with sleep data',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Sleep Overview'));
+      expect(find.text('Sleep Overview'), findsOneWidget);
+      expect(find.textContaining('Night'), findsWidgets);
+      expect(find.textContaining('Naps'), findsWidgets);
+      expect(find.textContaining('Longest stretch'), findsOneWidget);
+      expect(find.textContaining('Avg wakings'), findsOneWidget);
     });
 
     testWidgets('Allergen Tracker section visible', (tester) async {

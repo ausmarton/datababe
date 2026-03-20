@@ -2335,4 +2335,174 @@ void main() {
       expect(result[2].value, 1); // day 6 has 1 diaper
     });
   });
+
+  // =========================================================================
+  // Sleep quality metrics (#44)
+  // =========================================================================
+
+  group('isNightSleep', () {
+    test('19:00 is night', () {
+      expect(isNightSleep(DateTime(2026, 3, 10, 19, 0)), isTrue);
+    });
+
+    test('23:30 is night', () {
+      expect(isNightSleep(DateTime(2026, 3, 10, 23, 30)), isTrue);
+    });
+
+    test('2:00 AM is night', () {
+      expect(isNightSleep(DateTime(2026, 3, 11, 2, 0)), isTrue);
+    });
+
+    test('6:59 AM is night', () {
+      expect(isNightSleep(DateTime(2026, 3, 11, 6, 59)), isTrue);
+    });
+
+    test('7:00 AM is nap', () {
+      expect(isNightSleep(DateTime(2026, 3, 11, 7, 0)), isFalse);
+    });
+
+    test('12:00 PM is nap', () {
+      expect(isNightSleep(DateTime(2026, 3, 11, 12, 0)), isFalse);
+    });
+
+    test('18:59 is nap', () {
+      expect(isNightSleep(DateTime(2026, 3, 11, 18, 59)), isFalse);
+    });
+  });
+
+  group('computeSleepQuality', () {
+    test('empty list returns null', () {
+      expect(computeSleepQuality([]), isNull);
+    });
+
+    test('activities with zero duration returns null', () {
+      final result = computeSleepQuality([
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 21, 0),
+            durationMinutes: 0),
+      ]);
+      expect(result, isNull);
+    });
+
+    test('single night sleep session', () {
+      final result = computeSleepQuality([
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 21, 0),
+            durationMinutes: 120),
+      ])!;
+      expect(result.nightSleepMin, 120);
+      expect(result.napMin, 0);
+      expect(result.nightSessionCount, 1);
+      expect(result.napCount, 0);
+      expect(result.longestStretchMin, 120);
+      expect(result.avgNightlyWakings, 0.0);
+      expect(result.totalMin, 120);
+      expect(result.totalSessions, 1);
+      expect(result.nightPct, 1.0);
+    });
+
+    test('single nap', () {
+      final result = computeSleepQuality([
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 13, 0),
+            durationMinutes: 45),
+      ])!;
+      expect(result.nightSleepMin, 0);
+      expect(result.napMin, 45);
+      expect(result.nightSessionCount, 0);
+      expect(result.napCount, 1);
+      expect(result.longestStretchMin, 45);
+      expect(result.avgNightlyWakings, 0.0);
+      expect(result.nightPct, 0.0);
+    });
+
+    test('mixed night and nap sessions', () {
+      final result = computeSleepQuality([
+        // Night session
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 20, 0),
+            durationMinutes: 180),
+        // Early morning session (same night)
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 11, 2, 0),
+            durationMinutes: 240),
+        // Afternoon nap
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 11, 13, 0),
+            durationMinutes: 60),
+      ])!;
+      expect(result.nightSleepMin, 420); // 180 + 240
+      expect(result.napMin, 60);
+      expect(result.nightSessionCount, 2);
+      expect(result.napCount, 1);
+      expect(result.longestStretchMin, 240);
+      expect(result.totalMin, 480);
+      expect(result.nightPct, closeTo(0.875, 0.001));
+    });
+
+    test('night wakings computed correctly', () {
+      final result = computeSleepQuality([
+        // Night 1: 3 sessions = 2 wakings
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 20, 0),
+            durationMinutes: 120),
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 23, 0),
+            durationMinutes: 90),
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 11, 3, 0),
+            durationMinutes: 180),
+        // Night 2: 2 sessions = 1 waking
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 11, 21, 0),
+            durationMinutes: 240),
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 12, 4, 0),
+            durationMinutes: 180),
+      ])!;
+      expect(result.nightSessionCount, 5);
+      // Night 1 (Mar 10): 3 sessions → 2 wakings
+      // Night 2 (Mar 11): 2 sessions → 1 waking
+      // Total = 3 wakings / 2 nights = 1.5
+      expect(result.avgNightlyWakings, 1.5);
+    });
+
+    test('longest stretch is the max across all sessions', () {
+      final result = computeSleepQuality([
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 10, 21, 0),
+            durationMinutes: 60),
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 11, 13, 0),
+            durationMinutes: 90),
+        _activity(type: 'sleep', startTime: DateTime(2026, 3, 11, 20, 0),
+            durationMinutes: 300),
+      ])!;
+      expect(result.longestStretchMin, 300);
+    });
+  });
+
+  group('SleepQuality computed getters', () {
+    test('totalMin sums night and nap', () {
+      const q = SleepQuality(
+        nightSleepMin: 400, napMin: 100,
+        nightSessionCount: 3, napCount: 2,
+        longestStretchMin: 200, avgNightlyWakings: 1.0,
+      );
+      expect(q.totalMin, 500);
+    });
+
+    test('totalSessions sums counts', () {
+      const q = SleepQuality(
+        nightSleepMin: 400, napMin: 100,
+        nightSessionCount: 3, napCount: 2,
+        longestStretchMin: 200, avgNightlyWakings: 1.0,
+      );
+      expect(q.totalSessions, 5);
+    });
+
+    test('nightPct is 0 when totalMin is 0', () {
+      const q = SleepQuality(
+        nightSleepMin: 0, napMin: 0,
+        nightSessionCount: 0, napCount: 0,
+        longestStretchMin: 0, avgNightlyWakings: 0,
+      );
+      expect(q.nightPct, 0.0);
+    });
+  });
+
+  group('SleepTrendPoint', () {
+    test('totalMin sums night and nap', () {
+      final p = SleepTrendPoint(
+          date: DateTime(2026, 3, 10), nightMin: 400, napMin: 60);
+      expect(p.totalMin, 460);
+    });
+  });
 }

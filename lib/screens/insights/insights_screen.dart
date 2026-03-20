@@ -92,6 +92,8 @@ class InsightsScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               const _FeedingOverviewSection(),
               const SizedBox(height: 16),
+              const _SleepOverviewSection(),
+              const SizedBox(height: 16),
               const _AllergenTrackerSection(),
               const SizedBox(height: 16),
               const _WeeklyAllergenSection(),
@@ -443,6 +445,170 @@ class _FeedRow extends StatelessWidget {
   }
 }
 
+class _SleepOverviewSection extends ConsumerWidget {
+  const _SleepOverviewSection();
+
+  String _formatDuration(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '${m}min';
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}m';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quality = ref.watch(sleepQualityProvider);
+    if (quality == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    const nightColor = Color(0xFF3F51B5); // indigo
+    const napColor = Color(0xFF7986CB); // lighter indigo
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Sleep Overview', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // Donut showing night vs nap split
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          value: quality.nightPct,
+                          strokeWidth: 8,
+                          backgroundColor: napColor.withValues(alpha: 0.3),
+                          valueColor:
+                              const AlwaysStoppedAnimation(nightColor),
+                        ),
+                      ),
+                      Text(
+                        _formatDuration(quality.totalMin),
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SleepRow(
+                        label: 'Night',
+                        detail: _formatDuration(quality.nightSleepMin),
+                        count: quality.nightSessionCount,
+                        pct: quality.nightPct,
+                        color: nightColor,
+                      ),
+                      const SizedBox(height: 4),
+                      _SleepRow(
+                        label: 'Naps',
+                        detail: _formatDuration(quality.napMin),
+                        count: quality.napCount,
+                        pct: 1.0 - quality.nightPct,
+                        color: napColor,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: _SleepStat(
+                    label: 'Longest stretch',
+                    value: _formatDuration(quality.longestStretchMin),
+                  ),
+                ),
+                Expanded(
+                  child: _SleepStat(
+                    label: 'Avg wakings/night',
+                    value: quality.avgNightlyWakings.toStringAsFixed(1),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SleepRow extends StatelessWidget {
+  final String label;
+  final String detail;
+  final int count;
+  final double pct;
+  final Color color;
+
+  const _SleepRow({
+    required this.label,
+    required this.detail,
+    required this.count,
+    required this.pct,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$label: $detail ($count×)',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const Spacer(),
+        Text(
+          '${(pct * 100).round()}%',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SleepStat extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SleepStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Text(value, style: theme.textTheme.titleMedium),
+        Text(label, style: theme.textTheme.labelSmall),
+      ],
+    );
+  }
+}
+
 class _TrendSection extends ConsumerWidget {
   const _TrendSection();
 
@@ -458,6 +624,7 @@ class _TrendSection extends ConsumerWidget {
       TrendMetric.diapers => activityColor(ActivityType.diaper),
       TrendMetric.solids => activityColor(ActivityType.solids),
       TrendMetric.tummyTime => activityColor(ActivityType.tummyTime),
+      TrendMetric.sleep => activityColor(ActivityType.sleep),
     };
 
     return Card(
