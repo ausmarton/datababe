@@ -99,6 +99,8 @@ class InsightsScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               const _MedicationSection(),
               const SizedBox(height: 16),
+              const _PottySection(),
+              const SizedBox(height: 16),
               const _AllergenTrackerSection(),
               const SizedBox(height: 16),
               const _WeeklyAllergenSection(),
@@ -936,6 +938,155 @@ class _MedRow extends StatelessWidget {
   }
 }
 
+class _PottySection extends ConsumerWidget {
+  const _PottySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(pottyOverviewProvider);
+    if (overview == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final pottyColor = activityColor(ActivityType.potty);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.wc, size: 18, color: pottyColor),
+                const SizedBox(width: 6),
+                Text('Potty', style: theme.textTheme.titleSmall),
+                const Spacer(),
+                Text(
+                  '${overview.totalCount} trip${overview.totalCount == 1 ? '' : 's'}',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: pottyColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // Donut
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          value: overview.totalCount > 0
+                              ? overview.peeCount / overview.totalCount
+                              : 0,
+                          strokeWidth: 8,
+                          backgroundColor:
+                              Colors.brown.withValues(alpha: 0.3),
+                          valueColor: AlwaysStoppedAnimation(
+                              Colors.amber.shade600),
+                        ),
+                      ),
+                      Text(
+                        '${overview.totalCount}',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (overview.peeCount > 0)
+                        _PottyRow(
+                          label: 'Pee',
+                          count: overview.peeCount,
+                          total: overview.totalCount,
+                          color: Colors.amber.shade600,
+                        ),
+                      if (overview.pooCount > 0) ...[
+                        const SizedBox(height: 4),
+                        _PottyRow(
+                          label: 'Poo',
+                          count: overview.pooCount,
+                          total: overview.totalCount,
+                          color: Colors.brown,
+                        ),
+                      ],
+                      if (overview.bothCount > 0) ...[
+                        const SizedBox(height: 4),
+                        _PottyRow(
+                          label: 'Both',
+                          count: overview.bothCount,
+                          total: overview.totalCount,
+                          color: Colors.brown.shade300,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PottyRow extends StatelessWidget {
+  final String label;
+  final int count;
+  final int total;
+  final Color color;
+
+  const _PottyRow({
+    required this.label,
+    required this.count,
+    required this.total,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? count / total : 0.0;
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$label: $count',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const Spacer(),
+        Text(
+          '${(pct * 100).round()}%',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TrendSection extends ConsumerWidget {
   const _TrendSection();
 
@@ -954,6 +1105,7 @@ class _TrendSection extends ConsumerWidget {
       TrendMetric.sleep => activityColor(ActivityType.sleep),
       TrendMetric.temperature => activityColor(ActivityType.temperature),
       TrendMetric.meds => activityColor(ActivityType.meds),
+      TrendMetric.potty => activityColor(ActivityType.potty),
     };
 
     return Card(

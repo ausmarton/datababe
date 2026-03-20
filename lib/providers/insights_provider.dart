@@ -73,7 +73,8 @@ enum TrendMetric {
   tummyTime('Tummy Time'),
   sleep('Sleep'),
   temperature('Temperature'),
-  meds('Medication');
+  meds('Medication'),
+  potty('Potty');
 
   final String label;
   const TrendMetric(this.label);
@@ -1183,6 +1184,7 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
         TrendMetric.temperature => s.latestTempC ?? 0,
         TrendMetric.meds =>
           s.medsBreakdown.values.fold(0, (a, b) => a + b).toDouble(),
+        TrendMetric.potty => s.pottyCount.toDouble(),
       };
     }
     points.add(TrendPoint(date: dayStart, value: value));
@@ -1216,6 +1218,8 @@ final trendBaselineProvider = Provider<double?>((ref) {
       TrendMetric.temperature => false, // no target-based baseline for temp
       TrendMetric.meds =>
         t.activityType == ActivityType.meds.name && t.metric == 'count',
+      TrendMetric.potty =>
+        t.activityType == ActivityType.potty.name && t.metric == 'count',
     };
     if (matches) return t.targetValue;
   }
@@ -1229,6 +1233,7 @@ final trendBaselineProvider = Provider<double?>((ref) {
     TrendMetric.sleep => null,
     TrendMetric.temperature => null,
     TrendMetric.meds => null,
+    TrendMetric.potty => null,
   };
 });
 
@@ -1867,4 +1872,42 @@ final medicationOverviewProvider = Provider<MedicationOverview?>((ref) {
   final summary = ref.watch(insightsSummaryProvider);
   if (summary == null) return null;
   return computeMedicationOverview(summary);
+});
+
+// ==========================================================================
+// Potty detail visualization (#48)
+// ==========================================================================
+
+/// Potty overview for the insights window.
+class PottyOverview {
+  final int peeCount;
+  final int pooCount;
+  final int bothCount;
+  final int totalCount;
+
+  const PottyOverview({
+    required this.peeCount,
+    required this.pooCount,
+    required this.bothCount,
+    required this.totalCount,
+  });
+}
+
+/// Pure computation: builds PottyOverview from an ActivitySummary.
+PottyOverview? computePottyOverview(ActivitySummary summary) {
+  if (summary.pottyCount == 0) return null;
+  final b = summary.pottyBreakdown;
+  return PottyOverview(
+    peeCount: b['pee'] ?? 0,
+    pooCount: b['poo'] ?? 0,
+    bothCount: b['both'] ?? 0,
+    totalCount: summary.pottyCount,
+  );
+}
+
+/// Potty overview for the insights window period.
+final pottyOverviewProvider = Provider<PottyOverview?>((ref) {
+  final summary = ref.watch(insightsSummaryProvider);
+  if (summary == null) return null;
+  return computePottyOverview(summary);
 });

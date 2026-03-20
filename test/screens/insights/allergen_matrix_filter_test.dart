@@ -54,6 +54,7 @@ Widget _buildApp({
       sleepQualityProvider.overrideWithValue(null),
       temperatureOverviewProvider.overrideWithValue(null),
       medicationOverviewProvider.overrideWithValue(null),
+      pottyOverviewProvider.overrideWithValue(null),
       trendDataProvider.overrideWithValue([]),
       trendBaselineProvider.overrideWithValue(null),
       targetsProvider.overrideWith((ref) => Stream.value([])),

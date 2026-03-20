@@ -102,6 +102,17 @@ List<ActivityModel> _recentMultiDayActivities() {
     modifiedAt: today,
   ));
 
+  // Today: potty
+  activities.add(ActivityModel(
+    id: 'today-potty',
+    childId: 'c1',
+    type: 'potty',
+    startTime: today.subtract(const Duration(hours: 14)),
+    contents: 'pee',
+    createdAt: today,
+    modifiedAt: today,
+  ));
+
   // Today: medication
   activities.add(ActivityModel(
     id: 'today-med-vitd',
@@ -181,6 +192,15 @@ List<ActivityModel> _recentMultiDayActivities() {
       type: 'meds',
       startTime: dayAt8.add(const Duration(hours: 5)),
       medicationName: 'Vitamin D',
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
+    activities.add(ActivityModel(
+      id: 'day$day-potty',
+      childId: 'c1',
+      type: 'potty',
+      startTime: dayAt8.add(const Duration(hours: 6)),
+      contents: day.isEven ? 'poo' : 'pee',
       createdAt: dayAt8,
       modifiedAt: dayAt8,
     ));
@@ -507,6 +527,60 @@ void main() {
 
       // Medication section should not appear
       expect(find.byIcon(Icons.medication), findsNothing);
+    });
+  });
+
+  group('Insights — Potty section data', () {
+    testWidgets('Potty section visible with potty data', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Potty'));
+      expect(find.text('Potty'), findsWidgets);
+    });
+
+    testWidgets('shows contents breakdown', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Potty'));
+      // Pee activities are present
+      expect(find.textContaining('Pee'), findsOneWidget);
+    });
+
+    testWidgets('shows trip count', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Potty'));
+      expect(find.textContaining('trip'), findsOneWidget);
+    });
+
+    testWidgets('hidden when no potty data', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      harness.activities = [
+        ActivityModel(
+          id: 'only-bottle',
+          childId: 'c1',
+          type: 'feedBottle',
+          startTime: today.subtract(const Duration(hours: 2)),
+          volumeMl: 120.0,
+          createdAt: today,
+          modifiedAt: today,
+        ),
+      ];
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      expect(find.byIcon(Icons.wc), findsNothing);
     });
   });
 

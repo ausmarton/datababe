@@ -2574,6 +2574,76 @@ void main() {
   });
 
   // ========================================================================
+  // extractMetricFromSummary — potty (#48)
+  // ========================================================================
+  group('extractMetricFromSummary — potty', () {
+    test('count returns total potty count', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'potty', contents: 'pee'),
+        _activity(type: 'potty', contents: 'poo'),
+        _activity(type: 'potty', contents: 'both'),
+      ]);
+      expect(extractMetricFromSummary('potty', 'count', summary), 3);
+    });
+  });
+
+  // ========================================================================
+  // PottyOverview (#48)
+  // ========================================================================
+  group('PottyOverview', () {
+    test('fields are correctly set', () {
+      const overview = PottyOverview(
+        peeCount: 3,
+        pooCount: 2,
+        bothCount: 1,
+        totalCount: 6,
+      );
+      expect(overview.peeCount, 3);
+      expect(overview.pooCount, 2);
+      expect(overview.bothCount, 1);
+      expect(overview.totalCount, 6);
+    });
+  });
+
+  // ========================================================================
+  // computePottyOverview (#48)
+  // ========================================================================
+  group('computePottyOverview', () {
+    test('returns null when no potty activities', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 120),
+      ]);
+      expect(computePottyOverview(summary), isNull);
+    });
+
+    test('aggregates contents breakdown', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'potty', contents: 'pee'),
+        _activity(type: 'potty', contents: 'pee'),
+        _activity(type: 'potty', contents: 'poo'),
+        _activity(type: 'potty', contents: 'both'),
+      ]);
+      final overview = computePottyOverview(summary);
+      expect(overview, isNotNull);
+      expect(overview!.peeCount, 2);
+      expect(overview.pooCount, 1);
+      expect(overview.bothCount, 1);
+      expect(overview.totalCount, 4);
+    });
+
+    test('handles pee-only activities', () {
+      final summary = ActivityAggregator.compute([
+        _activity(type: 'potty', contents: 'pee'),
+      ]);
+      final overview = computePottyOverview(summary);
+      expect(overview, isNotNull);
+      expect(overview!.peeCount, 1);
+      expect(overview.pooCount, 0);
+      expect(overview.bothCount, 0);
+    });
+  });
+
+  // ========================================================================
   // extractMetricFromSummary — meds (#41)
   // ========================================================================
   group('extractMetricFromSummary — meds', () {
