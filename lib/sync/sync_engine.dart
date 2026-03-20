@@ -317,8 +317,36 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         await batch.commit();
         completedIds.addAll(chunkIds);
       } catch (e) {
-        failCount += chunk.length;
-        debugPrint('[Sync] pushNewBatch chunk $i: $e');
+        debugPrint('[Sync] pushNewBatch chunk $i batch failed: $e');
+        // Fallback: push individually to isolate the bad document(s).
+        for (final entry in chunk) {
+          try {
+            final store = _storeMap[entry.collection];
+            if (store == null) {
+              failCount++;
+              continue;
+            }
+            final localRecord =
+                await store.record(entry.documentId).get(_db);
+            if (localRecord == null) {
+              failCount++;
+              continue;
+            }
+            final firestoreData = FirestoreConverter.toFirestore(
+                Map<String, dynamic>.from(localRecord));
+            final docRef = _docRef(
+              entry.collection,
+              entry.familyId,
+              entry.documentId,
+            );
+            await docRef.set(firestoreData);
+            completedIds.add(entry.id);
+          } catch (e2) {
+            failCount++;
+            debugPrint(
+                '[Sync] pushSingle ${entry.collection}/${entry.documentId}: $e2');
+          }
+        }
       }
     }
 
