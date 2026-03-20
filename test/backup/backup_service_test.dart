@@ -5,6 +5,7 @@ import 'package:sembast/sembast_memory.dart';
 
 import 'package:datababe/backup/backup_service.dart';
 import 'package:datababe/local/store_refs.dart';
+import 'package:datababe/sync/sync_queue.dart';
 
 void main() {
   late Database db;
@@ -791,6 +792,130 @@ void main() {
       expect(result.totalInserted, 7);
       expect(result.totalUpdated, 1);
       expect(result.totalSkipped, 4);
+    });
+  });
+
+  // ==========================================================================
+  // Sync queue API usage (#27)
+  // ==========================================================================
+  group('restore uses SyncQueue API', () {
+    test('inserted records get isNew: true in sync queue', () async {
+      final backup = jsonEncode({
+        'version': 1,
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': {'child-new': makeChild('New Baby')},
+          'activities': {},
+          'carers': {},
+          'ingredients': {},
+          'recipes': {},
+          'targets': {},
+        },
+      });
+
+      await service.restoreFamily(backup);
+
+      // Check sync queue entries
+      final queue = SyncQueue(db);
+      final entries = await queue.getPending();
+      final childEntry = entries.firstWhere(
+        (e) => e.collection == 'children' && e.documentId == 'child-new',
+      );
+      expect(childEntry.isNew, isTrue);
+    });
+
+    test('updated records get isNew: false in sync queue', () async {
+      // Pre-seed a child record
+      await StoreRefs.children
+          .record('child-existing')
+          .put(db, makeChild('Old Baby'));
+
+      final backup = jsonEncode({
+        'version': 1,
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': {
+            'child-existing': makeChild('Updated Baby', modifiedAt: later),
+          },
+          'activities': {},
+          'carers': {},
+          'ingredients': {},
+          'recipes': {},
+          'targets': {},
+        },
+      });
+
+      await service.restoreFamily(backup);
+
+      final queue = SyncQueue(db);
+      final entries = await queue.getPending();
+      final childEntry = entries.firstWhere(
+        (e) =>
+            e.collection == 'children' &&
+            e.documentId == 'child-existing',
+      );
+      expect(childEntry.isNew, isFalse);
+    });
+
+    test('skipped records do not enqueue', () async {
+      // Pre-seed with newer data
+      await StoreRefs.children
+          .record('child-skip')
+          .put(db, makeChild('Newer Baby', modifiedAt: later));
+
+      final backup = jsonEncode({
+        'version': 1,
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': {
+            'child-skip': makeChild('Older Baby'), // older modifiedAt
+          },
+          'activities': {},
+          'carers': {},
+          'ingredients': {},
+          'recipes': {},
+          'targets': {},
+        },
+      });
+
+      await service.restoreFamily(backup);
+
+      final queue = SyncQueue(db);
+      final entries = await queue.getPending();
+      final childEntries = entries.where(
+        (e) => e.collection == 'children' && e.documentId == 'child-skip',
+      );
+      expect(childEntries, isEmpty);
+    });
+
+    test('sync queue entries use SyncEntry format with all fields', () async {
+      final backup = jsonEncode({
+        'version': 1,
+        'familyId': familyId,
+        'stores': {
+          'families': {familyId: makeFamily()},
+          'children': {},
+          'activities': {'act-1': makeActivity('act-1')},
+          'carers': {},
+          'ingredients': {},
+          'recipes': {},
+          'targets': {},
+        },
+      });
+
+      await service.restoreFamily(backup);
+
+      final queue = SyncQueue(db);
+      final entries = await queue.getPending();
+      final actEntry = entries.firstWhere(
+        (e) => e.collection == 'activities' && e.documentId == 'act-1',
+      );
+      expect(actEntry.familyId, familyId);
+      expect(actEntry.isNew, isTrue);
+      expect(actEntry.createdAt, isNotNull);
     });
   });
 }

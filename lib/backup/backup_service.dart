@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:sembast/sembast.dart';
 
 import '../local/store_refs.dart';
+import '../sync/sync_queue.dart';
 import '../utils/dedup_helper.dart';
 
 /// Per-store import result.
@@ -122,7 +123,8 @@ class BackupService {
       var inserted = 0;
       var updated = 0;
       var skipped = 0;
-      final changedIds = <String>[];
+      final insertedIds = <String>[];
+      final updatedIds = <String>[];
 
       await _db.transaction((txn) async {
         for (final recordEntry in incoming.entries) {
@@ -140,7 +142,7 @@ class BackupService {
           if (existing == null) {
             await store.record(recordId).put(txn, incomingData);
             inserted++;
-            changedIds.add(recordId);
+            insertedIds.add(recordId);
           } else {
             final incomingModified = _parseTimestamp(incomingData, 'modifiedAt')
                 ?? _parseTimestamp(incomingData, 'createdAt');
@@ -152,11 +154,11 @@ class BackupService {
                 incomingModified.isAfter(localModified)) {
               await store.record(recordId).put(txn, incomingData);
               updated++;
-              changedIds.add(recordId);
+              updatedIds.add(recordId);
             } else if (incomingModified != null && localModified == null) {
               await store.record(recordId).put(txn, incomingData);
               updated++;
-              changedIds.add(recordId);
+              updatedIds.add(recordId);
             } else {
               skipped++;
             }
@@ -164,18 +166,24 @@ class BackupService {
         }
       });
 
-      // Enqueue only inserted/updated records for sync.
-      if (changedIds.isNotEmpty) {
-        final syncStore = StoreRefs.syncQueue;
+      // Enqueue only inserted/updated records for sync via SyncQueue API.
+      final queue = SyncQueue(_db);
+      if (insertedIds.isNotEmpty || updatedIds.isNotEmpty) {
         await _db.transaction((txn) async {
-          for (final recordId in changedIds) {
-            final key = '${storeName}_$recordId';
-            await syncStore.record(key).put(txn, {
-              'collection': storeName,
-              'documentId': recordId,
-              'familyId': familyId ?? '',
-              'createdAt': DateTime.now().toIso8601String(),
-            });
+          for (final recordId in insertedIds) {
+            await queue.enqueueTxn(txn,
+              collection: storeName,
+              documentId: recordId,
+              familyId: familyId ?? '',
+              isNew: true,
+            );
+          }
+          for (final recordId in updatedIds) {
+            await queue.enqueueTxn(txn,
+              collection: storeName,
+              documentId: recordId,
+              familyId: familyId ?? '',
+            );
           }
         });
       }
@@ -190,27 +198,23 @@ class BackupService {
       final dedupedIngredientIds = await helper.dedupIngredients(familyId);
       final dedupedRecipeIds = await helper.dedupRecipes(familyId);
 
-      // Enqueue deduped records for sync.
+      // Enqueue deduped records for sync via SyncQueue API.
       if (dedupedIngredientIds.isNotEmpty || dedupedRecipeIds.isNotEmpty) {
-        final syncStore = StoreRefs.syncQueue;
+        final dedupQueue = SyncQueue(_db);
         await _db.transaction((txn) async {
           for (final id in dedupedIngredientIds) {
-            final key = 'ingredients_$id';
-            await syncStore.record(key).put(txn, {
-              'collection': 'ingredients',
-              'documentId': id,
-              'familyId': familyId,
-              'createdAt': DateTime.now().toIso8601String(),
-            });
+            await dedupQueue.enqueueTxn(txn,
+              collection: 'ingredients',
+              documentId: id,
+              familyId: familyId,
+            );
           }
           for (final id in dedupedRecipeIds) {
-            final key = 'recipes_$id';
-            await syncStore.record(key).put(txn, {
-              'collection': 'recipes',
-              'documentId': id,
-              'familyId': familyId,
-              'createdAt': DateTime.now().toIso8601String(),
-            });
+            await dedupQueue.enqueueTxn(txn,
+              collection: 'recipes',
+              documentId: id,
+              familyId: familyId,
+            );
           }
         });
       }
