@@ -209,6 +209,35 @@ void main() {
       expect(find.text('Length (cm)'), findsOneWidget);
     });
 
+    testWidgets('shows WHO percentile labels on stats', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _growthActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGrowthDetail(tester);
+
+      // Child DOB is set in TestData (~6 months old), so percentiles should appear
+      // Look for any "P" + number text indicating percentile
+      expect(find.textContaining(RegExp(r'P\d+')), findsWidgets);
+    });
+
+    testWidgets('shows WHO percentiles label on chart', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _growthActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGrowthDetail(tester);
+
+      expect(find.text('WHO percentiles'), findsWidgets);
+    });
+
+    testWidgets('shows percentile legend below chart', (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _growthActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToGrowthDetail(tester);
+
+      expect(find.textContaining('50th (median)'), findsWidgets);
+    });
+
     testWidgets('toggling filter chip hides corresponding chart',
         (tester) async {
       await tester.runAsync(() => harness.seedFull());

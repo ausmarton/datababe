@@ -4,6 +4,7 @@ class ChildModel {
   final String id;
   final String name;
   final DateTime dateOfBirth;
+  final String? gender; // 'male', 'female', or null (unknown)
   final String notes;
   final DateTime createdAt;
   final DateTime modifiedAt;
@@ -13,6 +14,7 @@ class ChildModel {
     required this.id,
     required this.name,
     required this.dateOfBirth,
+    this.gender,
     this.notes = '',
     required this.createdAt,
     required this.modifiedAt,
@@ -22,6 +24,7 @@ class ChildModel {
   Map<String, dynamic> toFirestore() => {
         'name': name,
         'dateOfBirth': Timestamp.fromDate(dateOfBirth),
+        if (gender != null) 'gender': gender,
         'notes': notes,
         'createdAt': Timestamp.fromDate(createdAt),
         'modifiedAt': Timestamp.fromDate(modifiedAt),
@@ -31,6 +34,7 @@ class ChildModel {
   Map<String, dynamic> toMap() => {
         'name': name,
         'dateOfBirth': dateOfBirth.toIso8601String(),
+        if (gender != null) 'gender': gender,
         'notes': notes,
         'createdAt': createdAt.toIso8601String(),
         'modifiedAt': modifiedAt.toIso8601String(),
@@ -47,6 +51,7 @@ class ChildModel {
       dateOfBirth: d['dateOfBirth'] != null
           ? DateTime.parse(d['dateOfBirth'] as String)
           : DateTime.now(),
+      gender: d['gender'] as String?,
       notes: d['notes'] as String? ?? '',
       createdAt: createdAt,
       modifiedAt: d['modifiedAt'] != null
@@ -66,6 +71,7 @@ class ChildModel {
       name: d['name'] as String? ?? '',
       dateOfBirth:
           (d['dateOfBirth'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      gender: d['gender'] as String?,
       notes: d['notes'] as String? ?? '',
       createdAt: createdAt,
       modifiedAt:
