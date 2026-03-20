@@ -486,6 +486,7 @@ class _SyncStatusTile extends ConsumerWidget {
     final syncStatus = ref.watch(syncStatusProvider);
     final lastSync = ref.watch(lastSyncTimeProvider);
     final pendingCount = ref.watch(pendingSyncCountProvider);
+    final failureInfo = ref.watch(pullFailureInfoProvider).valueOrNull;
 
     final status = syncStatus.valueOrNull ?? SyncStatus.idle;
     final lastTime = lastSync.valueOrNull;
@@ -513,28 +514,82 @@ class _SyncStatusTile extends ConsumerWidget {
       }
     }
 
-    return ListTile(
-      leading: const Icon(Icons.sync),
-      title: const Text('Sync Now'),
-      subtitle: Text(subtitle.toString()),
-      trailing: status == SyncStatus.syncing
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : null,
-      onTap: status == SyncStatus.syncing
-          ? null
-          : () async {
-              final engine = ref.read(syncEngineProvider);
-              final result = await engine.syncNow();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(_syncResultMessage(result))),
-                );
-              }
-            },
+    return Column(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.sync),
+          title: const Text('Sync Now'),
+          subtitle: Text(subtitle.toString()),
+          trailing: status == SyncStatus.syncing
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
+          onTap: status == SyncStatus.syncing
+              ? null
+              : () async {
+                  final engine = ref.read(syncEngineProvider);
+                  final result = await engine.syncNow();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_syncResultMessage(result))),
+                    );
+                  }
+                },
+        ),
+        if (failureInfo != null && failureInfo.count >= 3)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Card(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber,
+                        color: Theme.of(context).colorScheme.error),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pull failing (${failureInfo.count} consecutive)',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onErrorContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            failureInfo.error,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onErrorContainer,
+                                ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -591,12 +646,20 @@ class _DiagnosticsTileState extends ConsumerState<_DiagnosticsTile> {
                         .where((e) => e.key != 'pendingSync')
                         .map((e) {
                       final info = e.value as Map<String, dynamic>;
+                      final failures = info['pullFailures'] as int?;
+                      final lastError = info['lastPullError'] as String?;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: Text(
                           '${e.key}: ${info['localCount']} local, '
-                          'lastPull: ${info['lastPull'] ?? 'never'}',
-                          style: Theme.of(context).textTheme.bodySmall,
+                          'lastPull: ${info['lastPull'] ?? 'never'}'
+                          '${failures != null ? ', failures: $failures' : ''}'
+                          '${lastError != null ? ' ($lastError)' : ''}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: failures != null && failures >= 3
+                                    ? Theme.of(context).colorScheme.error
+                                    : null,
+                              ),
                         ),
                       );
                     }),

@@ -66,6 +66,69 @@ class SyncMetadata {
     });
   }
 
+  // ── Pull failure tracking ──────────────────────────────────────────
+
+  String _failureKey(String familyId, String collection) =>
+      '${familyId}_${collection}_failure';
+
+  /// Get consecutive pull failure count for a family+collection.
+  Future<int> getPullFailureCount(
+      String familyId, String collection) async {
+    final record =
+        await _store.record(_failureKey(familyId, collection)).get(_db);
+    if (record == null) return 0;
+    return (record['failureCount'] as int?) ?? 0;
+  }
+
+  /// Increment the failure count and store the last error message.
+  Future<void> incrementPullFailure(
+      String familyId, String collection, String error) async {
+    final key = _failureKey(familyId, collection);
+    final existing = await _store.record(key).get(_db);
+    final currentCount =
+        (existing != null ? existing['failureCount'] as int? : null) ?? 0;
+
+    await _store.record(key).put(_db, {
+      'familyId': familyId,
+      'collection': collection,
+      'failureCount': currentCount + 1,
+      'lastError': error,
+      'lastFailedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Reset failure count (called on successful pull).
+  Future<void> resetPullFailure(
+      String familyId, String collection) async {
+    await _store.record(_failureKey(familyId, collection)).delete(_db);
+  }
+
+  /// Get the last error message for a family+collection.
+  Future<String?> getLastPullError(
+      String familyId, String collection) async {
+    final record =
+        await _store.record(_failureKey(familyId, collection)).get(_db);
+    if (record == null) return null;
+    return record['lastError'] as String?;
+  }
+
+  /// Get the worst pull failure across all family+collection combos.
+  /// Returns null if no failures exist.
+  Future<({int count, String error})?> getWorstPullFailure() async {
+    final records = await _store.find(_db,
+        finder: Finder(
+          filter: Filter.greaterThan('failureCount', 0),
+          sortOrders: [SortOrder('failureCount', false)],
+          limit: 1,
+        ));
+    if (records.isEmpty) return null;
+    final data = records.first.value;
+    final count = (data['failureCount'] as int?) ?? 0;
+    if (count == 0) return null;
+    final error = (data['lastError'] as String?) ?? 'Unknown error';
+    return (count: count, error: error);
+  }
+
   /// Get the last sync time across all collections for display.
   Future<DateTime?> getLastSyncTime() async {
     final records = await _store.find(_db,

@@ -107,6 +107,135 @@ void main() {
     });
   });
 
+  group('pull failure tracking', () {
+    test('getPullFailureCount returns 0 when no failures recorded', () async {
+      final count =
+          await metadata.getPullFailureCount('fam-1', 'activities');
+      expect(count, 0);
+    });
+
+    test('incrementPullFailure increments count', () async {
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'network error');
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'activities'), 1);
+
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'timeout');
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'activities'), 2);
+    });
+
+    test('resetPullFailure clears count and error', () async {
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'network error');
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'timeout');
+
+      await metadata.resetPullFailure('fam-1', 'activities');
+
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'activities'), 0);
+      expect(
+          await metadata.getLastPullError('fam-1', 'activities'), isNull);
+    });
+
+    test('getLastPullError returns null when no failures', () async {
+      final error =
+          await metadata.getLastPullError('fam-1', 'activities');
+      expect(error, isNull);
+    });
+
+    test('getLastPullError returns most recent error', () async {
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'network error');
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'permission denied');
+
+      final error =
+          await metadata.getLastPullError('fam-1', 'activities');
+      expect(error, 'permission denied');
+    });
+
+    test('different family+collection failures are independent', () async {
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'error A');
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'error A2');
+      await metadata.incrementPullFailure(
+          'fam-1', 'ingredients', 'error B');
+
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'activities'), 2);
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'ingredients'), 1);
+      expect(
+          await metadata.getPullFailureCount('fam-2', 'activities'), 0);
+    });
+
+    test('failure keys do not collide with pull or reconcile keys',
+        () async {
+      final pullTs = DateTime(2026, 3, 19, 10, 0);
+      final reconcileTs = DateTime(2026, 3, 19, 12, 0);
+
+      await metadata.setLastPull('fam-1', 'activities', pullTs);
+      await metadata.setLastReconcile('fam-1', 'activities', reconcileTs);
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'some error');
+
+      // All three should be independent.
+      expect(await metadata.getLastPull('fam-1', 'activities'), pullTs);
+      expect(await metadata.getLastReconcile('fam-1', 'activities'),
+          reconcileTs);
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'activities'), 1);
+      expect(
+          await metadata.getLastPullError('fam-1', 'activities'),
+          'some error');
+    });
+
+    test('resetPullFailure does not affect pull or reconcile data',
+        () async {
+      final pullTs = DateTime(2026, 3, 19, 10, 0);
+      await metadata.setLastPull('fam-1', 'activities', pullTs);
+      await metadata.incrementPullFailure(
+          'fam-1', 'activities', 'error');
+
+      await metadata.resetPullFailure('fam-1', 'activities');
+
+      expect(await metadata.getLastPull('fam-1', 'activities'), pullTs);
+      expect(
+          await metadata.getPullFailureCount('fam-1', 'activities'), 0);
+    });
+  });
+
+  group('getWorstPullFailure', () {
+    test('returns null when no failures', () async {
+      final result = await metadata.getWorstPullFailure();
+      expect(result, isNull);
+    });
+
+    test('returns worst failure across all combos', () async {
+      await metadata.incrementPullFailure('fam-1', 'activities', 'err1');
+      await metadata.incrementPullFailure('fam-1', 'activities', 'err1b');
+      await metadata.incrementPullFailure('fam-1', 'activities', 'err1c');
+      await metadata.incrementPullFailure('fam-2', 'recipes', 'err2');
+
+      final result = await metadata.getWorstPullFailure();
+      expect(result, isNotNull);
+      expect(result!.count, 3);
+      expect(result.error, 'err1c');
+    });
+
+    test('returns null after all failures are reset', () async {
+      await metadata.incrementPullFailure('fam-1', 'activities', 'err');
+      await metadata.resetPullFailure('fam-1', 'activities');
+
+      final result = await metadata.getWorstPullFailure();
+      expect(result, isNull);
+    });
+  });
+
   group('getLastSyncTime', () {
     test('returns null when no pulls recorded', () async {
       final result = await metadata.getLastSyncTime();

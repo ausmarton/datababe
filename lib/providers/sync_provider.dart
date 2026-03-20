@@ -57,3 +57,13 @@ final pendingSyncCountProvider = FutureProvider<int>((ref) {
   final queue = ref.watch(syncQueueProvider);
   return queue.pendingCount();
 });
+
+/// Pull failure info: worst consecutive failure count + last error across all
+/// family+collection combos. Returns null if no failures.
+/// Re-evaluated after each sync cycle.
+final pullFailureInfoProvider = FutureProvider<({int count, String error})?>(
+    (ref) async {
+  ref.watch(syncStatusProvider);
+  final metadata = ref.watch(syncMetadataProvider);
+  return metadata.getWorstPullFailure();
+});

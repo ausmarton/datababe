@@ -407,6 +407,17 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
     await _resolveIngredientDuplicates(familyId);
     await _resolveRecipeDuplicates(familyId);
 
+    // Check for persistent pull failures across all collections.
+    var maxFailures = 0;
+    for (final collection in _deltaCollections) {
+      final count =
+          await _metadata.getPullFailureCount(familyId, collection);
+      if (count > maxFailures) maxFailures = count;
+    }
+    if (maxFailures >= 3) {
+      _setStatus(SyncStatus.error);
+    }
+
     // Reconcile: remove local records whose Firestore counterparts were hard-deleted.
     var result = const _ReconcileResult();
     for (final collection in _reconcileCollections) {
@@ -442,8 +453,10 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
       }
 
       await _metadata.setLastPull(familyId, 'families', DateTime.now());
+      await _metadata.resetPullFailure(familyId, 'families');
     } catch (e) {
       debugPrint('[Sync] pullFamilyDoc $familyId: $e');
+      await _metadata.incrementPullFailure(familyId, 'families', '$e');
     }
   }
 
@@ -531,8 +544,10 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         debugPrint('[Sync] pullDelta $familyId/$collection: '
             '$skipped skipped (pending), lastPull NOT advanced');
       }
+      await _metadata.resetPullFailure(familyId, collection);
     } catch (e) {
       debugPrint('[Sync] pullDelta $familyId/$collection: $e');
+      await _metadata.incrementPullFailure(familyId, collection, '$e');
     }
   }
 
@@ -879,9 +894,15 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         filter: Filter.equals('familyId', familyId),
       );
       final lastPull = await _metadata.getLastPull(familyId, collection);
+      final failureCount =
+          await _metadata.getPullFailureCount(familyId, collection);
+      final lastError =
+          await _metadata.getLastPullError(familyId, collection);
       result[collection] = {
         'localCount': count,
         'lastPull': lastPull?.toIso8601String(),
+        if (failureCount > 0) 'pullFailures': failureCount,
+        if (lastError != null) 'lastPullError': lastError,
       };
     }
     result['pendingSync'] = await _queue.pendingCount();
