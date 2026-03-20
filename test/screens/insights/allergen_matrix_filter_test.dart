@@ -52,6 +52,7 @@ Widget _buildApp({
       insightsProgressProvider.overrideWithValue([]),
       feedingBreakdownProvider.overrideWithValue(null),
       sleepQualityProvider.overrideWithValue(null),
+      temperatureOverviewProvider.overrideWithValue(null),
       trendDataProvider.overrideWithValue([]),
       trendBaselineProvider.overrideWithValue(null),
       targetsProvider.overrideWith((ref) => Stream.value([])),

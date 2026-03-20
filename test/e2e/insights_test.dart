@@ -146,6 +146,15 @@ List<ActivityModel> _recentMultiDayActivities() {
       createdAt: dayAt8,
       modifiedAt: dayAt8,
     ));
+    activities.add(ActivityModel(
+      id: 'day$day-temp',
+      childId: 'c1',
+      type: 'temperature',
+      startTime: dayAt8.add(const Duration(hours: 4)),
+      tempCelsius: 36.5 + day * 0.2,
+      createdAt: dayAt8,
+      modifiedAt: dayAt8,
+    ));
   }
 
   return activities;
@@ -247,6 +256,20 @@ void main() {
       expect(find.textContaining('Naps'), findsWidgets);
       expect(find.textContaining('Longest stretch'), findsOneWidget);
       expect(find.textContaining('Avg wakings'), findsOneWidget);
+    });
+
+    testWidgets('Temperature section visible with temp data',
+        (tester) async {
+      await tester.runAsync(() => harness.seedFull());
+      harness.activities = _recentMultiDayActivities();
+      await pumpApp(tester, harness.buildApp());
+      await navigateToInsights(tester);
+
+      await scrollToVisible(tester, find.text('Latest'));
+      expect(find.text('Temperature'), findsWidgets);
+      expect(find.text('Latest'), findsOneWidget);
+      expect(find.text('Min'), findsOneWidget);
+      expect(find.text('Max'), findsOneWidget);
     });
 
     testWidgets('Allergen Tracker section visible', (tester) async {
@@ -407,6 +430,8 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
+      // Scroll to Allergen Tracker section
+      await scrollToVisible(tester, find.text('Allergen Tracker'));
       // Today's solids has egg+dairy allergens. Family has 5 categories.
       // Allergen Tracker section shows "N/M covered" text
       expect(find.textContaining('covered'), findsWidgets);
@@ -418,6 +443,7 @@ void main() {
       await pumpApp(tester, harness.buildApp());
       await navigateToInsights(tester);
 
+      await scrollToVisible(tester, find.text('Allergen Tracker'));
       expect(find.text('7d'), findsWidgets);
       expect(find.text('14d'), findsWidgets);
     });

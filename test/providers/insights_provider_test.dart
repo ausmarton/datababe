@@ -28,6 +28,7 @@ ActivityModel _activity({
   double? headCircumferenceCm,
   int? rightBreastMinutes,
   int? leftBreastMinutes,
+  double? tempCelsius,
 }) {
   final now = startTime ?? DateTime(2026, 3, 6, 10, 0);
   return ActivityModel(
@@ -49,6 +50,7 @@ ActivityModel _activity({
     headCircumferenceCm: headCircumferenceCm,
     rightBreastMinutes: rightBreastMinutes,
     leftBreastMinutes: leftBreastMinutes,
+    tempCelsius: tempCelsius,
   );
 }
 
@@ -2503,6 +2505,69 @@ void main() {
       final p = SleepTrendPoint(
           date: DateTime(2026, 3, 10), nightMin: 400, napMin: 60);
       expect(p.totalMin, 460);
+    });
+  });
+
+  // =========================================================================
+  // Temperature trending & fever detection (#42)
+  // =========================================================================
+
+  group('TemperatureTrendPoint', () {
+    test('hasFever is true when max >= 38.0', () {
+      final p = TemperatureTrendPoint(
+          date: DateTime(2026, 3, 10), latest: 37.5, min: 36.5, max: 38.2);
+      expect(p.hasFever, isTrue);
+    });
+
+    test('hasFever is false when max < 38.0', () {
+      final p = TemperatureTrendPoint(
+          date: DateTime(2026, 3, 10), latest: 37.0, min: 36.5, max: 37.9);
+      expect(p.hasFever, isFalse);
+    });
+
+    test('hasFever is false when max is null', () {
+      final p = TemperatureTrendPoint(date: DateTime(2026, 3, 10));
+      expect(p.hasFever, isFalse);
+    });
+
+    test('hasData is true when latest is not null', () {
+      final p = TemperatureTrendPoint(date: DateTime(2026, 3, 10), latest: 36.8);
+      expect(p.hasData, isTrue);
+    });
+
+    test('hasData is false when latest is null', () {
+      final p = TemperatureTrendPoint(date: DateTime(2026, 3, 10));
+      expect(p.hasData, isFalse);
+    });
+  });
+
+  group('TemperatureOverview', () {
+    test('hasFever is true when max >= threshold', () {
+      const o = TemperatureOverview(
+        latest: 38.5,
+        min: 37.0,
+        max: 38.5,
+        readingCount: 3,
+        feverDays: 1,
+      );
+      expect(o.hasFever, isTrue);
+    });
+
+    test('hasFever is false when max < threshold', () {
+      const o = TemperatureOverview(
+        latest: 37.0,
+        min: 36.2,
+        max: 37.5,
+        readingCount: 5,
+        feverDays: 0,
+      );
+      expect(o.hasFever, isFalse);
+    });
+  });
+
+  group('feverThresholdC', () {
+    test('is 38.0', () {
+      expect(feverThresholdC, 38.0);
     });
   });
 }

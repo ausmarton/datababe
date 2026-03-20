@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -93,6 +94,8 @@ class InsightsScreen extends ConsumerWidget {
               const _FeedingOverviewSection(),
               const SizedBox(height: 16),
               const _SleepOverviewSection(),
+              const SizedBox(height: 16),
+              const _TemperatureSection(),
               const SizedBox(height: 16),
               const _AllergenTrackerSection(),
               const SizedBox(height: 16),
@@ -609,6 +612,233 @@ class _SleepStat extends StatelessWidget {
   }
 }
 
+class _TemperatureSection extends ConsumerWidget {
+  const _TemperatureSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(temperatureOverviewProvider);
+    if (overview == null) return const SizedBox.shrink();
+
+    final trend = ref.watch(temperatureTrendProvider);
+    final theme = Theme.of(context);
+    final tempColor = activityColor(ActivityType.temperature);
+
+    // Build line chart spots (only days with data)
+    final spots = <FlSpot>[];
+    for (int i = 0; i < trend.length; i++) {
+      if (trend[i].hasData) {
+        spots.add(FlSpot(i.toDouble(), trend[i].latest!));
+      }
+    }
+
+    // Build min/max range spots for the between-area
+    final minSpots = <FlSpot>[];
+    final maxSpots = <FlSpot>[];
+    for (int i = 0; i < trend.length; i++) {
+      if (trend[i].min != null && trend[i].max != null) {
+        minSpots.add(FlSpot(i.toDouble(), trend[i].min!));
+        maxSpots.add(FlSpot(i.toDouble(), trend[i].max!));
+      }
+    }
+
+    final isWeekView = trend.length <= 7;
+    final dayFormat = DateFormat('E');
+    final dateFormat = DateFormat('d/M');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.thermostat, size: 18, color: tempColor),
+                const SizedBox(width: 6),
+                Text('Temperature', style: theme.textTheme.titleSmall),
+                const Spacer(),
+                if (overview.hasFever)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Fever detected',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Stats row
+            Row(
+              children: [
+                _TempStat(
+                    label: 'Latest',
+                    value: '${overview.latest.toStringAsFixed(1)}°C'),
+                const SizedBox(width: 24),
+                _TempStat(
+                    label: 'Min',
+                    value: '${overview.min.toStringAsFixed(1)}°C'),
+                const SizedBox(width: 24),
+                _TempStat(
+                    label: 'Max',
+                    value: '${overview.max.toStringAsFixed(1)}°C',
+                    highlight: overview.max >= feverThresholdC),
+              ],
+            ),
+            if (overview.feverDays > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${overview.feverDays} day${overview.feverDays == 1 ? '' : 's'} with fever (≥38°C)',
+                style: theme.textTheme.bodySmall?.copyWith(color: Colors.red),
+              ),
+            ],
+            if (spots.length >= 2) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 150,
+                child: LineChart(
+                  LineChartData(
+                    lineBarsData: [
+                      // Min/max range (if we have it)
+                      if (minSpots.length >= 2)
+                        LineChartBarData(
+                          spots: maxSpots,
+                          isCurved: true,
+                          color: Colors.transparent,
+                          barWidth: 0,
+                          dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: tempColor.withValues(alpha: 0.08),
+                            cutOffY: minSpots
+                                .map((s) => s.y)
+                                .reduce((a, b) => a < b ? a : b),
+                            applyCutOffY: true,
+                          ),
+                        ),
+                      // Latest temperature line
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: tempColor,
+                        barWidth: 2,
+                        dotData: FlDotData(
+                          show: true,
+                          getDotPainter: (spot, pct, bar, idx) {
+                            final isFever = spot.y >= feverThresholdC;
+                            return FlDotCirclePainter(
+                              radius: 3,
+                              color: isFever ? Colors.red : tempColor,
+                              strokeWidth: 0,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    extraLinesData: ExtraLinesData(
+                      horizontalLines: [
+                        HorizontalLine(
+                          y: feverThresholdC,
+                          color: Colors.red.withValues(alpha: 0.4),
+                          strokeWidth: 1,
+                          dashArray: [4, 4],
+                          label: HorizontalLineLabel(
+                            show: true,
+                            alignment: Alignment.topRight,
+                            labelResolver: (_) => '38°C',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.red.withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    titlesData: FlTitlesData(
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final idx = value.toInt();
+                            if (idx < 0 || idx >= trend.length) {
+                              return const SizedBox.shrink();
+                            }
+                            if (!isWeekView &&
+                                idx % 5 != 0 &&
+                                idx != trend.length - 1) {
+                              return const SizedBox.shrink();
+                            }
+                            final label = isWeekView
+                                ? dayFormat.format(trend[idx].date)
+                                : dateFormat.format(trend[idx].date);
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(label,
+                                  style: const TextStyle(fontSize: 9)),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(
+                            showTitles: true, reservedSize: 40),
+                      ),
+                      topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    gridData: const FlGridData(
+                        show: true, drawVerticalLine: false),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TempStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool highlight;
+
+  const _TempStat({
+    required this.label,
+    required this.value,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: highlight ? Colors.red : null,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TrendSection extends ConsumerWidget {
   const _TrendSection();
 
@@ -625,6 +855,7 @@ class _TrendSection extends ConsumerWidget {
       TrendMetric.solids => activityColor(ActivityType.solids),
       TrendMetric.tummyTime => activityColor(ActivityType.tummyTime),
       TrendMetric.sleep => activityColor(ActivityType.sleep),
+      TrendMetric.temperature => activityColor(ActivityType.temperature),
     };
 
     return Card(

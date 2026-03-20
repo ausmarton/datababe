@@ -71,7 +71,8 @@ enum TrendMetric {
   diapers('Diapers'),
   solids('Solids'),
   tummyTime('Tummy Time'),
-  sleep('Sleep');
+  sleep('Sleep'),
+  temperature('Temperature');
 
   final String label;
   const TrendMetric(this.label);
@@ -1173,6 +1174,7 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
           (s.durationTotals[ActivityType.tummyTime.name] ?? 0).toDouble(),
         TrendMetric.sleep =>
           (s.durationTotals[ActivityType.sleep.name] ?? 0).toDouble(),
+        TrendMetric.temperature => s.latestTempC ?? 0,
       };
     }
     points.add(TrendPoint(date: dayStart, value: value));
@@ -1203,6 +1205,7 @@ final trendBaselineProvider = Provider<double?>((ref) {
       TrendMetric.sleep =>
         t.activityType == ActivityType.sleep.name &&
             t.metric == 'totalDurationMinutes',
+      TrendMetric.temperature => false, // no target-based baseline for temp
     };
     if (matches) return t.targetValue;
   }
@@ -1214,6 +1217,7 @@ final trendBaselineProvider = Provider<double?>((ref) {
     TrendMetric.solids => baselines.avgSolidsCount,
     TrendMetric.tummyTime => baselines.avgTummyTimeMinutes,
     TrendMetric.sleep => null,
+    TrendMetric.temperature => null,
   };
 });
 
@@ -1714,6 +1718,109 @@ final sleepTrendProvider = Provider<List<SleepTrendPoint>>((ref) {
       }
     }
     points.add(SleepTrendPoint(date: dayStart, nightMin: nightMin, napMin: napMin));
+  }
+  return points;
+});
+
+// ==========================================================================
+// Temperature trending & fever detection (#42)
+// ==========================================================================
+
+/// Fever threshold in °C.
+const double feverThresholdC = 38.0;
+
+/// Daily temperature summary for trend charts.
+class TemperatureTrendPoint {
+  final DateTime date;
+  final double? latest;
+  final double? min;
+  final double? max;
+
+  const TemperatureTrendPoint({
+    required this.date,
+    this.latest,
+    this.min,
+    this.max,
+  });
+
+  bool get hasFever => max != null && max! >= feverThresholdC;
+  bool get hasData => latest != null;
+}
+
+/// Temperature overview for the insights window.
+class TemperatureOverview {
+  final double latest;
+  final double min;
+  final double max;
+  final int readingCount;
+  final int feverDays;
+
+  const TemperatureOverview({
+    required this.latest,
+    required this.min,
+    required this.max,
+    required this.readingCount,
+    required this.feverDays,
+  });
+
+  bool get hasFever => max >= feverThresholdC;
+}
+
+/// Temperature overview for the insights window period.
+final temperatureOverviewProvider = Provider<TemperatureOverview?>((ref) {
+  final dailyMap = ref.watch(dailySummaryMapProvider);
+  final mode = ref.watch(insightsWindowModeProvider);
+  final anchor = ref.watch(insightsAnchorProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final (start, end) = computeRange(mode, anchor, startOfDayHour: sodHour);
+
+  double? latest;
+  double? min;
+  double? max;
+  int readingCount = 0;
+  int feverDays = 0;
+
+  // Iterate through days in the window
+  var day = DateTime(start.year, start.month, start.day, sodHour);
+  while (day.isBefore(end)) {
+    final s = dailyMap[_dayKey(day)];
+    if (s != null && s.latestTempC != null) {
+      latest = s.latestTempC;
+      readingCount++;
+      if (min == null || s.minTempC! < min) min = s.minTempC;
+      if (max == null || s.maxTempC! > max) max = s.maxTempC;
+      if (s.maxTempC! >= feverThresholdC) feverDays++;
+    }
+    day = day.add(const Duration(days: 1));
+  }
+
+  if (latest == null) return null;
+  return TemperatureOverview(
+    latest: latest,
+    min: min!,
+    max: max!,
+    readingCount: readingCount,
+    feverDays: feverDays,
+  );
+});
+
+/// Daily temperature trend for line chart display.
+final temperatureTrendProvider = Provider<List<TemperatureTrendPoint>>((ref) {
+  final dailyMap = ref.watch(dailySummaryMapProvider);
+  final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
+  final todayStart = startOfDay(DateTime.now(), sodHour);
+  final days = ref.watch(selectedTrendPeriodProvider);
+
+  final points = <TemperatureTrendPoint>[];
+  for (int i = days - 1; i >= 0; i--) {
+    final dayStart = todayStart.subtract(Duration(days: i));
+    final s = dailyMap[_dayKey(dayStart)];
+    points.add(TemperatureTrendPoint(
+      date: dayStart,
+      latest: s?.latestTempC,
+      min: s?.minTempC,
+      max: s?.maxTempC,
+    ));
   }
   return points;
 });
