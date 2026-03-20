@@ -73,5 +73,28 @@ void main() {
       await tester.pumpWidget(buildWidget());
       expect(find.byType(CustomPaint), findsWidgets);
     });
+
+    testWidgets('renders with fraction=0 (empty ring)', (tester) async {
+      await tester.pumpWidget(buildWidget(fraction: 0.0));
+      expect(find.byType(CustomPaint), findsWidgets);
+      expect(find.text('3 / 6'), findsOneWidget);
+    });
+
+    testWidgets('renders with fraction=1.0 (full ring)', (tester) async {
+      await tester.pumpWidget(buildWidget(fraction: 1.0));
+      expect(find.byType(CustomPaint), findsWidgets);
+    });
+
+    testWidgets('renders with fraction>1.0 (capped at full)', (tester) async {
+      await tester.pumpWidget(buildWidget(fraction: 1.5));
+      expect(find.byType(CustomPaint), findsWidgets);
+    });
+
+    testWidgets('no onTap still renders without error', (tester) async {
+      await tester.pumpWidget(buildWidget());
+      // Should not crash when tapping with no callback
+      await tester.tap(find.byType(ProgressRing));
+      await tester.pumpAndSettle();
+    });
   });
 }
