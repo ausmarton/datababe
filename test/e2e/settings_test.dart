@@ -167,6 +167,118 @@ void main() {
       expect(dotFinder, findsOneWidget);
     });
 
+    testWidgets('pull failure warning hidden when no failures', (tester) async {
+      await tester.runAsync(() => harness.seedMinimal());
+      await pumpApp(tester, harness.buildApp());
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Scroll to sync section
+      await tester.scrollUntilVisible(
+        find.text('Sync Now'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      // No pull failure card
+      expect(find.textContaining('Pull failing'), findsNothing);
+    });
+
+    testWidgets('pull failure warning shown when count >= 3', (tester) async {
+      await tester.runAsync(() => harness.seedMinimal());
+      await pumpApp(
+        tester,
+        harness.buildApp(
+          pullFailureInfo: (count: 5, error: 'permission-denied'),
+        ),
+      );
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Scroll to sync section
+      await tester.scrollUntilVisible(
+        find.text('Sync Now'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      expect(find.textContaining('Pull failing (5 consecutive)'), findsOneWidget);
+      expect(find.textContaining('permission-denied'), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber), findsWidgets);
+    });
+
+    testWidgets('pull failure warning hidden when count < 3', (tester) async {
+      await tester.runAsync(() => harness.seedMinimal());
+      await pumpApp(
+        tester,
+        harness.buildApp(
+          pullFailureInfo: (count: 2, error: 'transient error'),
+        ),
+      );
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Scroll to sync section
+      await tester.scrollUntilVisible(
+        find.text('Sync Now'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      // Count is 2, threshold is 3 — warning should NOT be visible
+      expect(find.textContaining('Pull failing'), findsNothing);
+    });
+
+    testWidgets('quarantined count shows stuck in subtitle', (tester) async {
+      await tester.runAsync(() => harness.seedMinimal());
+      await pumpApp(
+        tester,
+        harness.buildApp(quarantinedCount: 3),
+      );
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Scroll to sync section
+      await tester.scrollUntilVisible(
+        find.text('Sync Now'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      expect(find.textContaining('3 stuck'), findsOneWidget);
+    });
+
+    testWidgets('both pull failure and quarantine shown together',
+        (tester) async {
+      await tester.runAsync(() => harness.seedMinimal());
+      await pumpApp(
+        tester,
+        harness.buildApp(
+          pullFailureInfo: (count: 4, error: 'timeout'),
+          quarantinedCount: 7,
+        ),
+      );
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Scroll to sync section
+      await tester.scrollUntilVisible(
+        find.text('Sync Now'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+
+      // Both indicators visible
+      expect(find.textContaining('Pull failing (4 consecutive)'), findsOneWidget);
+      expect(find.textContaining('timeout'), findsOneWidget);
+      expect(find.textContaining('7 stuck'), findsOneWidget);
+    });
+
     testWidgets('section headers visible', (tester) async {
       await tester.runAsync(() => harness.seedMinimal());
       await pumpApp(tester, harness.buildApp());

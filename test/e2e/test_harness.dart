@@ -164,6 +164,8 @@ class TestHarness {
     String userId = 'test-uid-123',
     String userEmail = 'test@example.com',
     String userDisplayName = 'Test User',
+    ({int count, String error})? pullFailureInfo,
+    int quarantinedCount = 0,
   }) {
     connectivityMonitor = ControllableConnectivityMonitor(initialOnline);
 
@@ -195,6 +197,8 @@ class TestHarness {
             (_) => _prependStream(initialOnline, _onlineController.stream)),
         lastSyncTimeProvider.overrideWith((_) async => DateTime.now()),
         pendingSyncCountProvider.overrideWith((_) async => 0),
+        pullFailureInfoProvider.overrideWith((_) async => pullFailureInfo),
+        quarantinedCountProvider.overrideWith((_) async => quarantinedCount),
         connectivityMonitorProvider.overrideWithValue(connectivityMonitor),
 
         // Initial sync
