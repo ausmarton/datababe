@@ -130,6 +130,24 @@ void main() {
       final prev = previousAnchor(TimeWindowMode.calendarMonth, anchor);
       expect(prev, DateTime(2025, 12, 15));
     });
+
+    test('last24h: goes back 1 day (same as calendarDay)', () {
+      final anchor = DateTime(2026, 3, 15);
+      final prev = previousAnchor(TimeWindowMode.last24h, anchor);
+      expect(prev, DateTime(2026, 3, 14));
+    });
+
+    test('last7Days: goes back 7 days (same as calendarWeek)', () {
+      final anchor = DateTime(2026, 3, 15);
+      final prev = previousAnchor(TimeWindowMode.last7Days, anchor);
+      expect(prev, DateTime(2026, 3, 8));
+    });
+
+    test('last30Days: goes back 1 month (same as calendarMonth)', () {
+      final anchor = DateTime(2026, 3, 15);
+      final prev = previousAnchor(TimeWindowMode.last30Days, anchor);
+      expect(prev, DateTime(2026, 2, 15));
+    });
   });
 
   group('nextAnchor', () {
@@ -150,6 +168,30 @@ void main() {
       final next = nextAnchor(TimeWindowMode.calendarMonth, anchor);
       expect(next, DateTime(2026, 3, 15));
     });
+
+    test('calendarMonth: year boundary forward', () {
+      final anchor = DateTime(2025, 12, 15);
+      final next = nextAnchor(TimeWindowMode.calendarMonth, anchor);
+      expect(next, DateTime(2026, 1, 15));
+    });
+
+    test('last24h: goes forward 1 day', () {
+      final anchor = DateTime(2026, 3, 15);
+      final next = nextAnchor(TimeWindowMode.last24h, anchor);
+      expect(next, DateTime(2026, 3, 16));
+    });
+
+    test('last7Days: goes forward 7 days', () {
+      final anchor = DateTime(2026, 3, 15);
+      final next = nextAnchor(TimeWindowMode.last7Days, anchor);
+      expect(next, DateTime(2026, 3, 22));
+    });
+
+    test('last30Days: goes forward 1 month', () {
+      final anchor = DateTime(2026, 3, 15);
+      final next = nextAnchor(TimeWindowMode.last30Days, anchor);
+      expect(next, DateTime(2026, 4, 15));
+    });
   });
 
   group('rangeLabel', () {
@@ -158,6 +200,25 @@ void main() {
       final label = rangeLabel(TimeWindowMode.calendarDay, anchor);
       expect(label, contains('24'));
       expect(label, contains('Feb'));
+    });
+
+    test('calendarWeek: shows date range', () {
+      // 2026-02-23 is Monday, week ends 2026-03-01 (Sunday)
+      final anchor = DateTime(2026, 2, 26); // Thursday
+      final label = rangeLabel(TimeWindowMode.calendarWeek, anchor);
+      expect(label, contains('23'));
+      expect(label, contains('Feb'));
+      expect(label, contains('1'));
+      expect(label, contains('Mar'));
+    });
+
+    test('calendarDay with startOfDayHour: "Today" uses adjusted boundary', () {
+      // Today with non-zero startOfDayHour should still show "Today"
+      final now = DateTime.now();
+      final anchor = DateTime(now.year, now.month, now.day);
+      final label =
+          rangeLabel(TimeWindowMode.calendarDay, anchor, startOfDayHour: 6);
+      expect(label, 'Today');
     });
 
     test('calendarMonth: shows month and year', () {
