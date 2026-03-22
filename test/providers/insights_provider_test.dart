@@ -2726,4 +2726,335 @@ void main() {
       expect(overview!.perMedCount['Unknown'], 1);
     });
   });
+
+  // ========================================================================
+  // computeProgress
+  // ========================================================================
+
+  group('computeProgress', () {
+    TargetModel makeTarget({
+      required String activityType,
+      required String metric,
+      String period = 'daily',
+      double targetValue = 10,
+      String? allergenName,
+      String? ingredientName,
+    }) {
+      final now = DateTime(2026, 3, 1);
+      return TargetModel(
+        id: 'target-$activityType-$metric-$period',
+        childId: 'child-1',
+        activityType: activityType,
+        metric: metric,
+        period: period,
+        targetValue: targetValue,
+        createdBy: 'uid-1',
+        createdAt: now,
+        modifiedAt: now,
+        allergenName: allergenName,
+        ingredientName: ingredientName,
+      );
+    }
+
+    test('returns empty when no targets and no baselines', () {
+      final result = computeProgress(
+        dailySummary: null,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: null,
+        targets: [],
+      );
+      expect(result, isEmpty);
+    });
+
+    test('returns empty when targets exist but all summaries null', () {
+      final result = computeProgress(
+        dailySummary: null,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: null,
+        targets: [
+          makeTarget(activityType: 'feedBottle', metric: 'totalVolumeMl'),
+        ],
+      );
+      // Actual will be 0, fraction will be 0, should still produce a result
+      expect(result, hasLength(1));
+      expect(result.first.actual, 0);
+    });
+
+    test('daily target uses daily summary', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 200),
+      ]);
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: null,
+        targets: [
+          makeTarget(
+            activityType: 'feedBottle',
+            metric: 'totalVolumeMl',
+            period: 'daily',
+            targetValue: 500,
+          ),
+        ],
+      );
+      expect(result, hasLength(1));
+      expect(result.first.actual, 200);
+      expect(result.first.target, 500);
+      expect(result.first.fraction, closeTo(0.4, 0.01));
+      expect(result.first.isExplicit, isTrue);
+    });
+
+    test('weekly target uses weekly summary', () {
+      final weeklySummary = ActivityAggregator.compute([
+        _activity(type: 'diaper', contents: 'pee'),
+        _activity(type: 'diaper', contents: 'poo'),
+        _activity(type: 'diaper', contents: 'both'),
+      ]);
+      final result = computeProgress(
+        dailySummary: null,
+        weeklySummary: weeklySummary,
+        monthlySummary: null,
+        baselines: null,
+        targets: [
+          makeTarget(
+            activityType: 'diaper',
+            metric: 'count',
+            period: 'weekly',
+            targetValue: 30,
+          ),
+        ],
+      );
+      expect(result, hasLength(1));
+      expect(result.first.actual, 3);
+      expect(result.first.periodLabel, '7d');
+    });
+
+    test('monthly target uses monthly summary', () {
+      final monthlySummary = ActivityAggregator.compute([
+        _activity(type: 'solids', foodDescription: 'banana'),
+        _activity(type: 'solids', foodDescription: 'egg'),
+      ]);
+      final result = computeProgress(
+        dailySummary: null,
+        weeklySummary: null,
+        monthlySummary: monthlySummary,
+        baselines: null,
+        targets: [
+          makeTarget(
+            activityType: 'solids',
+            metric: 'count',
+            period: 'monthly',
+            targetValue: 60,
+          ),
+        ],
+      );
+      expect(result, hasLength(1));
+      expect(result.first.actual, 2);
+      expect(result.first.periodLabel, '30d');
+    });
+
+    test('fraction clamped to 1.0 when exceeds target', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 800),
+      ]);
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: null,
+        targets: [
+          makeTarget(
+            activityType: 'feedBottle',
+            metric: 'totalVolumeMl',
+            period: 'daily',
+            targetValue: 500,
+          ),
+        ],
+      );
+      expect(result.first.fraction, 1.0);
+    });
+
+    test('allergen targets aggregate into single ring', () {
+      final weeklySummary = ActivityAggregator.compute([
+        _activity(
+            type: 'solids',
+            foodDescription: 'eggs',
+            allergenNames: ['egg']),
+        _activity(
+            type: 'solids',
+            foodDescription: 'eggs',
+            allergenNames: ['egg']),
+        _activity(
+            type: 'solids',
+            foodDescription: 'milk',
+            allergenNames: ['dairy']),
+      ]);
+      final result = computeProgress(
+        dailySummary: null,
+        weeklySummary: weeklySummary,
+        monthlySummary: null,
+        baselines: null,
+        targets: [
+          _allergenTarget('egg', targetValue: 2, period: 'weekly'),
+          _allergenTarget('dairy', targetValue: 2, period: 'weekly'),
+        ],
+      );
+      // Allergen targets aggregate: egg met (2/2), dairy not (1/2) → 1/2
+      expect(result, hasLength(1));
+      expect(result.first.key, 'allergens.aggregate.weekly');
+      expect(result.first.actual, 1); // 1 out of 2 met
+      expect(result.first.target, 2); // 2 total allergen targets
+    });
+
+    test('inferred baselines added when no explicit targets exist', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 120),
+        _activity(type: 'diaper', contents: 'pee'),
+      ]);
+      final baselines = InferredBaselines(
+        avgBottleMl: 500,
+        avgBottleCount: 5,
+        avgBreastCount: 0,
+        avgBreastMinutes: 0,
+        avgDiaperCount: 6,
+        avgSolidsCount: 2,
+        avgTummyTimeMinutes: 15,
+        daysWithData: 5,
+      );
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: baselines,
+        targets: [],
+      );
+      // Should have inferred metrics for feedBottle vol, diapers, solids, tummy time
+      expect(result.length, greaterThanOrEqualTo(3));
+      final feedVol = result.firstWhere(
+          (m) => m.key == 'feedBottle.totalVolumeMl.daily');
+      expect(feedVol.actual, 120);
+      expect(feedVol.target, 500);
+      expect(feedVol.isExplicit, isFalse);
+    });
+
+    test('explicit target prevents inferred baseline for same key', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 200),
+      ]);
+      final baselines = InferredBaselines(
+        avgBottleMl: 500,
+        avgBottleCount: 5,
+        avgBreastCount: 0,
+        avgBreastMinutes: 0,
+        avgDiaperCount: 6,
+        avgSolidsCount: 2,
+        avgTummyTimeMinutes: 15,
+        daysWithData: 5,
+      );
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: baselines,
+        targets: [
+          makeTarget(
+            activityType: 'feedBottle',
+            metric: 'totalVolumeMl',
+            period: 'daily',
+            targetValue: 600,
+          ),
+        ],
+      );
+      // Feed volume should appear once (explicit), not duplicated by inferred
+      final feedVols =
+          result.where((m) => m.key.contains('feedBottle.totalVolumeMl'));
+      expect(feedVols, hasLength(1));
+      expect(feedVols.first.isExplicit, isTrue);
+      expect(feedVols.first.target, 600); // explicit target, not baseline 500
+    });
+
+    test('baselines skipped when daysWithData < 3', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 120),
+      ]);
+      final baselines = InferredBaselines(
+        avgBottleMl: 500,
+        avgBottleCount: 5,
+        avgBreastCount: 0,
+        avgBreastMinutes: 0,
+        avgDiaperCount: 6,
+        avgSolidsCount: 2,
+        avgTummyTimeMinutes: 15,
+        daysWithData: 2, // < 3
+      );
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: baselines,
+        targets: [],
+      );
+      expect(result, isEmpty);
+    });
+
+    test('results sorted by fraction ascending (behind-target first)', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 450), // 90% of target
+        _activity(type: 'diaper', contents: 'pee'), // 10% of target
+      ]);
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: null,
+        targets: [
+          makeTarget(
+            activityType: 'feedBottle',
+            metric: 'totalVolumeMl',
+            period: 'daily',
+            targetValue: 500,
+          ),
+          makeTarget(
+            activityType: 'diaper',
+            metric: 'count',
+            period: 'daily',
+            targetValue: 10,
+          ),
+        ],
+      );
+      expect(result, hasLength(2));
+      // Diaper (10%) should come before feedBottle (90%)
+      expect(result[0].key, contains('diaper'));
+      expect(result[1].key, contains('feedBottle'));
+    });
+
+    test('inferred baselines skip metrics with low average (< 0.5)', () {
+      final dailySummary = ActivityAggregator.compute([
+        _activity(type: 'feedBottle', volumeMl: 120),
+      ]);
+      final baselines = InferredBaselines(
+        avgBottleMl: 500,
+        avgBottleCount: 5,
+        avgBreastCount: 0, // < 0.5
+        avgBreastMinutes: 0,
+        avgDiaperCount: 0.3, // < 0.5
+        avgSolidsCount: 0.1, // < 0.5
+        avgTummyTimeMinutes: 0.2, // < 0.5
+        daysWithData: 5,
+      );
+      final result = computeProgress(
+        dailySummary: dailySummary,
+        weeklySummary: null,
+        monthlySummary: null,
+        baselines: baselines,
+        targets: [],
+      );
+      // Only feedBottle vol should appear (baseline >= 0.5)
+      expect(result, hasLength(1));
+      expect(result.first.key, 'feedBottle.totalVolumeMl.daily');
+    });
+  });
 }
