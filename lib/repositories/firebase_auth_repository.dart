@@ -6,13 +6,10 @@ import 'auth_repository.dart';
 
 class FirebaseAuthRepository implements AuthRepository {
   final FirebaseAuth _auth;
-  final GoogleSignIn _googleSignIn;
 
   FirebaseAuthRepository({
     FirebaseAuth? auth,
-    GoogleSignIn? googleSignIn,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn();
+  }) : _auth = auth ?? FirebaseAuth.instance;
 
   @override
   Stream<User?> watchAuthState() => _auth.authStateChanges();
@@ -35,12 +32,16 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   Future<User?> _signInWithGoogleNative() async {
-    final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null;
+    final GoogleSignInAccount googleUser;
+    try {
+      googleUser = await GoogleSignIn.instance.authenticate();
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
+      rethrow;
+    }
 
-    final googleAuth = await googleUser.authentication;
+    final googleAuth = googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
@@ -51,7 +52,7 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() async {
     if (!kIsWeb) {
-      await _googleSignIn.signOut();
+      await GoogleSignIn.instance.signOut();
     }
     await _auth.signOut();
   }
