@@ -725,7 +725,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
       if (_contents == DiaperContents.poo || _contents == DiaperContents.both) ...[
         const SizedBox(height: 16),
         DropdownButtonFormField<PooColour>(
-          value: _pooColour,
+          initialValue: _pooColour,
           decoration: const InputDecoration(
             labelText: 'Colour',
             border: OutlineInputBorder(),
@@ -740,7 +740,7 @@ class _LogEntryScreenState extends ConsumerState<LogEntryScreen> {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<PooConsistency>(
-          value: _pooConsistency,
+          initialValue: _pooConsistency,
           decoration: const InputDecoration(
             labelText: 'Consistency',
             border: OutlineInputBorder(),

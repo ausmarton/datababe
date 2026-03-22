@@ -244,7 +244,7 @@ class FamilyScreen extends ConsumerWidget {
         builder: (context, setState) => AlertDialog(
           title: const Text('Change Role'),
           content: DropdownButtonFormField<String>(
-            value: newRole,
+            initialValue: newRole,
             decoration: const InputDecoration(
               labelText: 'Role',
               border: OutlineInputBorder(),
@@ -355,7 +355,7 @@ class FamilyScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: selectedRole,
+                initialValue: selectedRole,
                 decoration: const InputDecoration(
                   labelText: 'Role',
                   border: OutlineInputBorder(),

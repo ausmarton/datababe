@@ -229,7 +229,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
         children: [
           // Activity type
           DropdownButtonFormField<ActivityType>(
-            value: _activityType,
+            initialValue: _activityType,
             decoration: const InputDecoration(
               labelText: 'Activity type',
               border: OutlineInputBorder(),
@@ -264,7 +264,7 @@ class _AddTargetScreenState extends ConsumerState<AddTargetScreen> {
 
           // Metric
           DropdownButtonFormField<TargetMetric>(
-            value: _supportedMetrics.contains(_metric)
+            initialValue: _supportedMetrics.contains(_metric)
                 ? _metric
                 : _supportedMetrics.first,
             decoration: const InputDecoration(
