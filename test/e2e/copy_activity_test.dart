@@ -24,10 +24,10 @@ void main() {
   /// Tap the copy button from edit mode and wait for the copy screen to load.
   Future<void> tapCopyAndSettle(WidgetTester tester) async {
     await tester.tap(find.byIcon(Icons.copy));
-    // pushReplacement + new initState + async DB load + setState
-    for (var i = 0; i < 10; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-    }
+    await tester.pumpAndSettle();
+    // Allow async DB load (runs outside FakeAsync zone)
+    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 50)));
+    await tester.pumpAndSettle();
   }
 
   group('Copy activity — AppBar', () {

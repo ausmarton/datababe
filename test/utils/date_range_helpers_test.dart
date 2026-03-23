@@ -213,11 +213,10 @@ void main() {
     });
 
     test('calendarDay with startOfDayHour: "Today" uses adjusted boundary', () {
-      // Today with non-zero startOfDayHour should still show "Today"
-      final now = DateTime.now();
-      final anchor = DateTime(now.year, now.month, now.day);
+      // Use DateTime.now() directly so the anchor is always in the current
+      // startOfDay window regardless of wall-clock hour.
       final label =
-          rangeLabel(TimeWindowMode.calendarDay, anchor, startOfDayHour: 6);
+          rangeLabel(TimeWindowMode.calendarDay, DateTime.now(), startOfDayHour: 6);
       expect(label, 'Today');
     });
 

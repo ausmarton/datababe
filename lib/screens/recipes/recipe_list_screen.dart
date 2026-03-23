@@ -28,7 +28,7 @@ class RecipeListScreen extends ConsumerWidget {
         title: recipesAsync.when(
           data: (list) => Text('Recipes (${list.length})'),
           loading: () => const Text('Recipes'),
-          error: (_, __) => const Text('Recipes'),
+          error: (_, _) => const Text('Recipes'),
         ),
       ),
       floatingActionButton: FloatingActionButton(

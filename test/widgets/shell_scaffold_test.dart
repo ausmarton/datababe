@@ -15,27 +15,27 @@ Widget _buildApp({
     initialLocation: initialPath,
     routes: [
       ShellRoute(
-        builder: (_, __, child) => ShellScaffold(child: child),
+        builder: (_, _, child) => ShellScaffold(child: child),
         routes: [
           GoRoute(
             path: '/',
-            builder: (_, __) => const Center(child: Text('Home Page')),
+            builder: (_, _) => const Center(child: Text('Home Page')),
           ),
           GoRoute(
             path: '/timeline',
-            builder: (_, __) => const Center(child: Text('Timeline Page')),
+            builder: (_, _) => const Center(child: Text('Timeline Page')),
           ),
           GoRoute(
             path: '/insights',
-            builder: (_, __) => const Center(child: Text('Insights Page')),
+            builder: (_, _) => const Center(child: Text('Insights Page')),
           ),
           GoRoute(
             path: '/family',
-            builder: (_, __) => const Center(child: Text('Family Page')),
+            builder: (_, _) => const Center(child: Text('Family Page')),
           ),
           GoRoute(
             path: '/settings',
-            builder: (_, __) => const Center(child: Text('Settings Page')),
+            builder: (_, _) => const Center(child: Text('Settings Page')),
           ),
         ],
       ),

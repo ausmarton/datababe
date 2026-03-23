@@ -46,7 +46,7 @@ void main() {
       'period': 'daily',
       'targetValue': 1.0,
       'isActive': true,
-      if (allergenName != null) 'allergenName': allergenName,
+      'allergenName': ?allergenName,
       'isDeleted': false,
       'createdBy': 'uid-1',
       'createdAt': baseTime.toIso8601String(),
@@ -65,7 +65,7 @@ void main() {
       'modifiedAt': baseTime.toIso8601String(),
       'isDeleted': false,
       'familyId': family,
-      if (allergenNames != null) 'allergenNames': allergenNames,
+      'allergenNames': ?allergenNames,
     });
   }
 

@@ -60,7 +60,7 @@ Widget _buildTile(ActivityModel activity, {VoidCallback? onDelete, VoidCallback?
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => Scaffold(
+        builder: (_, _) => Scaffold(
           body: ListView(
             children: [
               ActivityTile(
@@ -74,7 +74,7 @@ Widget _buildTile(ActivityModel activity, {VoidCallback? onDelete, VoidCallback?
       ),
       GoRoute(
         path: '/log/:type',
-        builder: (_, __) => const Scaffold(body: Text('Log')),
+        builder: (_, _) => const Scaffold(body: Text('Log')),
       ),
     ],
   );

@@ -85,8 +85,7 @@ String rangeLabel(TimeWindowMode mode, DateTime anchor,
   switch (mode) {
     case TimeWindowMode.calendarDay:
       final today = startOfDay(DateTime.now(), startOfDayHour);
-      final anchorDay =
-          DateTime(anchor.year, anchor.month, anchor.day, startOfDayHour);
+      final anchorDay = startOfDay(anchor, startOfDayHour);
       if (anchorDay == today) return 'Today';
       if (anchorDay == today.subtract(const Duration(days: 1))) {
         return 'Yesterday';

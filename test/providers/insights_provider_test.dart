@@ -1794,7 +1794,7 @@ void main() {
         ],
       );
       // Force the stream to emit by listening
-      container.listen(targetsProvider, (_, __) {});
+      container.listen(targetsProvider, (_, _) {});
       // Let microtask queue drain so StreamProvider emits its value
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
@@ -1958,7 +1958,7 @@ void main() {
           inferredBaselinesProvider.overrideWithValue(null),
         ],
       );
-      container.listen(targetsProvider, (_, __) {});
+      container.listen(targetsProvider, (_, _) {});
       await Future.delayed(Duration.zero);
       await Future.delayed(Duration.zero);
       final result = container.read(todayProgressProvider);

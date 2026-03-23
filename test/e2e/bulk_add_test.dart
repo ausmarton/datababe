@@ -40,8 +40,7 @@ void main() {
 
       // Navigate to timeline tab
       await tester.tap(find.text('Timeline'));
-      await tester.pump();
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       // Tap bulk add icon in AppBar
       await tester.tap(find.byTooltip('Bulk Add'));

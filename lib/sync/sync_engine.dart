@@ -919,7 +919,7 @@ class SyncEngine with WidgetsBindingObserver implements SyncEngineInterface {
         'localCount': count,
         'lastPull': lastPull?.toIso8601String(),
         if (failureCount > 0) 'pullFailures': failureCount,
-        if (lastError != null) 'lastPullError': lastError,
+        'lastPullError': ?lastError,
       };
     }
     result['pendingSync'] = await _queue.pendingCount();

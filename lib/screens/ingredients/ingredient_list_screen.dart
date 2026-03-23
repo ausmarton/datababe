@@ -25,7 +25,7 @@ class IngredientListScreen extends ConsumerWidget {
         title: ingredientsAsync.when(
           data: (list) => Text('Ingredients (${list.length})'),
           loading: () => const Text('Ingredients'),
-          error: (_, __) => const Text('Ingredients'),
+          error: (_, _) => const Text('Ingredients'),
         ),
       ),
       floatingActionButton: FloatingActionButton(

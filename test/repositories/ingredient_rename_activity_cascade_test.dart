@@ -40,8 +40,8 @@ void main() {
       'modifiedAt': baseTime.toIso8601String(),
       'isDeleted': false,
       'familyId': family,
-      if (ingredientNames != null) 'ingredientNames': ingredientNames,
-      if (allergenNames != null) 'allergenNames': allergenNames,
+      'ingredientNames': ?ingredientNames,
+      'allergenNames': ?allergenNames,
     });
   }
 
