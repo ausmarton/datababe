@@ -1445,7 +1445,7 @@ class _WeeklyAllergenSection extends ConsumerWidget {
                   visualDensity: VisualDensity.compact,
                   onPressed: () {
                     ref.read(insightsMatrixWeekProvider.notifier).state =
-                        matrixWeek.subtract(const Duration(days: 7));
+                        DateTime(matrixWeek.year, matrixWeek.month, matrixWeek.day - 7);
                   },
                 ),
                 Expanded(
@@ -1459,7 +1459,7 @@ class _WeeklyAllergenSection extends ConsumerWidget {
                       ? null
                       : () {
                           ref.read(insightsMatrixWeekProvider.notifier).state =
-                              matrixWeek.add(const Duration(days: 7));
+                              DateTime(matrixWeek.year, matrixWeek.month, matrixWeek.day + 7);
                         },
                 ),
                 const SizedBox(width: 4),
@@ -1518,8 +1518,7 @@ class _WeeklyAllergenSection extends ConsumerWidget {
 
   bool _isNextWeekInFuture(DateTime matrixWeek) {
     final now = DateTime.now();
-    final thisMonday = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
+    final thisMonday = DateTime(now.year, now.month, now.day - (now.weekday - 1));
     return !matrixWeek.isBefore(thisMonday);
   }
 }

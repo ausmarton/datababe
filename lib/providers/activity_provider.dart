@@ -41,7 +41,7 @@ final dailyActivitiesProvider = StreamProvider<List<ActivityModel>>((ref) {
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   if (childId == null || familyId == null) return Stream.value([]);
   final start = DateTime(date.year, date.month, date.day, sodHour);
-  final end = start.add(const Duration(days: 1));
+  final end = DateTime(start.year, start.month, start.day + 1, start.hour);
   return repo.watchActivitiesInRange(familyId, childId, start, end);
 });
 

@@ -87,9 +87,9 @@ class _DayProgress extends ConsumerWidget {
     final today = startOfDay(DateTime.now(), sodHour);
     final selectedDay = DateTime(date.year, date.month, date.day);
     final isToday = selectedDay == DateTime(today.year, today.month, today.day);
+    final todayMidnight = DateTime(today.year, today.month, today.day);
     final isYesterday = selectedDay ==
-        DateTime(today.year, today.month, today.day)
-            .subtract(const Duration(days: 1));
+        DateTime(today.year, today.month, today.day - 1);
 
     String dateLabel;
     if (isToday) {
@@ -102,9 +102,8 @@ class _DayProgress extends ConsumerWidget {
 
     final headingText = "$dateLabel's Progress";
 
-    final isNextInFuture = selectedDay
-        .add(const Duration(days: 1))
-        .isAfter(DateTime(today.year, today.month, today.day));
+    final isNextInFuture = DateTime(selectedDay.year, selectedDay.month, selectedDay.day + 1)
+        .isAfter(todayMidnight);
 
     if (metric == null) {
       return Card(
@@ -117,13 +116,13 @@ class _DayProgress extends ConsumerWidget {
                 label: headingText,
                 onPrev: () {
                   ref.read(metricDetailDateProvider.notifier).state =
-                      date.subtract(const Duration(days: 1));
+                      DateTime(date.year, date.month, date.day - 1);
                 },
                 onNext: isNextInFuture
                     ? null
                     : () {
                         ref.read(metricDetailDateProvider.notifier).state =
-                            date.add(const Duration(days: 1));
+                            DateTime(date.year, date.month, date.day + 1);
                       },
               ),
               const SizedBox(height: 8),
@@ -154,13 +153,13 @@ class _DayProgress extends ConsumerWidget {
               label: headingText,
               onPrev: () {
                 ref.read(metricDetailDateProvider.notifier).state =
-                    date.subtract(const Duration(days: 1));
+                    DateTime(date.year, date.month, date.day - 1);
               },
               onNext: isNextInFuture
                   ? null
                   : () {
                       ref.read(metricDetailDateProvider.notifier).state =
-                          date.add(const Duration(days: 1));
+                          DateTime(date.year, date.month, date.day + 1);
                     },
             ),
             const SizedBox(height: 12),
@@ -241,8 +240,7 @@ class _DayEntries extends ConsumerWidget {
     final selectedDay = DateTime(date.year, date.month, date.day);
     final isToday = selectedDay == DateTime(today.year, today.month, today.day);
     final isYesterday = selectedDay ==
-        DateTime(today.year, today.month, today.day)
-            .subtract(const Duration(days: 1));
+        DateTime(today.year, today.month, today.day - 1);
 
     String dateLabel;
     if (isToday) {

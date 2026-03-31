@@ -298,11 +298,7 @@ AllergenCoverage computeAllergenCoverage({
     );
   }
 
-  final cutoff = DateTime(
-    referenceDate.year,
-    referenceDate.month,
-    referenceDate.day,
-  ).subtract(Duration(days: periodDays));
+  final cutoff = DateTime(referenceDate.year, referenceDate.month, referenceDate.day - periodDays);
 
   final exposureCounts = <String, int>{};
   final lastExposed = <String, DateTime>{};
@@ -446,8 +442,8 @@ WeeklyAllergenMatrix computeWeeklyAllergenMatrix({
   required DateTime referenceDate,
 }) {
   final ref = DateTime(referenceDate.year, referenceDate.month, referenceDate.day);
-  final monday = ref.subtract(Duration(days: ref.weekday - 1));
-  final days = List.generate(7, (i) => monday.add(Duration(days: i)));
+  final monday = DateTime(ref.year, ref.month, ref.day - (ref.weekday - 1));
+  final days = List.generate(7, (i) => DateTime(monday.year, monday.month, monday.day + i));
 
   final categoriesLower =
       allergenCategories.map((c) => c.trim().toLowerCase()).toList();
@@ -505,8 +501,8 @@ List<AllergenIngredientDetail> computeAllergenIngredientDrilldown({
   final cutoff = DateTime(
     referenceDate.year,
     referenceDate.month,
-    referenceDate.day,
-  ).subtract(Duration(days: periodDays));
+    referenceDate.day - periodDays,
+  );
 
   // Scan activities for ingredient exposures
   final counts = <String, int>{};
@@ -560,8 +556,8 @@ Map<String, List<AllergenIngredientDetail>> computeAllAllergenDrilldowns({
   final cutoff = DateTime(
     referenceDate.year,
     referenceDate.month,
-    referenceDate.day,
-  ).subtract(Duration(days: periodDays));
+    referenceDate.day - periodDays,
+  );
 
   // Single scan: collect counts and dates for all ingredient names
   final counts = <String, int>{};
@@ -619,7 +615,7 @@ List<TrendPoint> computeTrendForMetric({
   final points = <TrendPoint>[];
 
   for (int i = days - 1; i >= 0; i--) {
-    final dayStart = ref.subtract(Duration(days: i));
+    final dayStart = DateTime(ref.year, ref.month, ref.day - i);
     double value = 0;
 
     if (dailySummaryMap != null) {
@@ -628,7 +624,7 @@ List<TrendPoint> computeTrendForMetric({
         value = extractMetricFromSummary(activityType, metric, summary) ?? 0;
       }
     } else {
-      final dayEnd = dayStart.add(const Duration(days: 1));
+      final dayEnd = DateTime(dayStart.year, dayStart.month, dayStart.day + 1);
       final dayActivities = activities
           .where((a) =>
               !a.startTime.isBefore(dayStart) && a.startTime.isBefore(dayEnd))
@@ -663,7 +659,7 @@ final dailySummaryMapProvider =
 
   // Bucket activities into days
   final buckets = <String, List<ActivityModel>>{};
-  final oldest = todayStart.subtract(const Duration(days: 30));
+  final oldest = DateTime(todayStart.year, todayStart.month, todayStart.day - 30, todayStart.hour);
   for (final a in activities) {
     if (a.startTime.isBefore(oldest)) continue;
     final dayStart = startOfDay(a.startTime, sodHour);
@@ -688,7 +684,7 @@ final todaySummaryProvider = Provider<ActivitySummary?>((ref) {
   if (activities == null) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
-  final todayEnd = todayStart.add(const Duration(days: 1));
+  final todayEnd = DateTime(todayStart.year, todayStart.month, todayStart.day + 1, todayStart.hour);
   final todayActivities = activities
       .where((a) =>
           !a.startTime.isBefore(todayStart) && a.startTime.isBefore(todayEnd))
@@ -748,7 +744,7 @@ final insightsWeeklySummaryProvider = Provider<ActivitySummary?>((ref) {
   } else {
     // Day mode: rolling 7 days ending at the anchor
     final dayEnd = computeRange(mode, anchor, startOfDayHour: sodHour).$2;
-    start = dayEnd.subtract(const Duration(days: 7));
+    start = DateTime(dayEnd.year, dayEnd.month, dayEnd.day - 7, dayEnd.hour);
     end = dayEnd;
   }
   final filtered = activities
@@ -775,7 +771,7 @@ final insightsMonthlySummaryProvider = Provider<ActivitySummary?>((ref) {
     end = range.$2;
   } else {
     final dayEnd = computeRange(mode, anchor, startOfDayHour: sodHour).$2;
-    start = dayEnd.subtract(const Duration(days: 30));
+    start = DateTime(dayEnd.year, dayEnd.month, dayEnd.day - 30, dayEnd.hour);
     end = dayEnd;
   }
   final filtered = activities
@@ -791,8 +787,8 @@ final rollingWeekSummaryProvider = Provider<ActivitySummary?>((ref) {
   if (activities == null) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
-  final todayEnd = todayStart.add(const Duration(days: 1));
-  final weekStart = todayStart.subtract(const Duration(days: 6));
+  final todayEnd = DateTime(todayStart.year, todayStart.month, todayStart.day + 1, todayStart.hour);
+  final weekStart = DateTime(todayStart.year, todayStart.month, todayStart.day - 6, todayStart.hour);
   final weekActivities = activities
       .where((a) =>
           !a.startTime.isBefore(weekStart) && a.startTime.isBefore(todayEnd))
@@ -807,8 +803,8 @@ final rollingMonthSummaryProvider = Provider<ActivitySummary?>((ref) {
   if (activities == null) return null;
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final todayStart = startOfDay(DateTime.now(), sodHour);
-  final todayEnd = todayStart.add(const Duration(days: 1));
-  final monthStart = todayStart.subtract(const Duration(days: 29));
+  final todayEnd = DateTime(todayStart.year, todayStart.month, todayStart.day + 1, todayStart.hour);
+  final monthStart = DateTime(todayStart.year, todayStart.month, todayStart.day - 29, todayStart.hour);
   final monthActivities = activities
       .where((a) =>
           !a.startTime.isBefore(monthStart) && a.startTime.isBefore(todayEnd))
@@ -835,7 +831,7 @@ final inferredBaselinesProvider = Provider<InferredBaselines?>((ref) {
   int daysWithData = 0;
 
   for (int i = 1; i <= 7; i++) {
-    final dayStart = todayStart.subtract(Duration(days: i));
+    final dayStart = DateTime(todayStart.year, todayStart.month, todayStart.day - i, todayStart.hour);
     final summary = dailyMap[_dayKey(dayStart)];
     if (summary == null) continue;
     daysWithData++;
@@ -1168,7 +1164,7 @@ final trendDataProvider = Provider<List<TrendPoint>>((ref) {
   final points = <TrendPoint>[];
 
   for (int i = days - 1; i >= 0; i--) {
-    final dayStart = todayStart.subtract(Duration(days: i));
+    final dayStart = DateTime(todayStart.year, todayStart.month, todayStart.day - i, todayStart.hour);
     final s = dailyMap[_dayKey(dayStart)];
 
     double value = 0;
@@ -1320,8 +1316,7 @@ final weeklyAllergenMatrixProvider = Provider<WeeklyAllergenMatrix?>((ref) {
 final insightsMatrixWeekProvider = StateProvider<DateTime>((ref) {
   final anchor = ref.watch(insightsAnchorProvider);
   // Derive Monday of the anchor's week
-  return DateTime(anchor.year, anchor.month, anchor.day)
-      .subtract(Duration(days: anchor.weekday - 1));
+  return DateTime(anchor.year, anchor.month, anchor.day - (anchor.weekday - 1));
 });
 
 /// Weekly allergen matrix anchored to the insights matrix week.
@@ -1377,7 +1372,7 @@ final metricDetailSummaryProvider = Provider<ActivitySummary?>((ref) {
   final date = ref.watch(metricDetailDateProvider);
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final start = DateTime(date.year, date.month, date.day, sodHour);
-  final end = start.add(const Duration(days: 1));
+  final end = DateTime(start.year, start.month, start.day + 1, start.hour);
   final filtered = activities
       .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
       .toList();
@@ -1393,7 +1388,7 @@ final metricDetailActivitiesProvider =
   final date = ref.watch(metricDetailDateProvider);
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
   final start = DateTime(date.year, date.month, date.day, sodHour);
-  final end = start.add(const Duration(days: 1));
+  final end = DateTime(start.year, start.month, start.day + 1, start.hour);
   return activities
       .where((a) => !a.startTime.isBefore(start) && a.startTime.isBefore(end))
       .toList();
@@ -1412,11 +1407,10 @@ final metricDetailProgressProvider =
   if (activities == null) return null;
   final date = ref.watch(metricDetailDateProvider);
   final sodHour = ref.watch(startOfDayHourProvider).valueOrNull ?? 0;
-  final dayEnd = DateTime(date.year, date.month, date.day, sodHour)
-      .add(const Duration(days: 1));
+  final dayEnd = DateTime(date.year, date.month, date.day + 1, sodHour);
 
   // Compute weekly summary for the selected date
-  final weekStart = dayEnd.subtract(const Duration(days: 7));
+  final weekStart = DateTime(dayEnd.year, dayEnd.month, dayEnd.day - 7, dayEnd.hour);
   final weekFiltered = activities
       .where(
           (a) => !a.startTime.isBefore(weekStart) && a.startTime.isBefore(dayEnd))
@@ -1425,7 +1419,7 @@ final metricDetailProgressProvider =
       weekFiltered.isEmpty ? null : ActivityAggregator.compute(weekFiltered);
 
   // Compute monthly summary for the selected date
-  final monthStart = dayEnd.subtract(const Duration(days: 30));
+  final monthStart = DateTime(dayEnd.year, dayEnd.month, dayEnd.day - 30, dayEnd.hour);
   final monthFiltered = activities
       .where(
           (a) => !a.startTime.isBefore(monthStart) && a.startTime.isBefore(dayEnd))
@@ -1560,7 +1554,7 @@ final feedingTrendProvider = Provider<List<FeedingTrendPoint>>((ref) {
 
   final points = <FeedingTrendPoint>[];
   for (int i = days - 1; i >= 0; i--) {
-    final dayStart = todayStart.subtract(Duration(days: i));
+    final dayStart = DateTime(todayStart.year, todayStart.month, todayStart.day - i, todayStart.hour);
     final s = dailyMap[_dayKey(dayStart)];
     points.add(FeedingTrendPoint(
       date: dayStart,
@@ -1648,8 +1642,7 @@ SleepQuality? computeSleepQuality(List<ActivityModel> sleepActivities) {
       // Key by the evening date: if hour >= 19, use that date; if < 7, use previous date
       final nightDate = a.startTime.hour >= 19
           ? DateTime(a.startTime.year, a.startTime.month, a.startTime.day)
-          : DateTime(a.startTime.year, a.startTime.month, a.startTime.day)
-              .subtract(const Duration(days: 1));
+          : DateTime(a.startTime.year, a.startTime.month, a.startTime.day - 1);
       final key = _dayKey(nightDate);
       (nightSessions[key] ??= []).add(a);
     } else {
@@ -1708,7 +1701,7 @@ final sleepTrendProvider = Provider<List<SleepTrendPoint>>((ref) {
 
   // Bucket sleep activities by day
   final buckets = <String, List<ActivityModel>>{};
-  final oldest = todayStart.subtract(Duration(days: days));
+  final oldest = DateTime(todayStart.year, todayStart.month, todayStart.day - days, todayStart.hour);
   for (final a in activities) {
     if (a.type != ActivityType.sleep.name) continue;
     if (a.startTime.isBefore(oldest)) continue;
@@ -1719,7 +1712,7 @@ final sleepTrendProvider = Provider<List<SleepTrendPoint>>((ref) {
 
   final points = <SleepTrendPoint>[];
   for (int i = days - 1; i >= 0; i--) {
-    final dayStart = todayStart.subtract(Duration(days: i));
+    final dayStart = DateTime(todayStart.year, todayStart.month, todayStart.day - i, todayStart.hour);
     final key = _dayKey(dayStart);
     final daySleep = buckets[key] ?? [];
     int nightMin = 0;
@@ -1807,7 +1800,7 @@ final temperatureOverviewProvider = Provider<TemperatureOverview?>((ref) {
       if (max == null || s.maxTempC! > max) max = s.maxTempC;
       if (s.maxTempC! >= feverThresholdC) feverDays++;
     }
-    day = day.add(const Duration(days: 1));
+    day = DateTime(day.year, day.month, day.day + 1, day.hour);
   }
 
   if (latest == null) return null;
@@ -1829,7 +1822,7 @@ final temperatureTrendProvider = Provider<List<TemperatureTrendPoint>>((ref) {
 
   final points = <TemperatureTrendPoint>[];
   for (int i = days - 1; i >= 0; i--) {
-    final dayStart = todayStart.subtract(Duration(days: i));
+    final dayStart = DateTime(todayStart.year, todayStart.month, todayStart.day - i, todayStart.hour);
     final s = dailyMap[_dayKey(dayStart)];
     points.add(TemperatureTrendPoint(
       date: dayStart,

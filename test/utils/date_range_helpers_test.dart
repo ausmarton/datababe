@@ -242,6 +242,73 @@ void main() {
     });
   });
 
+  // DST regression tests — European Summer Time starts last Sunday of March.
+  // In CET, 2026-03-29 02:00 → 03:00 (clocks spring forward, day has 23h).
+  // Using Duration(days: 1) would be 24h, skipping or misaligning days.
+  group('DST safety', () {
+    // March 29, 2026 is the CET→CEST transition day (23 hours long).
+    final dstDay = DateTime(2026, 3, 29);
+
+    test('previousAnchor does not skip days across spring-forward', () {
+      final march30 = DateTime(2026, 3, 30);
+      final prev = previousAnchor(TimeWindowMode.calendarDay, march30);
+      expect(prev.year, 2026);
+      expect(prev.month, 3);
+      expect(prev.day, 29);
+    });
+
+    test('nextAnchor does not skip days across spring-forward', () {
+      final next = nextAnchor(TimeWindowMode.calendarDay, dstDay);
+      expect(next.year, 2026);
+      expect(next.month, 3);
+      expect(next.day, 30);
+    });
+
+    test('previousAnchor → nextAnchor round-trips to same day', () {
+      final march30 = DateTime(2026, 3, 30);
+      final prev = previousAnchor(TimeWindowMode.calendarDay, march30);
+      final back = nextAnchor(TimeWindowMode.calendarDay, prev);
+      expect(back.day, march30.day);
+      expect(back.month, march30.month);
+    });
+
+    test('computeRange calendarDay covers exactly one calendar day on DST day', () {
+      final (start, end) = computeRange(TimeWindowMode.calendarDay, dstDay);
+      expect(start.day, 29);
+      expect(end.day, 30);
+      expect(end.month, 3);
+    });
+
+    test('startOfDay with startOfDayHour > 0 does not skip day on DST', () {
+      // 3am on March 29 (DST day) with startOfDayHour=6 should go to March 28
+      final result = startOfDay(DateTime(2026, 3, 29, 3), 6);
+      expect(result.day, 28);
+      expect(result.hour, 6);
+    });
+
+    test('week navigation does not lose days across DST', () {
+      final march30 = DateTime(2026, 3, 30);
+      final prevWeek = previousAnchor(TimeWindowMode.calendarWeek, march30);
+      expect(prevWeek.day, 23);
+      expect(prevWeek.month, 3);
+      final nextWeek = nextAnchor(TimeWindowMode.calendarWeek, prevWeek);
+      expect(nextWeek.day, 30);
+    });
+
+    test('rangeLabel Yesterday correct across DST boundary', () {
+      // March 30 anchor, startOfDayHour=0: "yesterday" should be March 29
+      final label = rangeLabel(
+        TimeWindowMode.calendarDay,
+        DateTime(2026, 3, 29),
+        startOfDayHour: 0,
+      );
+      // March 29 is yesterday relative to March 30 — but we can't control
+      // DateTime.now() in unit tests, so just verify it doesn't crash and
+      // returns a valid string.
+      expect(label, isNotEmpty);
+    });
+  });
+
   group('isCalendarMode', () {
     test('calendar modes return true', () {
       expect(isCalendarMode(TimeWindowMode.calendarDay), isTrue);

@@ -30,8 +30,7 @@ class _BulkAddScreenState extends ConsumerState<BulkAddScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
-    _targetDate = DateTime(now.year, now.month, now.day)
-        .subtract(const Duration(days: 1));
+    _targetDate = DateTime(now.year, now.month, now.day - 1);
   }
 
   Future<void> _pickTargetDate() async {
@@ -50,7 +49,7 @@ class _BulkAddScreenState extends ConsumerState<BulkAddScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate:
-          _sourceDate ?? _targetDate.subtract(const Duration(days: 1)),
+          _sourceDate ?? DateTime(_targetDate.year, _targetDate.month, _targetDate.day - 1),
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
@@ -69,7 +68,7 @@ class _BulkAddScreenState extends ConsumerState<BulkAddScreen> {
 
     final repo = ref.read(activityRepositoryProvider);
     final dayStart = DateTime(date.year, date.month, date.day);
-    final dayEnd = dayStart.add(const Duration(days: 1));
+    final dayEnd = DateTime(dayStart.year, dayStart.month, dayStart.day + 1);
 
     try {
       final activities = await repo.findByTimeRange(

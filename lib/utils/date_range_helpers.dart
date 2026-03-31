@@ -8,7 +8,8 @@ import '../models/enums.dart';
 DateTime startOfDay(DateTime now, int startOfDayHour) {
   final candidate = DateTime(now.year, now.month, now.day, startOfDayHour);
   if (!now.isBefore(candidate)) return candidate;
-  return candidate.subtract(const Duration(days: 1));
+  // Use date arithmetic (not Duration) to avoid DST issues.
+  return DateTime(now.year, now.month, now.day - 1, startOfDayHour);
 }
 
 /// Computes the [start, end) interval for a given time window mode and anchor.
@@ -21,14 +22,14 @@ DateTime startOfDay(DateTime now, int startOfDayHour) {
     case TimeWindowMode.calendarDay:
       final start =
           DateTime(anchor.year, anchor.month, anchor.day, startOfDayHour);
-      return (start, start.add(const Duration(days: 1)));
+      return (start, DateTime(start.year, start.month, start.day + 1, start.hour));
 
     case TimeWindowMode.calendarWeek:
       // Monday = 1
       final weekday = anchor.weekday;
       final monday =
           DateTime(anchor.year, anchor.month, anchor.day - (weekday - 1));
-      return (monday, monday.add(const Duration(days: 7)));
+      return (monday, DateTime(monday.year, monday.month, monday.day + 7));
 
     case TimeWindowMode.calendarMonth:
       final start = DateTime(anchor.year, anchor.month);
@@ -54,10 +55,12 @@ DateTime previousAnchor(TimeWindowMode mode, DateTime anchor) {
   switch (mode) {
     case TimeWindowMode.calendarDay:
     case TimeWindowMode.last24h:
-      return anchor.subtract(const Duration(days: 1));
+      return DateTime(anchor.year, anchor.month, anchor.day - 1,
+          anchor.hour, anchor.minute, anchor.second);
     case TimeWindowMode.calendarWeek:
     case TimeWindowMode.last7Days:
-      return anchor.subtract(const Duration(days: 7));
+      return DateTime(anchor.year, anchor.month, anchor.day - 7,
+          anchor.hour, anchor.minute, anchor.second);
     case TimeWindowMode.calendarMonth:
     case TimeWindowMode.last30Days:
       return DateTime(anchor.year, anchor.month - 1, anchor.day);
@@ -69,10 +72,12 @@ DateTime nextAnchor(TimeWindowMode mode, DateTime anchor) {
   switch (mode) {
     case TimeWindowMode.calendarDay:
     case TimeWindowMode.last24h:
-      return anchor.add(const Duration(days: 1));
+      return DateTime(anchor.year, anchor.month, anchor.day + 1,
+          anchor.hour, anchor.minute, anchor.second);
     case TimeWindowMode.calendarWeek:
     case TimeWindowMode.last7Days:
-      return anchor.add(const Duration(days: 7));
+      return DateTime(anchor.year, anchor.month, anchor.day + 7,
+          anchor.hour, anchor.minute, anchor.second);
     case TimeWindowMode.calendarMonth:
     case TimeWindowMode.last30Days:
       return DateTime(anchor.year, anchor.month + 1, anchor.day);
@@ -87,14 +92,15 @@ String rangeLabel(TimeWindowMode mode, DateTime anchor,
       final today = startOfDay(DateTime.now(), startOfDayHour);
       final anchorDay = startOfDay(anchor, startOfDayHour);
       if (anchorDay == today) return 'Today';
-      if (anchorDay == today.subtract(const Duration(days: 1))) {
-        return 'Yesterday';
-      }
+      final yesterday = DateTime(
+          today.year, today.month, today.day - 1, today.hour);
+      if (anchorDay == yesterday) return 'Yesterday';
       return DateFormat('EEE d MMM').format(anchor);
 
     case TimeWindowMode.calendarWeek:
       final (start, end) = computeRange(mode, anchor);
-      final endDisplay = end.subtract(const Duration(days: 1));
+      final endDisplay = DateTime(
+          end.year, end.month, end.day - 1, end.hour);
       return '${DateFormat('d MMM').format(start)} – ${DateFormat('d MMM').format(endDisplay)}';
 
     case TimeWindowMode.calendarMonth:
